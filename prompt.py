@@ -3,6 +3,7 @@ from transformers import AutoTokenizer
 from runner import VLLMRunner
 import json
 import os
+from data_process import safe_json_loads  # 文件顶部集中导入一次
 
 class PromptBuilder:
     def __init__(self, model: VLLMRunner):
@@ -268,7 +269,7 @@ class Judge_Prompt:
         self.build_user(gen_claim, ref_claim)
         prompt = self.return_prompt()
         out = self.model.generate(prompt, self.output_schema)
-        return json.loads(out)
+        return safe_json_loads(out)
 
 
 class Claim_Segment_Prompt:
@@ -443,7 +444,7 @@ class PairwiseEntailmentPrompt:
         # 一步到位：构造 → 生成 → 解析
         self.build_user(gen_text, ref_text)
         prompt = self.return_prompt()
+        print(prompt)
         out = self.model.generate(prompt, self.output_schema)
-        print("评测模型原始输出:", out)
         # vLLM 通常已是 JSON 字符串；保持与你现有代码一致
-        return json.loads(out)
+        return safe_json_loads(out)

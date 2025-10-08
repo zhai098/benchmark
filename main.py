@@ -10,6 +10,7 @@ from typing import Dict, Any, List, Iterable, Tuple, Optional
 import logging
 import os
 import re
+from data_process import safe_json_loads  # 文件顶部集中导入一次
 
 reasoning_model = VLLMRunner(Config["reasoning_model"], vllm_config=Config["reasoning_model_params"], sampling_config=Config["reasoning_sampling_params"], gpus=Config["reasoning_model_gpus"])
 judge_model = VLLMRunner(Config["judge_model"], vllm_config=Config["judge_model_params"], sampling_config=Config["judge_sampling_params"], gpus=Config["judge_model_gpus"])
@@ -324,7 +325,8 @@ def execute_evaluation(obj, alpha: float = Config["alpha"], lambda_h: float = Co
                 score = 0.0
             halluc_penalty = bool(halluc_penalty)
         # 出现幻觉要额外惩罚
-        step_score = score - lambda_h * int(halluc_penalty)      #halluc_penalty:0 / 1
+        #step_score = score - lambda_h * int(halluc_penalty)      #halluc_penalty:0 / 1
+        step_score = score
         step_contribution = w_i * step_score
         total_score += step_contribution
         
@@ -367,7 +369,7 @@ def main():
             if not line:
                 continue
             try:
-                obj = json.loads(line)
+                obj = safe_json_loads(line)
             except json.JSONDecodeError:
                 print("[WARN] skip one bad json line")
                 continue

@@ -25,7 +25,7 @@ Config = {
         "gpu_memory_utilization": 0.80 
     },
     "judge_sampling_params" : {
-        "temperature": 0.1,
+        "temperature": 0.3,
         "top_p": 0.95,
         "max_tokens": 1024
     }

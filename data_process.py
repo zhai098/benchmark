@@ -1,7 +1,9 @@
 from __future__ import annotations
 import re
 from typing import List, Dict, Any, Optional
-import json
+
+import json, re, ast
+
 class Processor():
     def __init__(self):
        
@@ -70,39 +72,141 @@ class Processor():
 
     import json, re
 
-# 允许的 JSON 空白： \t \n \r space；清理常见“非标准空白”
+
+# 允许的 JSON 空白范围内做规整：\t \n \r space；并清理常见“非标准空白/分隔”
 _JSON_WS_FIX = {
-    "\u00A0": " ",   # NO-BREAK SPACE
+    "\uFEFF": "",     # BOM
+    "\u200B": "",     # ZERO WIDTH SPACE
+    "\u200C": "", "\u200D": "", "\u2060": "",
+    "\u00A0": " ",    # NO-BREAK SPACE
     "\u2007": " ", "\u202F": " ",
-    "\u2028": "\n", "\u2029": "\n"
+    "\u2028": "\n", "\u2029": "\n",
 }
 
-def _normalize_ws(s: str) -> str:
+_SMART_QUOTES = {
+    "“": "\"", "”": "\"", "„": "\"", "‟": "\"",
+    "‘": "'",  "’": "'",  "‚": "'",  "‛": "'",
+}
+
+_CODE_FENCE_RE = re.compile(r"^```[a-zA-Z0-9_-]*\s*|\s*```$", re.MULTILINE)
+
+def _normalize_ws_and_quotes(s: str) -> str:
+    s = s or ""
     for k, v in _JSON_WS_FIX.items():
         s = s.replace(k, v)
-    # 规整多余空行（可选）
+    for k, v in _SMART_QUOTES.items():
+        s = s.replace(k, v)
+    # 去除 Markdown 代码围栏
+    s = _CODE_FENCE_RE.sub("", s)
+    # 规整多余空行
     s = re.sub(r"\n{3,}", "\n\n", s)
-    return s
+    return s.strip()
 
-def _extract_first_json_obj(s: str) -> str:
-    # 从第一个 '{' 开始做括号计数，拿到首个完整对象
-    start = s.find("{")
-    if start < 0:
-        raise ValueError("No '{' found in model output.")
+def _extract_first_json_chunk(s: str) -> str | None:
+    """从文本中提取首个完整 JSON 块（支持对象{}或数组[]），基于括号计数。"""
+    if not s:
+        return None
+    # 找最早出现的 { 或 [
+    start_obj = s.find("{")
+    start_arr = s.find("[")
+    starts = [x for x in [start_obj, start_arr] if x >= 0]
+    if not starts:
+        return None
+    start = min(starts)
+    opener = s[start]
+    closer = "}" if opener == "{" else "]"
     depth = 0
     for i, ch in enumerate(s[start:], start):
-        if ch == "{":
+        if ch == opener:
             depth += 1
-        elif ch == "}":
+        elif ch == closer:
             depth -= 1
             if depth == 0:
                 return s[start:i+1]
-    raise ValueError("Unclosed JSON object in model output.")
+    return None  # 未闭合
 
-def safe_json_loads(s: str) -> dict:
-    s = _normalize_ws(s or "")
+def _strip_trailing_commas(s: str) -> str:
+    # 去掉 } 或 ] 前面多余逗号（尾逗号）
+    return re.sub(r",\s*([}\]])", r"\1", s)
+
+def _fix_unquoted_keys(s: str) -> str:
+    # 将 { a: 1, b_c: 2 } 这类键名补双引号（尽量保守：仅匹配安全的标识符键）
+    return re.sub(r'([{\[,]\s*)([A-Za-z_][A-Za-z0-9_\-]*)\s*:', r'\1"\2":', s)
+
+def _single_to_double_quotes(s: str) -> str:
+    # 仅在“明显是 JSON 上下文”中把字符串的单引号换成双引号（尽量保守）
+    # 先处理键名：'key': → "key":
+    s = re.sub(r"([{\[,]\s*)'([^'\"\\]+?)'\s*:", r'\1"\2":', s)
+    # 再处理字符串值：: 'value' → : "value"
+    s = re.sub(r':\s*\'([^\'"\\]*?)\'(\s*[,\}\]])', r': "\1"\2', s)
+    return s
+
+def _replace_py_literals(s: str) -> str:
+    # 把 Python 字面量替换为 JSON：True/False/None → true/false/null
+    s = re.sub(r"\bTrue\b", "true", s)
+    s = re.sub(r"\bFalse\b", "false", s)
+    s = re.sub(r"\bNone\b", "null", s)
+    return s
+
+def _try_json_loads(s: str):
     try:
         return json.loads(s)
     except Exception:
-        obj = _extract_first_json_obj(s)
-        return json.loads(obj)
+        return None
+
+def safe_json_loads(text: str) -> dict | list:
+    """
+    尽力把模型输出解析为 JSON（对象或数组）：
+      1) 标准化空白/引号/去代码块
+      2) 直接 json.loads
+      3) 抽取首个 JSON 块再 loads
+      4) 序列修复：尾逗号 → 单引号/无引号键 → Py 字面量 → 再抽取 → 再 loads
+      5) 兜底：尝试 ast.literal_eval → 再转 JSON
+    失败会抛出 ValueError
+    """
+    raw = _normalize_ws_and_quotes(text)
+
+    # 直接尝试
+    obj = _try_json_loads(raw)
+    if obj is not None:
+        return obj
+
+    # 从混合文本中抽取首个 JSON 块再试
+    chunk = _extract_first_json_chunk(raw)
+    if chunk:
+        obj = _try_json_loads(chunk)
+        if obj is not None:
+            return obj
+
+    # 依次做可逆修复（每步都尝试解析）
+    candidates = []
+    s = raw
+
+    s1 = _strip_trailing_commas(s)
+    candidates.append(s1)
+
+    s2 = _single_to_double_quotes(s1)
+    candidates.append(s2)
+
+    s3 = _fix_unquoted_keys(s2)
+    candidates.append(s3)
+
+    s4 = _replace_py_literals(s3)
+    candidates.append(s4)
+
+    for c in candidates:
+        # 再抽取一次（以防修复后结构闭合）
+        chunk2 = _extract_first_json_chunk(c) or c
+        obj = _try_json_loads(chunk2)
+        if obj is not None:
+            return obj
+
+    # 最后的兜底：literal_eval（宽松，但仅在安全上下文里使用）
+    try:
+        # 尽量转换成 Python 字面量可接受的形式
+        s5 = _replace_py_literals(_single_to_double_quotes(_strip_trailing_commas(raw)))
+        lit = ast.literal_eval(_extract_first_json_chunk(s5) or s5)
+        # 再转成 JSON 兼容结构
+        return json.loads(json.dumps(lit))
+    except Exception as e:
+        raise ValueError(f"Failed to parse JSON after repairs: {e}")
