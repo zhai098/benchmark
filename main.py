@@ -93,7 +93,7 @@ def align_next_step_LLM_1(
     threshold: float = Config["threshold"],                  # 单对 overall.score 阈值（决定该对是否“好”）
     overall_threshold: float = Config["overall threshold"],  # 所有配对平均后的总体阈值
     max_len: int = Config["max prefix_num"],                 # 仅在 gen 的前 K 句里找匹配
-) -> Tuple[float, bool, List[Dict[str, Any]]]:
+):
 
     # --- 规整输入（允许 list/tuple 进来） ---
     try:
@@ -113,14 +113,14 @@ def align_next_step_LLM_1(
             ref = str(ref or "").strip()
 
     if not gen or not ref:
-        return 0.0, True, {"reason": "empty input"}
+        return 0.0, True
 
     
 
     gen_sents_all = processor.sentence_split_en(gen)
     
     if not gen_sents_all or not ref:
-        return 0.0, True, {"reason": "no sentences"}
+        return 0.0, True
 
     # 仅考察 gen 的前 K 句
     K = max(1, min(max_len, len(gen_sents_all)))
@@ -138,9 +138,7 @@ def align_next_step_LLM_1(
         # 调用蕴含评测器（双向）得到严格 JSON
         res = ent.run(g, ref)   # {"forward":..., "backward":..., "overall":...}
         ov = float(res["overall"]["score"])
-        label = str(res["overall"]["label"])
-        label = str(res["overall"]["label"]).strip().lower()
-        if (label != "entailed") and (label != "incomplete"):
+        if ov < 0.4:
             continue
         picked = {
             "ref": ref,
@@ -148,21 +146,20 @@ def align_next_step_LLM_1(
             "forward": res["forward"],     # {"score":..., "label":...}
             "backward": res["backward"],
             "score": ov,
-            "label": label,
             "is_hallucination": ov < threshold
         }
-        print("score:", ov, "label:", label, "gen_index:", idx)
+        print("score:", ov, "gen_index:", idx)
         matches.append(picked)
 
     if picked is None:
         picked = ({
             "ref": ref, "best_gen": "", "gen_index": None, "sim": 0.0,
-            "score": 0.0, "label": "unmatched", "is_hallucination": True
+            "score": 0.0, "is_hallucination": True
         })
 
     # --- 汇总总体分 ---
-    scores = [m["score"] for m in matches]
-    overall_score = sum(scores) / len(scores) if scores else 0.0
+    scores = [m["score"] for m in matches[:3]]
+    overall_score = sum(scores) / 3 if scores else 0.0
     is_hallucination = overall_score < overall_threshold
 
     return overall_score, is_hallucination

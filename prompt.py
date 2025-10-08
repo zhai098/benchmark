@@ -135,9 +135,12 @@ class Generate_Prompt:
         f"- At most {self.max_lines} lines OR {self.max_words} words in total.\n"
         "- Prefer compact derivations; summarize routine algebra succinctly.\n"
         "- Stop immediately once the conclusion is stated.\n"
-        "\nOUTPUT FORMAT:\n"
+        "\nSTRICT FORMAT:\n"
         "- Output only the final solution text (plain text). No headings, no lists, no code fences, no extra wrappers.\n"
-        "- End with the sentinel <<<END>>> on a new line."
+        "- Do not mention the stop sentinel inside the solution.\n"
+        "- Final line must be exactly <<<END>>> with nothing after it.\n"
+        "- VALID: <solution text>\\n<<<END>>>\n"
+        "- INVALID: any explanation, reflection, or text after <<<END>>>."
         )
         
         self.user_message = ""
@@ -154,8 +157,9 @@ class Generate_Prompt:
         ">>>\n\n"
         f"Continue directly from the last line and complete a coherent, standard solution within "
         f"{self.max_lines} lines or {self.max_words} words. "
-        "Avoid restating the problem or earlier steps; avoid self-reflection and meta comments. "
-        "Write only the polished solution, then on a new line write <<<END>>>."
+        "Do not recap the task, do not add reflections or quality checks, and do not mention forbidden phrases. "
+        "Produce only the final polished solution text; if the solution is already complete, restate the final result succinctly without commentary. "
+        "When done, output <<<END>>> on a new line and nothing else."
         )
     
     def add_step(self, step: str):
@@ -357,15 +361,16 @@ class PairwiseEntailmentPrompt:
             "Directions:\n"
             "- forward (GEN→REF): does GEN fully support/entail REF?\n"
             "- backward (REF→GEN): does REF fully support/entail GEN?\n"
-            "Labels (MUST use ONLY these three single words):\n"
-            "- entailed: strong mutual support with no missing or extra unsupported info in the given direction.\n"
-            "- incomplete: GEN lacks details required by REF in the given direction (partial coverage).  # keep spelling as requested\n"
-            "- hallucinated: GEN adds unsupported/irrelevant or conflicting info beyond what the other text supports in the given direction.\n"
+            "- overall: combined bidirectional alignment.\n"
             "Scoring: scores are real float numbers in [0,1]. Higher = stronger entailment in that direction.\n"
-            "Overall label rules (must apply strictly with only the three labels):\n"
-            " - If forward>=0.5 and backward>=0.5 → overall.label = entailed.\n"
-            " - If forward>=0.5 and backward<0.5 → overall.label = incomplete.\n"
-            " - Else → overall.label = hallucinated.\n"
+            "Continuous score calibration (apply strictly):\n"
+            "- ≥0.85 → near-perfect coverage; treat as entailed.\n"
+            "- 0.55–0.84 → minor gaps; still mostly supported.\n"
+            "- 0.35–0.54 → meaningful omissions; partial support only.\n"
+            "- 0.15–0.34 → weak, fragmentary alignment.\n"
+            "- <0.15 → essentially unsupported or conflicting.\n"
+            "Use the full range; avoid collapsing to {0,1}.\n"
+            
             "Overall score = (forward.score + backward.score)/2 (clamped to [0,1]).\n"
             "Guardrails:\n"
             "- No chain-of-thought, no steps, no meta commentary.\n"
@@ -380,27 +385,24 @@ class PairwiseEntailmentPrompt:
                     "type": "object",
                     "properties": {
                         "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                        "label": {"type": "string", "enum": ["entailed", "incomplete", "hallucinated"]}
                     },
-                    "required": ["score", "label"],
+                    "required": ["score"],
                     "additionalProperties": False
                 },
                 "backward": {
                     "type": "object",
                     "properties": {
                         "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                        "label": {"type": "string", "enum": ["entailed", "incomplete", "hallucinated"]}
                     },
-                    "required": ["score", "label"],
+                    "required": ["score"],
                     "additionalProperties": False
                 },
                 "overall": {
                     "type": "object",
                     "properties": {
                         "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                        "label": {"type": "string", "enum": ["entailed", "incomplete", "hallucinated"]}
                     },
-                    "required": ["score", "label"],
+                    "required": ["score"],
                     "additionalProperties": False
                 }
             },
@@ -419,7 +421,7 @@ class PairwiseEntailmentPrompt:
             "REF:\n"
             f"{(ref_text or '').strip()}\n\n"
             "Return STRICT JSON only with keys: forward, backward, overall. "
-            "Each object must include a float score in [0,1] and a one-word label from {entailed, incomplete, hallucinated}. "
+            "Each object must only include a float score in [0,1]. "
             "No explanations, no extra keys, no quotes."
         )
 
