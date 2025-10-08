@@ -10,7 +10,7 @@ Config = {
     }
     ,
     "reasoning_sampling_params" : {
-        "temperature": 0.7,
+        "temperature": 0.4,
         "top_p": 0.95,
         "max_tokens": 4096,
         "stop": ["<<<END>>>"]       # 命中哨兵立即停
@@ -34,7 +34,7 @@ Config = {
     "beta" : 1,
     "alpha" : 1,
     "lambda_h": 1,
-    "threshold" : 0.8,
+    "threshold" : 0.6,
     "overall threshold" : 0.6,
     "max prefix_num" : 10,
 }

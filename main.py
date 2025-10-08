@@ -139,6 +139,7 @@ def align_next_step_LLM_1(
         res = ent.run(g, ref)   # {"forward":..., "backward":..., "overall":...}
         ov = float(res["overall"]["score"])
         label = str(res["overall"]["label"])
+        label = str(res["overall"]["label"]).strip().lower()
         if (label != "entailed") and (label != "incomplete"):
             continue
         picked = {

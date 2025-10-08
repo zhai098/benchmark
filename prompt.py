@@ -344,17 +344,7 @@ class Claim_Segment_Prompt:
 
 
 class PairwiseEntailmentPrompt:
-    """
-    极简蕴含评测 Prompt：
-    - 输入：GEN（生成片段）、REF（参考片段）
-    - 输出：严格 JSON，仅三个键：
-        {
-          "forward":  {"score": float, "label": "entailed|incomplete|contradiction|irrelevant"},
-          "backward": {"score": float, "label": "entailed|incomplete|contradiction|irrelevant"},
-          "overall":  {"score": float, "label": "entailed|incomplete|missing|hallucinated|contradiction|irrelevant"}
-        }
-    - 过程性话术不得外显；禁止自言自语；仅返回 JSON
-    """
+    
     def __init__(self, model: VLLMRunner):
         self.model = model
         self.promptbuilder = PromptBuilder(model)
@@ -369,12 +359,12 @@ class PairwiseEntailmentPrompt:
             "- backward (REF→GEN): does REF fully support/entail GEN?\n"
             "Labels (MUST use ONLY these three single words):\n"
             "- entailed: strong mutual support with no missing or extra unsupported info in the given direction.\n"
-            "- imcomplete: GEN lacks details required by REF in the given direction (partial coverage).  # keep spelling as requested\n"
+            "- incomplete: GEN lacks details required by REF in the given direction (partial coverage).  # keep spelling as requested\n"
             "- hallucinated: GEN adds unsupported/irrelevant or conflicting info beyond what the other text supports in the given direction.\n"
             "Scoring: scores are real float numbers in [0,1]. Higher = stronger entailment in that direction.\n"
             "Overall label rules (must apply strictly with only the three labels):\n"
             " - If forward>=0.5 and backward>=0.5 → overall.label = entailed.\n"
-            " - If forward>=0.5 and backward<0.5 → overall.label = imcomplete.\n"
+            " - If forward>=0.5 and backward<0.5 → overall.label = incomplete.\n"
             " - Else → overall.label = hallucinated.\n"
             "Overall score = (forward.score + backward.score)/2 (clamped to [0,1]).\n"
             "Guardrails:\n"
@@ -390,7 +380,7 @@ class PairwiseEntailmentPrompt:
                     "type": "object",
                     "properties": {
                         "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                        "label": {"type": "string", "enum": ["entailed", "imcomplete", "hallucinated"]}
+                        "label": {"type": "string", "enum": ["entailed", "incomplete", "hallucinated"]}
                     },
                     "required": ["score", "label"],
                     "additionalProperties": False
@@ -399,7 +389,7 @@ class PairwiseEntailmentPrompt:
                     "type": "object",
                     "properties": {
                         "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                        "label": {"type": "string", "enum": ["entailed", "imcomplete", "hallucinated"]}
+                        "label": {"type": "string", "enum": ["entailed", "incomplete", "hallucinated"]}
                     },
                     "required": ["score", "label"],
                     "additionalProperties": False
@@ -408,7 +398,7 @@ class PairwiseEntailmentPrompt:
                     "type": "object",
                     "properties": {
                         "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                        "label": {"type": "string", "enum": ["entailed", "imcomplete", "hallucinated"]}
+                        "label": {"type": "string", "enum": ["entailed", "incomplete", "hallucinated"]}
                     },
                     "required": ["score", "label"],
                     "additionalProperties": False
@@ -429,7 +419,7 @@ class PairwiseEntailmentPrompt:
             "REF:\n"
             f"{(ref_text or '').strip()}\n\n"
             "Return STRICT JSON only with keys: forward, backward, overall. "
-            "Each object must include a float score in [0,1] and a one-word label from {entailed, imcomplete, hallucinated}. "
+            "Each object must include a float score in [0,1] and a one-word label from {entailed, incomplete, hallucinated}. "
             "No explanations, no extra keys, no quotes."
         )
 
