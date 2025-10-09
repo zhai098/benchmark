@@ -5,7 +5,7 @@ import json
 import math
 import time
 from functools import lru_cache
-from data_process import Processor
+from data_process import Processor, _write_jsonl_line, _write_pretty_json, flatten_to_string, _write_case_text_log
 from typing import Dict, Any, List, Iterable, Tuple, Optional
 import logging
 import os
@@ -20,37 +20,7 @@ cs_promptbuilder = Claim_Segment_Prompt(judge_model)
 on_policy_transformer = On_Policy_Prompt(reasoning_model)
 entail_promptbuilder = PairwiseEntailmentPrompt(judge_model)
 
-def _to_str_atom(x: Any) -> str:
-    """Make a single item a clean string."""
-    if x is None:
-        return ""
-    if isinstance(x, str):
-        return x.strip()
-    if isinstance(x, (dict, list, tuple)):
-        # dict 用 JSON 形式，list/tuple 由外层处理
-        return json.dumps(x, ensure_ascii=False)
-    return str(x).strip()
 
-def flatten_to_string(gen: Any, sep: str = " ") -> str:
-    """
-    Convert str / list / tuple / nested lists to a single string.
-    - Trims whitespace
-    - Flattens nested arrays
-    - Skips empty atoms
-    """
-    out: list[str] = []
-
-    def _walk(v: Any):
-        if isinstance(v, (list, tuple)):
-            for e in v:
-                _walk(e)
-        else:
-            s = _to_str_atom(v)
-            if s:
-                out.append(s)
-
-    _walk(gen)
-    return sep.join(out)
 ###不可靠的方法
 """def align_next_step_embedding(gen: str, ref: str, max_len: int = 10, threshold: float = 0.7):
     ###比较生成CoT的切分对应到goldenanswer的切分的那个位置
@@ -355,16 +325,23 @@ def main():
     os.makedirs(out_dir, exist_ok=True)
     out_cases = os.path.join(out_dir, "case_results.jsonl")
     out_genlog = os.path.join(out_dir, "gen_and_scores.jsonl")
+    out_cases_pretty = os.path.join(out_dir, "case_results_pretty.json")
+    out_genlog_pretty = os.path.join(out_dir, "gen_and_scores_pretty.json")
+    out_case_text = os.path.join(out_dir, "case.log")
     scores = []
     # 难度控制因子
     beta = Config["beta"]
     num = 0
     input_path = Config["Input_path"]
     print(f"[INFO] Start evaluation, loading file: {input_path}")
-    with open(out_cases, "w", encoding="utf-8") as fout_cases, \
-         open(out_genlog, "w", encoding="utf-8") as fgen, \
+    with open(out_cases, "w", encoding="utf-8", buffering=1) as fout_cases, \
+         open(out_genlog, "w", encoding="utf-8", buffering=1) as fgen, \
+         open(out_cases_pretty, "w", encoding="utf-8", buffering=1) as fout_cases_pretty, \
+         open(out_genlog_pretty, "w", encoding="utf-8", buffering=1) as fgen_pretty, \
+         open(out_case_text, "w", encoding="utf-8", buffering=1) as fcase_text, \
          open(input_path, "r", encoding="utf-8") as fin:
         for line in fin:
+            time_start = time.time()
             line = line.strip()
             if not line:
                 continue
@@ -394,7 +371,8 @@ def main():
                 "problem": case_eval["problem"],
                 "answer": case_eval["answer"],
             }
-            fout_cases.write(json.dumps(case_record, ensure_ascii=False) + "\n")
+            _write_jsonl_line(fout_cases, case_record)
+            _write_pretty_json(fout_cases_pretty, case_record)
 
             # 写入 gen_output + 评分（每个 case 一行 JSON）
             case_genlog = {
@@ -404,8 +382,15 @@ def main():
                 "steps": case_eval["steps"],
                 "final_total_score": score,
             }
-            fgen.write(json.dumps(case_genlog, ensure_ascii=False) + "\n")
-            
+            _write_jsonl_line(fgen, case_genlog)
+            _write_pretty_json(fgen_pretty, case_genlog)
+            _write_case_text_log(
+                fcase_text,
+                case_record=case_record,
+                case_genlog=case_genlog,
+            )            
+            time_end = time.time()
+            print(f"[INFO] Processed sample {num}, score={score:.4f}, time={time_end - time_start:.2f}s")
             if num % 50 == 0:
                 print(f"[INFO] processed {num} samples, avg score: {sum(scores)/len(scores):.4f}")
     #近似百分制

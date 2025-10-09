@@ -2,7 +2,7 @@ from __future__ import annotations
 import re
 from typing import List, Dict, Any, Optional
 
-import json, re, ast
+import json, re, ast, os
 
 class Processor():
     def __init__(self):
@@ -217,3 +217,103 @@ def safe_json_loads(text: str) -> dict | list:
         return json.loads(json.dumps(lit))
     except Exception as e:
         raise ValueError(f"Failed to parse JSON after repairs: {e}")
+
+def _to_str_atom(x: Any) -> str:
+    """Make a single item a clean string."""
+    if x is None:
+        return ""
+    if isinstance(x, str):
+        return x.strip()
+    if isinstance(x, (dict, list, tuple)):
+        # dict 用 JSON 形式，list/tuple 由外层处理
+        return json.dumps(x, ensure_ascii=False)
+    return str(x).strip()
+
+def flatten_to_string(gen: Any, sep: str = " ") -> str:
+    """
+    Convert str / list / tuple / nested lists to a single string.
+    - Trims whitespace
+    - Flattens nested arrays
+    - Skips empty atoms
+    """
+    out: list[str] = []
+
+    def _walk(v: Any):
+        if isinstance(v, (list, tuple)):
+            for e in v:
+                _walk(e)
+        else:
+            s = _to_str_atom(v)
+            if s:
+                out.append(s)
+
+    _walk(gen)
+    return sep.join(out)
+
+def _write_jsonl_line(handle, payload: Dict[str, Any]) -> None:
+    """写入单行 JSON 并立即落盘."""
+    handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
+    handle.flush()
+    os.fsync(handle.fileno())
+
+
+def _write_pretty_json(handle, payload: Dict[str, Any]) -> None:
+    """写入缩进 JSON，记录之间用空行分隔，方便人工浏览."""
+    handle.write(json.dumps(payload, ensure_ascii=False, indent=2))
+    handle.write("\n\n")
+    handle.flush()
+    os.fsync(handle.fileno())
+
+
+def _write_case_text_log(
+    handle,
+    *,
+    case_record: Dict[str, Any],
+    case_genlog: Dict[str, Any],
+) -> None:
+    """写入便于人工检视的纯文本摘要."""
+
+    def _fmt_step(step: Dict[str, Any]) -> str:
+        idx = step.get("index", "?")
+        score = step.get("score", 0.0)
+        step_score = step.get("step_score", score)
+        hallucination = step.get("hallucination", 0)
+        return (
+            f"  - Step {idx}: score={float(score):.4f}, "
+            f"weighted={float(step_score):.4f}, hallucination={int(hallucination)}"
+        )
+
+    def _fmt_generation(gen_output: List[Any]) -> List[str]:
+        lines: List[str] = []
+        for idx, item in enumerate(gen_output, 1):
+            text = flatten_to_string(item, sep=" ") if item else ""
+            if not text:
+                text = "<empty>"
+            lines.append(f"  [{idx}] {text}")
+        return lines or ["  <no generation recorded>"]
+
+    lines = [
+        f"Case #{case_record.get('id', '?')}",
+        f"Difficulty: {case_record.get('difficulty', '?')}",
+        f"Weighted Score: {float(case_record.get('score', 0.0)):.4f}",
+        f"Total Steps: {case_record.get('num_steps', 0)}",
+        "Problem:",
+        _to_str_atom(case_record.get("problem", "")),
+        "Answer:",
+        _to_str_atom(case_record.get("answer", "")),
+        "Step Scores:",
+    ]
+
+    steps = case_record.get("steps") or []
+    if steps:
+        lines.extend(_fmt_step(step) for step in steps)
+    else:
+        lines.append("  <no step scores>")
+
+    lines.append("Generated Outputs:")
+    lines.extend(_fmt_generation(case_genlog.get("gen_output") or []))
+    lines.append("-" * 80)
+
+    handle.write("\n".join(lines) + "\n")
+    handle.flush()
+    os.fsync(handle.fileno())
