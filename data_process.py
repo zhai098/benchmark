@@ -317,3 +317,15 @@ def _write_case_text_log(
     handle.write("\n".join(lines) + "\n")
     handle.flush()
     os.fsync(handle.fileno())
+
+def _normalize_generation_input(value: Any) -> str:
+    """Convert arbitrary user/model outputs to a clean string for evaluation."""
+
+    if value is None:
+        return ""
+    if isinstance(value, str):
+        return value.strip()
+    try:
+        return flatten_to_string(value, sep=" ").strip()
+    except Exception:
+        return str(value).strip()

@@ -1,16 +1,34 @@
-from config import Config
-from runner import VLLMRunner
-from prompt import On_Policy_Prompt, Generate_Prompt, Judge_Prompt, Claim_Segment_Prompt, PairwiseEntailmentPrompt
+from __future__ import annotations
+
 import json
 import math
 import time
-from functools import lru_cache
-from data_process import Processor, _write_jsonl_line, _write_pretty_json, flatten_to_string, _write_case_text_log
 from typing import Dict, Any, List, Iterable, Tuple, Optional
 import logging
 import os
 import re
+from functools import lru_cache
+from config import Config
+from runner import VLLMRunner
+from data_process import (
+    Processor,
+    _write_case_text_log,
+    _write_jsonl_line,
+    _write_pretty_json,
+    flatten_to_string,
+    safe_json_loads,
+    _normalize_generation_input
+)
+from prompt import (
+    Claim_Segment_Prompt,
+    Generate_Prompt,
+    Judge_Prompt,
+    On_Policy_Prompt,
+    PairwiseEntailmentPrompt,
+)
 from data_process import safe_json_loads  # 文件顶部集中导入一次
+
+logger = logging.getLogger(__name__)
 
 reasoning_model = VLLMRunner(Config["reasoning_model"], vllm_config=Config["reasoning_model_params"], sampling_config=Config["reasoning_sampling_params"], gpus=Config["reasoning_model_gpus"])
 judge_model = VLLMRunner(Config["judge_model"], vllm_config=Config["judge_model_params"], sampling_config=Config["judge_sampling_params"], gpus=Config["judge_model_gpus"])
@@ -42,13 +60,8 @@ entail_promptbuilder = PairwiseEntailmentPrompt(judge_model)
 
 def claim_decompose(text: str) -> List[str]:
     claims = cs_promptbuilder.run(text)
-    print("Claim decomposition output:", claims)
-    claim_list = []
-    
-    for cl in claims["segments"]:
-        claim_list.append(cl["text"])
-    
-    return claim_list
+    logger.debug("Claim decomposition output: %s", claims)
+    return [segment["text"] for segment in claims.get("segments", [])]
 
 @lru_cache(maxsize=5000)
 def cached_claim_decompose(text: str) -> List[str]:
@@ -66,30 +79,19 @@ def align_next_step_LLM_1(
 ):
 
     # --- 规整输入（允许 list/tuple 进来） ---
-    try:
-        gen = flatten_to_string(gen, sep=" ").strip()
-    except NameError:
-        if isinstance(gen, (list, tuple)):
-            gen = " ".join(str(x).strip() for x in gen if str(x).strip())
-        else:
-            gen = str(gen or "").strip()
+    gen = _normalize_generation_input(gen)
+    ref = _normalize_generation_input(ref)
 
-    try:
-        ref = flatten_to_string(ref, sep=" ").strip()
-    except NameError:
-        if isinstance(ref, (list, tuple)):
-            ref = " ".join(str(x).strip() for x in ref if str(x).strip())
-        else:
-            ref = str(ref or "").strip()
 
     if not gen or not ref:
+        logger.debug("Empty text encountered in entailment alignment.")
         return 0.0, True
 
-    
 
     gen_sents_all = processor.sentence_split_en(gen)
     
     if not gen_sents_all or not ref:
+        logger.debug("Sentence splitter returned no sentences for generated text: %s", gen)
         return 0.0, True
 
     # 仅考察 gen 的前 K 句

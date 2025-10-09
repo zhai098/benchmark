@@ -13,7 +13,7 @@ Config = {
         "temperature": 0.4,
         "top_p": 0.95,
         "max_tokens": 4096,
-        "stop": ["<<<END>>>"]       # 命中哨兵立即停
+        "stop": ["<<<END>>>"]       # Stop generation immediately once the sentinel appears
     },
     "reasoning_model_gpus" : "0,1,2,3",
     "judge_model_gpus" : "4,5,6,7",
