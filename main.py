@@ -3,7 +3,7 @@ from runner import VLLMRunner
 from prompt import On_Policy_Prompt, Generate_Prompt, Judge_Prompt, Claim_Segment_Prompt, PairwiseEntailmentPrompt
 import json
 import math
-import re
+import time
 from functools import lru_cache
 from data_process import Processor
 from typing import Dict, Any, List, Iterable, Tuple, Optional
@@ -137,14 +137,16 @@ def align_next_step_LLM_1(
         
         # 调用蕴含评测器（双向）得到严格 JSON
         res = ent.run(g, ref)   # {"forward":..., "backward":..., "overall":...}
-        ov = float(res["overall"]["score"])
+        f_score = float(res[0])
+        b_score = float(res[1])
+        ov = float((f_score + b_score)/2.0)
         if ov < 0.4:
             continue
         picked = {
             "ref": ref,
             "gen_index": idx,
-            "forward": res["forward"],     # {"score":..., "label":...}
-            "backward": res["backward"],
+            "forward": f_score,
+            "backward": b_score,
             "score": ov,
             "is_hallucination": ov < threshold
         }

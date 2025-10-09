@@ -90,6 +90,13 @@ _SMART_QUOTES = {
 
 _CODE_FENCE_RE = re.compile(r"^```[a-zA-Z0-9_-]*\s*|\s*```$", re.MULTILINE)
 
+def extract_floats(s):
+    # 使用正则表达式提取浮点数
+    floats = re.findall(r"[-+]?\d*\.\d+|\d+", s)
+    
+    # 将匹配到的字符串转换为 float 类型
+    return [float(num) for num in floats]
+
 def _normalize_ws_and_quotes(s: str) -> str:
     s = s or ""
     for k, v in _JSON_WS_FIX.items():

@@ -3,7 +3,7 @@ from transformers import AutoTokenizer
 from runner import VLLMRunner
 import json
 import os
-from data_process import safe_json_loads  # 文件顶部集中导入一次
+from data_process import safe_json_loads, extract_floats  # 文件顶部集中导入一次
 
 class PromptBuilder:
     def __init__(self, model: VLLMRunner):
@@ -361,7 +361,6 @@ class PairwiseEntailmentPrompt:
             "Directions:\n"
             "- forward (GEN→REF): does GEN fully support/entail REF?\n"
             "- backward (REF→GEN): does REF fully support/entail GEN?\n"
-            "- overall: combined bidirectional alignment.\n"
             "Scoring: scores are real float numbers in [0,1]. Higher = stronger entailment in that direction.\n"
             "Continuous score calibration (apply strictly):\n"
             "- ≥0.85 → near-perfect coverage; treat as entailed.\n"
@@ -371,43 +370,21 @@ class PairwiseEntailmentPrompt:
             "- <0.15 → essentially unsupported or conflicting.\n"
             "Use the full range; avoid collapsing to {0,1}.\n"
             
-            "Overall score = (forward.score + backward.score)/2 (clamped to [0,1]).\n"
             "Guardrails:\n"
             "- No chain-of-thought, no steps, no meta commentary.\n"
-            "- Return STRICT JSON ONLY with keys: forward, backward, overall. No extra keys."
+            "- Return STRICT array with two float scores [forward, backward]. No extra keys."
         )
 
         # 严格 schema：防止跑题、冗余
         self.output_schema = {
-            "type": "object",
-            "properties": {
-                "forward": {
-                    "type": "object",
-                    "properties": {
-                        "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                    },
-                    "required": ["score"],
-                    "additionalProperties": False
-                },
-                "backward": {
-                    "type": "object",
-                    "properties": {
-                        "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                    },
-                    "required": ["score"],
-                    "additionalProperties": False
-                },
-                "overall": {
-                    "type": "object",
-                    "properties": {
-                        "score": {"type": "number", "minimum": 0.0, "maximum": 1.0},
-                    },
-                    "required": ["score"],
-                    "additionalProperties": False
-                }
+            "type": "array",
+            "items": {
+                "type": "number",
+                "minimum": 0.0,
+                "maximum": 1.0
             },
-            "required": ["forward", "backward", "overall"],
-            "additionalProperties": False
+            "minItems": 2,
+            "maxItems": 2
         }
 
         self.user_message = ""
@@ -420,9 +397,8 @@ class PairwiseEntailmentPrompt:
             f"{(gen_text or '').strip()}\n\n"
             "REF:\n"
             f"{(ref_text or '').strip()}\n\n"
-            "Return STRICT JSON only with keys: forward, backward, overall. "
-            "Each object must only include a float score in [0,1]. "
-            "No explanations, no extra keys, no quotes."
+            "Return an array of two float scores [forward, backward] in the range [0, 1]. "
+            "No explanations, no extra keys, no quotes, no extra spaces and blank lines"
         )
 
     def return_prompt(self) -> str:
@@ -436,7 +412,9 @@ class PairwiseEntailmentPrompt:
         # 一步到位：构造 → 生成 → 解析
         self.build_user(gen_text, ref_text)
         prompt = self.return_prompt()
-        print(prompt)
         out = self.model.generate(prompt, self.output_schema)
+        print("模型原始输出:", out)
+        scores = []
+        scores = safe_json_loads(out)
         # vLLM 通常已是 JSON 字符串；保持与你现有代码一致
-        return safe_json_loads(out)
+        return scores

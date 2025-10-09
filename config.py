@@ -27,7 +27,7 @@ Config = {
     "judge_sampling_params" : {
         "temperature": 0.3,
         "top_p": 0.95,
-        "max_tokens": 1024
+        "max_tokens": 2048
     }
     ,
     "Input_path" : "Omni_MATH/Omni_MATH_Long_Segmented.jsonl",
