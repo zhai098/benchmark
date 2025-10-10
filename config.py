@@ -3,7 +3,7 @@
 Config = {
     "reasoning_model" : "Qwen/Qwen3-0.6B",
     "reasoning_model_params" : {
-        "tensor_parallel_size": 4,
+        "tensor_parallel_size": 1,
         "dtype": "bfloat16",
         "max_num_seqs": 16,            
         "gpu_memory_utilization": 0.80 
@@ -12,14 +12,15 @@ Config = {
     "reasoning_sampling_params" : {
         "temperature": 0.4,
         "top_p": 0.95,
-        "max_tokens": 4096,
+        "max_tokens": 2048,
+        "repetition_penalty": 1.5,
         "stop": ["<<<END>>>"]       # Stop generation immediately once the sentinel appears
     },
-    "reasoning_model_gpus" : "0,1,2,3",
-    "judge_model_gpus" : "4,5,6,7",
+    "reasoning_model_gpus" : "8",
+    "judge_model_gpus" : "9",
     "judge_model" : "Qwen/Qwen3-0.6B",
     "judge_model_params" : {
-        "tensor_parallel_size": 4,
+        "tensor_parallel_size": 1,
         "dtype": "bfloat16",
         "max_num_seqs": 16,            
         "gpu_memory_utilization": 0.80 

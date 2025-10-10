@@ -348,7 +348,7 @@ def main():
             if not line:
                 continue
             try:
-                obj = safe_json_loads(line)
+                obj = json.loads(line)
             except json.JSONDecodeError:
                 print("[WARN] skip one bad json line")
                 continue
@@ -360,7 +360,7 @@ def main():
             case_eval = execute_evaluation(obj)
             score = float(case_eval["total_score"])
             #根据难度调整分数权重
-            score *= math.exp(beta * (diff - 5)) 
+            score *= math.exp(beta * (diff - 5) / 10) 
             ###需要并行化来提升效率
             scores.append(score)
             
