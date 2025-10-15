@@ -30,7 +30,7 @@ Config = {
         "top_p": 0.95,
         "max_tokens": 2048
     }
-    ,
+    , 
     "Input_path" : "Omni_MATH/Omni_MATH_Long_Segmented.jsonl",
     "beta" : 1,
     "alpha" : 1,
