@@ -97,8 +97,8 @@ def align_next_step_LLM_1(
     # 仅考察 gen 的前 K 句
     K = max(1, min(max_len, len(gen_sents_all)))
     gen_sents = gen_sents_all[:K]
-
-
+    print(f"gen_sents length: {len(gen_sents)}")
+    print(f"gen_sents content: {gen_sents}")
     scored = []
     for idx, g in enumerate(gen_sents):
         scored.append((idx, g))
@@ -216,7 +216,12 @@ def judge_hallucination(
     just = str(data.get("justification", ""))[:200]
     return score, label, just
         
-def execute_evaluation(obj, alpha: float = Config["alpha"], lambda_h: float = Config["lambda_h"]) -> float:
+def execute_evaluation(
+        obj, 
+        alpha: float = Config["alpha"], 
+        lambda_h: float = Config["lambda_h"],
+        max_len: int = Config["max prefix_num"],                 # 仅在 gen 的前 K 句里找匹配
+    ) -> float:
     ### alpha控制前期权重衰减速度——0.5-2之间，lambda_h控制幻觉的惩罚力度——>=1
     ### 幻觉惩罚+按步权重控制
     problem = obj["problem"]
@@ -263,7 +268,7 @@ def execute_evaluation(obj, alpha: float = Config["alpha"], lambda_h: float = Co
         #更新prompt
         generate_promptbuilder.add_step(current_step)
         current_output = generate_promptbuilder.run()
-        print(f"[DEBUG] Generation step {i}: {current_output}")
+        print(f"[DEBUG] Generation step {i}")
         gen_output.append(current_output)
         processed_thought.append(current_step)
         #可以在此处添加逻辑修改步长
@@ -272,6 +277,7 @@ def execute_evaluation(obj, alpha: float = Config["alpha"], lambda_h: float = Co
             print("[DEBUG] Reached last step (generation), stop generation loop")
             break
         i += 1
+
 
     case_steps = []
     i = 1

@@ -8,14 +8,19 @@ from data_process import safe_json_loads, extract_floats  # 文件顶部集中�
 class PromptBuilder:
     def __init__(self, model: VLLMRunner):
         self.model_name = model.model_name
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=True, trust_remote_code=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=True)
 
-    def make_chat_prompt(self, system: str, user: str) -> str:
+    def make_chat_prompt(self, system: str, user: str):
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": user})
-        return self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+        if hasattr(self.tokenizer, 'chat_template'):
+            text = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            return text
+        else:
+            # 如果不支持聊天模板，使用简单的提示构建方法
+            return '\n'.join([f"{message['role']}: {message['content']}" for message in messages])
        
 ###on-policy转化prompt类
 #先不要改写
@@ -362,17 +367,21 @@ class PairwiseEntailmentPrompt:
             "- forward (GEN→REF): does GEN fully support/entail REF?\n"
             "- backward (REF→GEN): does REF fully support/entail GEN?\n"
             "Scoring: scores are real float numbers in [0,1]. Higher = stronger entailment in that direction.\n"
+            "Refine the scoring to reflect the nuanced differences in semantic alignment.\n"
             "Continuous score calibration (apply strictly):\n"
-            "- ≥0.85 → near-perfect coverage; treat as entailed.\n"
-            "- 0.55–0.84 → minor gaps; still mostly supported.\n"
-            "- 0.35–0.54 → meaningful omissions; partial support only.\n"
-            "- 0.15–0.34 → weak, fragmentary alignment.\n"
-            "- <0.15 → essentially unsupported or conflicting.\n"
-            "Use the full range; avoid collapsing to {0,1}.\n"
+            "- ≥0.9 → near-perfect coverage; treat as fully entailed.\n"
+            "- 0.75–0.89 → strong support with slight gaps.\n"
+            "- 0.5–0.74 → partial support with meaningful gaps, but still relevant.\n"
+            "- 0.25–0.49 → weak support, notable contradictions or omissions.\n"
+            "- <0.25 → essentially unsupported or conflicting, with significant mismatches.\n"
+            "Use the full range of scores and avoid defaulting to extremes unless strongly warranted.\n"
             
             "Guardrails:\n"
             "- No chain-of-thought, no steps, no meta commentary.\n"
-            "- Return STRICT array with two float scores [forward, backward]. No extra keys."
+            "- Return STRICT array with two float scores [forward, backward]. No extra keys.\n"
+            "- Ensure that your scores reflect genuine semantic differences, not just formal resemblances.\n"
+            "- If both texts are significantly different, assign scores closer to 0 or 1 accordingly.\n"
+            "- If there is any ambiguity, provide a score that reflects that ambiguity—avoid defaulting to 0.5 unless absolutely justified."
         )
 
         # 严格 schema：防止跑题、冗余

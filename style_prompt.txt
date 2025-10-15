@@ -1,27 +1,20 @@
 <think>
 Okay, the user wants a style profile for their output. They specified to return a paragraph with 3-6 bullets, each under 20 words, and in a specific format. Let me start by understanding the requirements.
 
-First, the tone needs to be academic, proof-oriented, tutorial, or corporate precision. Since they mentioned "style profile," maybe academic? But I should check the example they gave. Wait, the example they provided is academic. So I'll go with academic.
+First, the tone needs to be academic, proof-oriented, tutorial, or corporate precision. Since the example given was academic, I'll go with that. The sentence length should be around 20 words each, so each bullet needs to be concise.
 
-Next, sentence length and paragraphing. Each bullet should be concise. Let me think of key points about mathematical writing. Maybe start with the importance of clarity, structure, and formal language. Then mention specific elements like notation, symbols, and reasoning. Need to ensure each bullet is under 20 words. Let me count. Each bullet is about 10-15 words. That works.
+Next, the reasoning structure. They mentioned line-by-line vs summarized. Since the output is a paragraph, maybe line-by-line would be better. Also, the math notation should be either LaTeX or plain text. Using LaTeX for symbols would be better here.
 
-Math notation: use LaTeX for symbols. So I'll write in LaTeX. For Greek letters, maybe use \alpha, \beta, etc. Also, ensure that the reasoning is formal, so I should use terms like "formal justification" and "heuristic intuition" but avoid repeating. Mix symbols and natural language to cover different aspects.
+The degree of rigor is formal justification, so I need to ensure each bullet supports that. The mix of symbols and natural language is important too. Including Greek letters and symbols would add that.
 
-Now, structure the bullets. Let me list them out:
+Now, structuring the bullets. Let me think of key aspects of a style profile. Tone, sentence length, math notation, reasoning, rigor, and mix. Each bullet should cover one of these elements. Let me check the word count. Each bullet should be around 20 words. Let me draft each bullet and ensure they fit.
 
-- Use clear and precise mathematical notation to enhance readability.
-- Maintain a formal and rigorous tone throughout the writing.
-- Ensure proper formatting and structure for logical reasoning.
-- Incorporate mathematical symbols where appropriate.
-- Highlight key concepts and their implications.
-- Verify the correctness of mathematical proofs.
-
-Wait, that's 6 bullets. Each is concise. Let me check word counts. Each bullet is about 10 words. That fits. Now, format them with semicolons. No numbering, no quotes, no JSON. Perfect. No steps, no examples. Just the paragraph. Alright, that should meet all the requirements.
+Wait, the user said no quotes, no numbering, no JSON. So each bullet is a separate item. Let me list them out. Start with the tone, then sentence length, math notation, reasoning structure, rigor, and mix. That should cover all aspects. Let me count the words to ensure each is under 20. Once done, check if all requirements are met.
 </think>
 
-- Use clear and precise mathematical notation to enhance readability.  
-- Maintain a formal and rigorous tone throughout the writing.  
-- Ensure proper formatting and structure for logical reasoning.  
-- Incorporate mathematical symbols where appropriate.  
-- Highlight key concepts and their implications.  
-- Verify the correctness of mathematical proofs.
+- The tone is academic, emphasizing formal reasoning and proof-oriented language.  
+- Each sentence is concise, avoiding redundancy.  
+- Math notation is rendered using LaTeX for clarity and precision.  
+- Reasoning is structured line-by-line, ensuring logical flow.  
+- Rigor is formalized through precise mathematical statements.  
+- Symbols are used alongside natural language for a balanced expression.
