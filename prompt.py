@@ -187,43 +187,32 @@ class Generate_Prompt:
 class Judge_Prompt:
     def __init__(self, model: VLLMRunner):
         self.user_message = ""
-        self.system_message = ("Reasoning: high\n"
-        "You are a rigorous mathematical claim-alignment judge. "
-        "Your job is to decide whether a generated hypothesis (GEN) semantically ENTAILS a reference claim (REF). "
-        "Be maximally strict and consistent. "
-        "[INPUTS] GEN: <generated hypothesis, one claim> REF: <reference claim, one claim>. "
-        "[CORE PRINCIPLES] Atomicity: Treat each sentence as one atomic claim. If a claim actually contains multiple facts "
-        "(hidden conjunction), GEN must entail ALL subfacts; contradict ANY → contradiction; entail SOME but not all → incomplete. "
-        "Semantics over wording: Ignore stylistic differences and focus on meaning (entities, predicates, arguments, "
-        "quantities, dates, locations, polarity, modality). "
-        "No unsupported assumptions: Do not invent facts not present or strictly implied by GEN. "
-        "Mathematical rigor: Judge entailment with the same discipline as grading the solution of a math competition problem. "
-        "[LABEL SET] entailed: GEN fully entails REF with no missing constraints. incomplete: GEN is related but misses "
-        "required specificity or reasoning steps. contradiction: GEN and REF cannot both be true. irrelevant: GEN is unrelated. "
-        "[SCORING — CONTINUOUS] Assign a real-valued score in [0,1]. "
-        "1.0 = exact semantic equivalence. Values close to 1.0 indicate strong entailment with only minor differences. "
-        "0.5–0.8 range = partial entailment, missing conditions or reasoning. "
-        "<0.5 = major gaps or conflicts. 0 = full contradiction or irrelevance. "
-        "Score must reflect strength of entailment continuously, not discrete buckets. "
-        "[DECISION PROCEDURE — MATH SOLUTION ALIGNMENT] "
-        "1) Definitions & Notation: Check whether GEN and REF agree on definitions, objects, domains. "
-        "2) Assumptions/Hypotheses: Verify all assumptions required in REF appear in GEN; missing → lower score. "
-        "3) Logical Steps/Derivations: Align reasoning. Trivial omissions → minor penalty; nontrivial omissions → larger penalty. "
-        "4) Conclusion/Result: Ensure REF’s final quantitative/qualitative statement is guaranteed by GEN. "
-        "5) Rigor & Completeness: Judge as in math contest grading; partial but correct reasoning → intermediate scores. "
-        "[OUTPUT FORMAT] Return STRICT JSON only: "
-        "{\"score\": <float in [0,1]>, \"label\": \"entailed|incomplete|contradiction|irrelevant\", \"justification\": \"<=40 words\"}. "
-        "[STYLE & GUARDRAILS] Justification must mention decisive constraint(s) in ≤40 words. "
-        "Do not reveal chain-of-thought. No external sources. "
-        "[MINI EXAMPLES]: These examples just illustrate the format and reasoning style; do not mimic their content or wording. "
-        "GEN: 'The Eiffel Tower is in Paris.' REF: 'The Eiffel Tower is located in Paris.' → "
-        "{\"score\": 1.0, \"label\": \"entailed\", \"justification\": \"Exact entity and location match; pure paraphrase.\"} "
-        "GEN: 'Einstein won a prize.' REF: 'Einstein won the 1921 Nobel Prize in Physics.' → "
-        "{\"score\": 0.6, \"label\": \"incomplete\", \"justification\": \"GEN lacks prize type and year; only partial entailment.\"} "
-        "GEN: 'Mercury is closest to the Sun.' REF: 'Venus is closest to the Sun.' → "
-        "{\"score\": 0.0, \"label\": \"contradiction\", \"justification\": \"Closest-planet claim conflicts: Mercury vs Venus.\"} "
-        "GEN: 'The Great Wall is in China.' REF: 'Mount Everest is in Nepal.' → "
-        "{\"score\": 0.2, \"label\": \"irrelevant\", \"justification\": \"Different entities and locations; no entailment.\"} "
+        self.system_message = (
+            "Reasoning: high\n"
+            "You are tasked with rigorously evaluating the semantic entailment between a long generated text (GEN) and a short reference text (REF). "
+            "GEN is a longer text, and REF is a concise, short text (e.g., a sentence or phrase). "
+            "You need to assess to what extent GEN semantically entails REF, with a focus on **mathematical logic** and **reasoning steps**. "
+            "The evaluation must consider **mathematical correctness**, **logical consistency**, and **intermediate results** in GEN. "
+            "Be strict and consistent in your evaluation. "
+            "[INPUTS] GEN: <long generated text> REF: <short reference text>. "
+            "[SCORING — CONTINUOUS] Assign a real-valued score in [0,1] based on the degree of entailment. "
+            "The score should reflect how strongly GEN supports or entails REF, considering the following factors: "
+            "1. **Mathematical Logic**: Ensure GEN follows correct mathematical reasoning, and any steps leading to conclusions are logically sound. "
+            "2. **Intermediate Results**: Evaluate whether GEN provides the necessary intermediate results or steps that lead to the final conclusion in REF. "
+            "3. **Mathematical Completeness**: Ensure that GEN includes all necessary logical steps or reasoning for the claim in REF. "
+            "4. **Semantic Equivalence**: Assess whether GEN and REF have **equivalent mathematical meaning**, even if they are expressed differently. "
+            "1.00 means perfect semantic equivalence or entailment, meaning GEN fully supports REF in every aspect, with correct mathematical logic and reasoning. "
+            "0.90-0.99 means strong entailment, with minor differences or missing nuances, but mathematical logic and intermediate steps are sound. "
+            "0.80-0.89 means substantial entailment, with some missing details or slight differences in reasoning steps or logic. "
+            "0.70-0.79 means moderate entailment, where GEN provides partial support for REF but lacks key elements or intermediate steps. "
+            "0.60-0.69 means fair entailment, with GEN supporting REF but with significant omissions in logic, intermediate results, or reasoning. "
+            "0.50-0.59 means weak entailment, where GEN provides only limited or vague support for REF, with significant gaps in logical reasoning. "
+            "0.30-0.49 means weak entailment or partial contradiction, where major gaps, omissions, or contradictions exist between GEN and REF. "
+            "0.10-0.29 means very weak entailment or near contradiction, where GEN and REF are largely incompatible in terms of logic or results. "
+            "0.00-0.09 means no entailment, GEN and REF contradict each other or are irrelevant to each other. "
+            "[OUTPUT FORMAT] Return STRICT JSON only: "
+            "{\"score\": <float in [0,1]>}. "
+            "[STYLE & GUARDRAILS] Do not include explanations, justifications, or any extra text. Only return the score."
         )
         self.model = model
         self.prompt = ""
@@ -234,51 +223,36 @@ class Judge_Prompt:
                 "score": {
                     "type": "number",
                     "description": "Fractional value, can be a floating point number from 0 to 1"
-                },
-                "label": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Category Tags"
-                },
-                "justification": {
-                    "type": "string",
-                    "minLength": 1,
-                    "description": "Explanation or justification for the rating and label"
                 }
             },
             "required": [
-                "score",
-                "label",
-                "justification"
+                "score"
             ],
             "additionalProperties": False
         }
 
-        
-    def build_user(self, gen_claim: str, ref_claim: str) -> str:
+    def build_user(self, gen_text: str, ref_text: str) -> str:
         self.user_message = (
-        "You are given a Generated Claim (GEN) and a Reference Claim (REF). "
-        "Your task is to rigorously judge whether GEN semantically entails REF, "
-        "following the evaluation rules already described in the system prompt "
-        "(mathematical rigor, continuous [0,1] scoring, entailment categories). "
-        "Return STRICT JSON only, with three fields: "
-        "{\"score\": <float in [0,1]>, \"label\": \"entailed|incomplete|contradiction|irrelevant\", "
-        "\"justification\": \"<=40 words\"}. "
-        "INPUT:\n"
-        f"GEN: {gen_claim}\n"
-        f"REF: {ref_claim}\n"
+            "You are given a long generated text (GEN) and a short reference text (REF). "
+            "Your task is to assess how strongly GEN semantically entails REF, following the scoring rules described in the system message. "
+            "Return STRICT JSON only, with the score field: "
+            "{\"score\": <float in [0,1]>}. "
+            "INPUT:\n"
+            f"GEN: {gen_text}\n"
+            f"REF: {ref_text}\n"
         )
 
     def return_prompt(self) -> str:
-        self.prompt = self.promptbuilder.make_chat_prompt(self.system_message,self.user_message)
+        self.prompt = self.promptbuilder.make_chat_prompt(self.system_message, self.user_message)
         return self.prompt
-    
+
     def run(self, gen_claim: str, ref_claim: str) -> dict:
-        """返回严格 JSON：{score: float, label: str, justification: str}"""
+        """Returns a strict JSON: {score: float, label: str, justification: str}"""
         self.build_user(gen_claim, ref_claim)
         prompt = self.return_prompt()
         out = self.model.generate(prompt, self.output_schema)
         return safe_json_loads(out)
+
 
 
 class Claim_Segment_Prompt:
@@ -361,27 +335,33 @@ class PairwiseEntailmentPrompt:
         # System：只定义评判标准与输出格式；禁止外显过程
         self.system_message = (
             "Reasoning: high\n"
-            "You are an entailment judge for mathematical/expository text.\n"
-            "Task: evaluate semantic alignment between two short texts: GEN and REF.\n"
+            "You are an entailment judge for mathematical/expository text. "
+            "Your task is to evaluate the semantic alignment between two short texts: GEN (generated text) and REF (reference text). "
+            "GEN is a longer explanation or hypothesis, and REF is a shorter statement or conclusion. "
+            "Evaluate how well GEN semantically supports or entails REF, considering both **mathematical logic** and **intermediate reasoning steps**. "
             "Directions:\n"
-            "- forward (GEN→REF): does GEN fully support/entail REF?\n"
-            "- backward (REF→GEN): does REF fully support/entail GEN?\n"
-            "Scoring: scores are real float numbers in [0,1]. Higher = stronger entailment in that direction.\n"
-            "Refine the scoring to reflect the nuanced differences in semantic alignment.\n"
-            "Continuous score calibration (apply strictly):\n"
-            "- ≥0.9 → near-perfect coverage; treat as fully entailed.\n"
-            "- 0.75–0.89 → strong support with slight gaps.\n"
-            "- 0.5–0.74 → partial support with meaningful gaps, but still relevant.\n"
-            "- 0.25–0.49 → weak support, notable contradictions or omissions.\n"
-            "- <0.25 → essentially unsupported or conflicting, with significant mismatches.\n"
-            "Use the full range of scores and avoid defaulting to extremes unless strongly warranted.\n"
+            "- forward (GEN→REF): does GEN fully support/entail REF? Does the reasoning in GEN lead to or guarantee the claim in REF? "
+            "- backward (REF→GEN): does REF fully support/entail GEN? Does REF summarize or confirm the conclusions and steps found in GEN? "
+            "Scoring: Scores are real float numbers in the range [0, 1]. A higher score means stronger entailment in that direction.\n"
+            "Refine the scoring to reflect the nuanced differences in semantic alignment, while also accounting for **logical consistency** and **mathematical correctness**.\n"
             
+            "Continuous score calibration (apply strictly):\n"
+            "- ≥0.95 → near-perfect alignment, where GEN and REF are fully consistent and mathematically rigorous in all aspects, no gaps in reasoning.\n"
+            "- 0.90–0.94 → strong entailment, with minor differences or missing details in the logical steps or reasoning, but still robust and correct.\n"
+            "- 0.80–0.89 → substantial entailment, with some gaps in the logical process, intermediate steps missing, or small inconsistencies in mathematical reasoning.\n"
+            "- 0.70–0.79 → moderate entailment, where GEN provides partial support for REF, but significant gaps in the mathematical logic or intermediate steps exist.\n"
+            "- 0.60–0.69 → fair entailment, where GEN supports REF in some ways, but key logical steps, intermediate results, or mathematical correctness are missing or unclear.\n"
+            "- 0.50–0.59 → weak entailment, where GEN provides limited or vague support for REF, with significant flaws in the reasoning or major omissions in the logical process.\n"
+            "- 0.30–0.49 → very weak entailment or partial contradiction, where GEN fails to fully support REF, or there are major contradictions in the logic or intermediate results.\n"
+            "- 0.10–0.29 → near contradiction, where GEN and REF are largely incompatible in terms of logic, reasoning, or intermediate results.\n"
+            "- 0.00–0.09 → no entailment, where GEN and REF contradict each other or are logically inconsistent, with significant mismatches in content or reasoning.\n"
+            
+            "Use the full range of scores to reflect genuine semantic differences and **logical rigor**, not just formal resemblances in wording.\n"
             "Guardrails:\n"
-            "- No chain-of-thought, no steps, no meta commentary.\n"
-            "- Return STRICT array with two float scores [forward, backward]. No extra keys.\n"
-            "- Ensure that your scores reflect genuine semantic differences, not just formal resemblances.\n"
-            "- If both texts are significantly different, assign scores closer to 0 or 1 accordingly.\n"
-            "- If there is any ambiguity, provide a score that reflects that ambiguity—avoid defaulting to 0.5 unless absolutely justified."
+            "- No chain-of-thought, no intermediate steps, no meta commentary.\n"
+            "- Return **STRICT JSON** with two float scores in the format [forward, backward]. No extra keys or explanations.\n"
+            "- Ensure that your scores reflect genuine **semantic** and **logical** differences, not just superficial or formal resemblances.\n"
+            "- If there is any ambiguity, provide a score that reflects the uncertainty—avoid defaulting to 0.5 unless absolutely justified."
         )
 
         # 严格 schema：防止跑题、冗余

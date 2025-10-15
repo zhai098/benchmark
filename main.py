@@ -67,7 +67,7 @@ def claim_decompose(text: str) -> List[str]:
 def cached_claim_decompose(text: str) -> List[str]:
     return claim_decompose(text)
 
-
+#按句子为单位评分，取最高分的前三个平均
 def align_next_step_LLM_1(
     gen: str,
     ref: str,
@@ -138,6 +138,42 @@ def align_next_step_LLM_1(
 
     return overall_score, is_hallucination
 
+def align_next_step_LLM_2(
+    gen: str,
+    ref: str,
+    *,
+    ent: PairwiseEntailmentPrompt,                           # 新增：传入上面的评测器实例
+    threshold: float = Config["threshold"],                  # 单对 overall.score 阈值（决定该对是否“好”）
+    overall_threshold: float = Config["overall threshold"],  # 所有配对平均后的总体阈值
+    max_len: int = Config["max prefix_num"],                 # 仅在 gen 的前 K 句里找匹配
+):
+
+    # --- 规整输入（允许 list/tuple 进来） ---
+    gen = _normalize_generation_input(gen)
+    ref = _normalize_generation_input(ref)
+
+
+    if not gen or not ref:
+        logger.debug("Empty text encountered in entailment alignment.")
+        return 0.0, True
+
+
+    gen_sents_all = processor.sentence_split_en(gen)
+    
+    if not gen_sents_all or not ref:
+        logger.debug("Sentence splitter returned no sentences for generated text: %s", gen)
+        return 0.0, True
+
+    # 仅考察 gen 的前 K 句
+    K = max(1, min(max_len, len(gen_sents_all)))
+    gen_sents = gen_sents_all[:K]
+    gen_prefix = " ".join(gen_sents)
+
+    score = judge_promptbuilder.run()
+    
+    is_hallucination = score < overall_threshold
+
+    return score, is_hallucination
 
 def align_next_step_LLM(
     gen: str,

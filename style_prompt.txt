@@ -1,20 +1,6 @@
-<think>
-Okay, the user wants a style profile for their output. They specified to return a paragraph with 3-6 bullets, each under 20 words, and in a specific format. Let me start by understanding the requirements.
-
-First, the tone needs to be academic, proof-oriented, tutorial, or corporate precision. Since the example given was academic, I'll go with that. The sentence length should be around 20 words each, so each bullet needs to be concise.
-
-Next, the reasoning structure. They mentioned line-by-line vs summarized. Since the output is a paragraph, maybe line-by-line would be better. Also, the math notation should be either LaTeX or plain text. Using LaTeX for symbols would be better here.
-
-The degree of rigor is formal justification, so I need to ensure each bullet supports that. The mix of symbols and natural language is important too. Including Greek letters and symbols would add that.
-
-Now, structuring the bullets. Let me think of key aspects of a style profile. Tone, sentence length, math notation, reasoning, rigor, and mix. Each bullet should cover one of these elements. Let me check the word count. Each bullet should be around 20 words. Let me draft each bullet and ensure they fit.
-
-Wait, the user said no quotes, no numbering, no JSON. So each bullet is a separate item. Let me list them out. Start with the tone, then sentence length, math notation, reasoning structure, rigor, and mix. That should cover all aspects. Let me count the words to ensure each is under 20. Once done, check if all requirements are met.
-</think>
-
-- The tone is academic, emphasizing formal reasoning and proof-oriented language.  
-- Each sentence is concise, avoiding redundancy.  
-- Math notation is rendered using LaTeX for clarity and precision.  
-- Reasoning is structured line-by-line, ensuring logical flow.  
-- Rigor is formalized through precise mathematical statements.  
-- Symbols are used alongside natural language for a balanced expression.
+* Tone: Formal, proof-oriented; assumes reader's familiarity with mathematical concepts
+* Sentence length: Medium; each sentence conveys a distinct idea
+* Math notation: LaTeX; uses \(\sum\), \(\int\), \(\lim\) for summation, integration, and limits respectively
+* Reasoning structure: Line-by-line; each step is explicitly stated
+* Degree of rigor: Formal; provides justifications based on axioms and previously proven theorems
+* Mix of symbols vs natural language: Balanced; uses symbols to represent mathematical concepts while maintaining clear natural language explanations
