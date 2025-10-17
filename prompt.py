@@ -3,7 +3,7 @@ from transformers import AutoTokenizer
 from runner import VLLMRunner
 import json
 import os
-from data_process import safe_json_loads, extract_floats  # 文件顶部集中导入一次
+from data_process import safe_json_loads, extract_last_score_part  # 文件顶部集中导入一次
 
 class PromptBuilder:
     def __init__(self, model: VLLMRunner):
@@ -222,7 +222,9 @@ class Judge_Prompt:
             "properties": {
                 "score": {
                     "type": "number",
-                    "description": "Fractional value, can be a floating point number from 0 to 1"
+                    "minimum": 0.0,
+                    "maximum": 1.0,
+                    "description": "a floating point number from 0 to 1"
                 }
             },
             "required": [
@@ -251,7 +253,9 @@ class Judge_Prompt:
         self.build_user(gen_claim, ref_claim)
         prompt = self.return_prompt()
         out = self.model.generate(prompt, self.output_schema)
-        return safe_json_loads(out)
+        print(out)
+        score = extract_last_score_part(out)
+        return score
 
 
 

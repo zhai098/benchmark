@@ -1,6 +1,1 @@
-* Tone: Formal, proof-oriented; assumes reader's familiarity with mathematical concepts
-* Sentence length: Medium; each sentence conveys a distinct idea
-* Math notation: LaTeX; uses \(\sum\), \(\int\), \(\lim\) for summation, integration, and limits respectively
-* Reasoning structure: Line-by-line; each step is explicitly stated
-* Degree of rigor: Formal; provides justifications based on axioms and previously proven theorems
-* Mix of symbols vs natural language: Balanced; uses symbols to represent mathematical concepts while maintaining clear natural language explanations
+Tone: Academic and formal; Sentence length concise; Paragraphs short and to the point; Math notation used in LaTeX; Reasoning structured in a line-by-line format; Degree of rigor is formal with clear justifications; Symbols are used extensively alongside natural language.

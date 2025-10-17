@@ -329,3 +329,13 @@ def _normalize_generation_input(value: Any) -> str:
         return flatten_to_string(value, sep=" ").strip()
     except Exception:
         return str(value).strip()
+    
+def extract_last_score_part(text: str) -> str:
+    # 使用正则表达式提取最后的{"score": <number>}部分
+    match = re.search(r'{"score":\s*([0-9]*\.?[0-9]+)}$', text)
+    if match:
+        # 提取捕获的分数并转换为float
+        score = float(match.group(1))
+        return score
+    else:
+        return 0.0  # 如果没有找到匹配，返回0.0 

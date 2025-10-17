@@ -1,0 +1,4 @@
+Average score for the first 25 cases: 0.462354215433073
+Score variance for the first 25 cases: 0.06581499883066357
+Average difficulty for the first 25 cases: 7.34
+Difficulty variance for the first 25 cases: 0.7441666666666668

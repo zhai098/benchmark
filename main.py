@@ -7,6 +7,7 @@ from typing import Dict, Any, List, Iterable, Tuple, Optional
 import logging
 import os
 import re
+import random
 from functools import lru_cache
 from config import Config
 from runner import VLLMRunner
@@ -30,8 +31,9 @@ from data_process import safe_json_loads  # 文件顶部集中导入一次
 
 logger = logging.getLogger(__name__)
 
-reasoning_model = VLLMRunner(Config["reasoning_model"], vllm_config=Config["reasoning_model_params"], sampling_config=Config["reasoning_sampling_params"], gpus=Config["reasoning_model_gpus"])
 judge_model = VLLMRunner(Config["judge_model"], vllm_config=Config["judge_model_params"], sampling_config=Config["judge_sampling_params"], gpus=Config["judge_model_gpus"])
+
+reasoning_model = VLLMRunner(Config["reasoning_model"], vllm_config=Config["reasoning_model_params"], sampling_config=Config["reasoning_sampling_params"], gpus=Config["reasoning_model_gpus"])
 processor = Processor()
 judge_promptbuilder = Judge_Prompt(judge_model)
 cs_promptbuilder = Claim_Segment_Prompt(judge_model)
@@ -169,8 +171,8 @@ def align_next_step_LLM_2(
     gen_sents = gen_sents_all[:K]
     gen_prefix = " ".join(gen_sents)
 
-    score = judge_promptbuilder.run()
-    
+    score = judge_promptbuilder.run(gen_prefix, ref)
+
     is_hallucination = score < overall_threshold
 
     return score, is_hallucination
@@ -325,7 +327,7 @@ def execute_evaluation(
 
         # 在为了优化评分策略，若无幻觉，则将next_step替换为模型生成的，不然评测的可靠性无法评估
         
-        result = align_next_step_LLM_1(current_output, next_ref_step, ent=entail_promptbuilder)
+        result = align_next_step_LLM_2(current_output, next_ref_step, ent=entail_promptbuilder)
         if not result or not isinstance(result, tuple):
             # fallback 安全值
             score, halluc_penalty = 0.0, True
@@ -367,11 +369,17 @@ def execute_evaluation(
 def main(): 
     out_dir = os.path.abspath("./outputs")
     os.makedirs(out_dir, exist_ok=True)
-    out_cases = os.path.join(out_dir, "case_results.jsonl")
-    out_genlog = os.path.join(out_dir, "gen_and_scores.jsonl")
-    out_cases_pretty = os.path.join(out_dir, "case_results_pretty.json")
-    out_genlog_pretty = os.path.join(out_dir, "gen_and_scores_pretty.json")
-    out_case_text = os.path.join(out_dir, "case.log")
+    
+    rand_tag = str(random.randint(100000, 999999))
+    run_dir_name = f"{Config["reasoning_model"]}_{Config["judge_model"]}_{rand_tag}"
+    run_dir = os.path.join(out_dir, run_dir_name)
+    os.makedirs(run_dir, exist_ok=True)
+
+    out_cases = os.path.join(run_dir, "case_results.jsonl")
+    out_genlog = os.path.join(run_dir, "gen_and_scores.jsonl")
+    out_cases_pretty = os.path.join(run_dir, "case_results_pretty.json")
+    out_genlog_pretty = os.path.join(run_dir, "gen_and_scores_pretty.json")
+    out_case_text = os.path.join(run_dir, "case.log")
     scores = []
     # 难度控制因子
     beta = Config["beta"]
@@ -440,7 +448,7 @@ def main():
     #近似百分制
     model_score = sum(scores) * 10 / num
     
-    with open(os.path.join(out_dir, "summary.json"), "w", encoding="utf-8") as fsum:
+    with open(os.path.join(run_dir, "summary.json"), "w", encoding="utf-8") as fsum:
         json.dump({"num": num, "avg_score": model_score}, fsum, ensure_ascii=False, indent=2)
 
     print(f"[RESULT] Processed {num} samples")

@@ -1,0 +1,362 @@
+{
+  "id": 1,
+  "difficulty": 8.0,
+  "score": 0.9289482884863949,
+  "num_steps": 10,
+  "steps": [
+    {
+      "index": 1,
+      "score": 0.65,
+      "hallucination": 0,
+      "step_score": 0.65
+    },
+    {
+      "index": 2,
+      "score": 0.7,
+      "hallucination": 0,
+      "step_score": 0.7
+    },
+    {
+      "index": 3,
+      "score": 1.0,
+      "hallucination": 0,
+      "step_score": 1.0
+    },
+    {
+      "index": 4,
+      "score": 0.65,
+      "hallucination": 0,
+      "step_score": 0.65
+    },
+    {
+      "index": 5,
+      "score": 0.75,
+      "hallucination": 0,
+      "step_score": 0.75
+    },
+    {
+      "index": 6,
+      "score": 0.75,
+      "hallucination": 0,
+      "step_score": 0.75
+    },
+    {
+      "index": 7,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    },
+    {
+      "index": 8,
+      "score": 0.75,
+      "hallucination": 0,
+      "step_score": 0.75
+    },
+    {
+      "index": 9,
+      "score": 1.0,
+      "hallucination": 0,
+      "step_score": 1.0
+    }
+  ],
+  "problem": "Let $ n(\\ge2) $ be a positive integer. Find the minimum $ m $, so that there exists $x_{ij}(1\\le i ,j\\le n)$ satisfying:\n(1)For every $1\\le i ,j\\le n, x_{ij}=max\\{x_{i1},x_{i2},...,x_{ij}\\} $ or $ x_{ij}=max\\{x_{1j},x_{2j},...,x_{ij}\\}.$\n(2)For every $1\\le i \\le n$, there are at most $m$ indices $k$ with $x_{ik}=max\\{x_{i1},x_{i2},...,x_{ik}\\}.$\n(3)For every $1\\le j \\le n$, there are at most $m$ indices $k$ with $x_{kj}=max\\{x_{1j},x_{2j},...,x_{kj}\\}.$",
+  "answer": "1 + \\left\\lceil \\frac{n}{2} \\right\\rceil"
+}
+
+{
+  "id": 2,
+  "difficulty": 7.0,
+  "score": 0.3511532929710488,
+  "num_steps": 8,
+  "steps": [
+    {
+      "index": 1,
+      "score": 0.35,
+      "hallucination": 1,
+      "step_score": 0.35
+    },
+    {
+      "index": 2,
+      "score": 0.5,
+      "hallucination": 1,
+      "step_score": 0.5
+    },
+    {
+      "index": 3,
+      "score": 0.2,
+      "hallucination": 1,
+      "step_score": 0.2
+    },
+    {
+      "index": 4,
+      "score": 0.3,
+      "hallucination": 1,
+      "step_score": 0.3
+    },
+    {
+      "index": 5,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    },
+    {
+      "index": 6,
+      "score": 0.45,
+      "hallucination": 1,
+      "step_score": 0.45
+    },
+    {
+      "index": 7,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    }
+  ],
+  "problem": "In an acute scalene triangle $ABC$, points $D,E,F$ lie on sides $BC, CA, AB$, respectively, such that $AD \\perp BC, BE \\perp CA, CF \\perp AB$. Altitudes $AD, BE, CF$ meet at orthocenter $H$. Points $P$ and $Q$ lie on segment $EF$ such that $AP \\perp EF$ and $HQ \\perp EF$. Lines $DP$ and $QH$ intersect at point $R$. Compute $HQ/HR$.",
+  "answer": "1"
+}
+
+{
+  "id": 3,
+  "difficulty": 7.0,
+  "score": 0.5638809400172784,
+  "num_steps": 20,
+  "steps": [
+    {
+      "index": 1,
+      "score": 1.0,
+      "hallucination": 0,
+      "step_score": 1.0
+    },
+    {
+      "index": 2,
+      "score": 0.75,
+      "hallucination": 0,
+      "step_score": 0.75
+    },
+    {
+      "index": 3,
+      "score": 0.65,
+      "hallucination": 0,
+      "step_score": 0.65
+    },
+    {
+      "index": 4,
+      "score": 0.5,
+      "hallucination": 1,
+      "step_score": 0.5
+    },
+    {
+      "index": 5,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    },
+    {
+      "index": 6,
+      "score": 0.3,
+      "hallucination": 1,
+      "step_score": 0.3
+    },
+    {
+      "index": 7,
+      "score": 0.75,
+      "hallucination": 0,
+      "step_score": 0.75
+    },
+    {
+      "index": 8,
+      "score": 0.2,
+      "hallucination": 1,
+      "step_score": 0.2
+    },
+    {
+      "index": 9,
+      "score": 0.3,
+      "hallucination": 1,
+      "step_score": 0.3
+    },
+    {
+      "index": 10,
+      "score": 0.4,
+      "hallucination": 1,
+      "step_score": 0.4
+    },
+    {
+      "index": 11,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    },
+    {
+      "index": 12,
+      "score": 0.35,
+      "hallucination": 1,
+      "step_score": 0.35
+    },
+    {
+      "index": 13,
+      "score": 0.35,
+      "hallucination": 1,
+      "step_score": 0.35
+    },
+    {
+      "index": 14,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    },
+    {
+      "index": 15,
+      "score": 0.55,
+      "hallucination": 1,
+      "step_score": 0.55
+    },
+    {
+      "index": 16,
+      "score": 0.45,
+      "hallucination": 1,
+      "step_score": 0.45
+    },
+    {
+      "index": 17,
+      "score": 0.75,
+      "hallucination": 0,
+      "step_score": 0.75
+    },
+    {
+      "index": 18,
+      "score": 0.3,
+      "hallucination": 1,
+      "step_score": 0.3
+    },
+    {
+      "index": 19,
+      "score": 0.75,
+      "hallucination": 0,
+      "step_score": 0.75
+    }
+  ],
+  "problem": "A tournament is a directed graph for which every (unordered) pair of vertices has a single directed edge from one vertex to the other.  Let us define a proper directed-edge-coloring to be an assignment of a color to every (directed) edge, so that for every pair of directed edges $\\overrightarrow{uv}$ and $\\overrightarrow{vw}$, those two edges are in different colors.  Note that it is permissible for $\\overrightarrow{uv}$ and $\\overrightarrow{uw}$ to be the same color.  The directed-edge-chromatic-number of a tournament is defined to be the minimum total number of colors that can be used in order to create a proper directed-edge-coloring.  For each $n$, determine the minimum directed-edge-chromatic-number over all tournaments on $n$ vertices.",
+  "answer": "\\lceil \\log_2 n \\rceil"
+}
+
+{
+  "id": 4,
+  "difficulty": 8.5,
+  "score": 0.3667169296627838,
+  "num_steps": 19,
+  "steps": [
+    {
+      "index": 1,
+      "score": 0.75,
+      "hallucination": 0,
+      "step_score": 0.75
+    },
+    {
+      "index": 2,
+      "score": 0.35,
+      "hallucination": 1,
+      "step_score": 0.35
+    },
+    {
+      "index": 3,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    },
+    {
+      "index": 4,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    },
+    {
+      "index": 5,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    },
+    {
+      "index": 6,
+      "score": 0.2,
+      "hallucination": 1,
+      "step_score": 0.2
+    },
+    {
+      "index": 7,
+      "score": 0.3,
+      "hallucination": 1,
+      "step_score": 0.3
+    },
+    {
+      "index": 8,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    },
+    {
+      "index": 9,
+      "score": 0.55,
+      "hallucination": 1,
+      "step_score": 0.55
+    },
+    {
+      "index": 10,
+      "score": 0.35,
+      "hallucination": 1,
+      "step_score": 0.35
+    },
+    {
+      "index": 11,
+      "score": 0.3,
+      "hallucination": 1,
+      "step_score": 0.3
+    },
+    {
+      "index": 12,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    },
+    {
+      "index": 13,
+      "score": 0.55,
+      "hallucination": 1,
+      "step_score": 0.55
+    },
+    {
+      "index": 14,
+      "score": 0.35,
+      "hallucination": 1,
+      "step_score": 0.35
+    },
+    {
+      "index": 15,
+      "score": 0.45,
+      "hallucination": 1,
+      "step_score": 0.45
+    },
+    {
+      "index": 16,
+      "score": 0.35,
+      "hallucination": 1,
+      "step_score": 0.35
+    },
+    {
+      "index": 17,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    },
+    {
+      "index": 18,
+      "score": 0.0,
+      "hallucination": 1,
+      "step_score": 0.0
+    }
+  ],
+  "problem": "Does there exist positive reals $a_0, a_1,\\ldots ,a_{19}$, such that the polynomial $P(x)=x^{20}+a_{19}x^{19}+\\ldots +a_1x+a_0$ does not have any real roots, yet all polynomials formed from swapping any two coefficients $a_i,a_j$ has at least one real root?",
+  "answer": "\\text{Yes}"
+}
+

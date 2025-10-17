@@ -1,12 +1,13 @@
 
 
 Config = {
-    "reasoning_model" : "mistralai/Mistral-7B-Instruct-v0.2",
+    "reasoning_model" : "ibm-granite/granite-4.0-micro",
     "reasoning_model_params" : {
         "tensor_parallel_size": 2,
         "dtype": "bfloat16",
         "max_num_seqs": 16,            
-        "gpu_memory_utilization": 0.80 
+        "gpu_memory_utilization": 0.80,
+        "enable_prefix_caching": False
     }
     ,
     "reasoning_sampling_params" : {
@@ -18,17 +19,17 @@ Config = {
     },
     "reasoning_model_gpus" : "8,9",
     "judge_model_gpus" : "4,5,6,7",
-    "judge_model" : "Qwen/Qwen3-8B",
+    "judge_model" : "openai/gpt-oss-20b",
     "judge_model_params" : {
         "tensor_parallel_size": 4,
         "dtype": "bfloat16",
         "max_num_seqs": 16,            
-        "gpu_memory_utilization": 0.80 
+        "gpu_memory_utilization": 0.80
     },
     "judge_sampling_params" : {
         "temperature": 0.3,
         "top_p": 0.95,
-        "max_tokens": 2048
+        "max_tokens": 4096
     }
     , 
     "Input_path" : "Omni_MATH/Omni_MATH_Long_Segmented.jsonl",
