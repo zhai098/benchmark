@@ -275,7 +275,6 @@ def execute_evaluation(
     total_score = 0.0
     # 计算总权重的归一化因子
     # w(i) ∝ (N - i + 1)^α
-    weight_denominator = sum((N - i + 1) ** alpha for i in range(1, N + 1))
     #初始化prompt
     generate_promptbuilder = Generate_Prompt(reasoning_model, problem)
     # on-policy转化
@@ -323,8 +322,7 @@ def execute_evaluation(
         current_output = gen_output[idx]
         current_step = processed_thought[idx]
         next_ref_step = processed_thought[idx+1]
-        w_i = ((N - i + 1) ** alpha) / weight_denominator
-
+        
         # 在为了优化评分策略，若无幻觉，则将next_step替换为模型生成的，不然评测的可靠性无法评估
         
         result = align_next_step_LLM_2(current_output, next_ref_step, ent=entail_promptbuilder)
@@ -343,7 +341,7 @@ def execute_evaluation(
         # 出现幻觉要额外惩罚
         #step_score = score - lambda_h * int(halluc_penalty)      #halluc_penalty:0 / 1
         step_score = score
-        step_contribution = w_i * step_score
+        step_contribution = step_score / N * 20
         total_score += step_contribution
         
         print(f"[DEBUG] Step {i}: step_score={step_score:.4f}, contribution={step_contribution:.4f}")
@@ -410,7 +408,6 @@ def main():
             case_eval = execute_evaluation(obj)
             score = float(case_eval["total_score"])
             #根据难度调整分数权重
-            score *= math.exp(beta * (diff - 5) / 10) 
             ###需要并行化来提升效率
             scores.append(score)
             

@@ -190,30 +190,21 @@ class Judge_Prompt:
         self.system_message = (
             "Reasoning: high\n"
             "You are tasked with rigorously evaluating the semantic entailment between a long generated text (GEN) and a short reference text (REF). "
-            "GEN is a longer text, and REF is a concise, short text (e.g., a sentence or phrase). "
-            "You need to assess to what extent GEN semantically entails REF, with a focus on **mathematical logic** and **reasoning steps**. "
-            "The evaluation must consider **mathematical correctness**, **logical consistency**, and **intermediate results** in GEN. "
-            "Be strict and consistent in your evaluation. "
-            "[INPUTS] GEN: <long generated text> REF: <short reference text>. "
-            "[SCORING — CONTINUOUS] Assign a real-valued score in [0,1] based on the degree of entailment. "
-            "The score should reflect how strongly GEN supports or entails REF, considering the following factors: "
-            "1. **Mathematical Logic**: Ensure GEN follows correct mathematical reasoning, and any steps leading to conclusions are logically sound. "
-            "2. **Intermediate Results**: Evaluate whether GEN provides the necessary intermediate results or steps that lead to the final conclusion in REF. "
-            "3. **Mathematical Completeness**: Ensure that GEN includes all necessary logical steps or reasoning for the claim in REF. "
-            "4. **Semantic Equivalence**: Assess whether GEN and REF have **equivalent mathematical meaning**, even if they are expressed differently. "
-            "1.00 means perfect semantic equivalence or entailment, meaning GEN fully supports REF in every aspect, with correct mathematical logic and reasoning. "
-            "0.90-0.99 means strong entailment, with minor differences or missing nuances, but mathematical logic and intermediate steps are sound. "
-            "0.80-0.89 means substantial entailment, with some missing details or slight differences in reasoning steps or logic. "
-            "0.70-0.79 means moderate entailment, where GEN provides partial support for REF but lacks key elements or intermediate steps. "
-            "0.60-0.69 means fair entailment, with GEN supporting REF but with significant omissions in logic, intermediate results, or reasoning. "
-            "0.50-0.59 means weak entailment, where GEN provides only limited or vague support for REF, with significant gaps in logical reasoning. "
-            "0.30-0.49 means weak entailment or partial contradiction, where major gaps, omissions, or contradictions exist between GEN and REF. "
-            "0.10-0.29 means very weak entailment or near contradiction, where GEN and REF are largely incompatible in terms of logic or results. "
-            "0.00-0.09 means no entailment, GEN and REF contradict each other or are irrelevant to each other. "
-            "[OUTPUT FORMAT] Return STRICT JSON only: "
-            "{\"score\": <float in [0,1]>}. "
-            "[STYLE & GUARDRAILS] Do not include explanations, justifications, or any extra text. Only return the score."
+            "Focus on mathematical logic and reasoning steps. Be strict and consistent.\n"
+            "[INPUTS] GEN: <long generated text>  REF: <short reference text>.\n"
+            "[SCORING — DISCRETE] Assign an INTEGER score in {0,1,2,3,4,5} ONLY.\n"
+            "Interpretation:\n"
+            "5: Perfect entailment — GEN fully and correctly entails REF; logic sound; all necessary intermediate steps and quantifiers/edge cases are covered; no contradictions.\n"
+            "4: Strong entailment — GEN entails REF with only minor omissions or nuance gaps; logic is sound; missing details do not affect the conclusion.\n"
+            "3: Substantial but incomplete — main claim is mostly supported, but 1–2 critical intermediate steps/assumptions are missing OR minor local errors that do not flip the conclusion.\n"
+            "2: Moderate/partial — several key steps are missing or unclear; GEN supports parts of REF but not enough for a full entailment; possible unresolved edge cases.\n"
+            "1: Weak — only vague or fragmentary alignment; major gaps or inconsistencies in reasoning; support is insufficient and unreliable.\n"
+            "0: No entailment/contradiction/irrelevant — GEN fails to support REF or conflicts with it.\n"
+            "Decision rules: choose the HIGHEST score k such that ALL requirements for k are satisfied. If uncertain between two levels, pick the LOWER one.\n"
+            "[OUTPUT FORMAT] Return STRICT JSON ONLY as: {\"score\": <one of 0,1,2,3,4,5>}.\n"
+            "[STYLE & GUARDRAILS] Output MUST be exactly valid JSON with a single key 'score'. No explanations, no extra text, no code fences."
         )
+
         self.model = model
         self.prompt = ""
         self.promptbuilder = PromptBuilder(model)
@@ -222,9 +213,8 @@ class Judge_Prompt:
             "properties": {
                 "score": {
                     "type": "number",
-                    "minimum": 0.0,
-                    "maximum": 1.0,
-                    "description": "a floating point number from 0 to 1"
+                    "enum": [0, 1, 2, 3, 4, 5],
+                    "description": "discrete degree of entailment (0–5), higher = stronger entailment"
                 }
             },
             "required": [
@@ -235,13 +225,12 @@ class Judge_Prompt:
 
     def build_user(self, gen_text: str, ref_text: str) -> str:
         self.user_message = (
-            "You are given a long generated text (GEN) and a short reference text (REF). "
-            "Your task is to assess how strongly GEN semantically entails REF, following the scoring rules described in the system message. "
-            "Return STRICT JSON only, with the score field: "
-            "{\"score\": <float in [0,1]>}. "
-            "INPUT:\n"
+            "You are given GEN (long text) and REF (short text). "
+            "Assess how strongly GEN semantically entails REF under the system scoring rubric. "
+            "Return STRICT JSON ONLY: {\"score\": <one of 0,1,2,3,4,5>}.\n"
             f"GEN: {gen_text}\n"
             f"REF: {ref_text}\n"
+            "Remember: the ONLY valid outputs are 0,1,2,3,4,5 (integers)."
         )
 
     def return_prompt(self) -> str:

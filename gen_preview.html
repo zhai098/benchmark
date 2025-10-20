@@ -1,0 +1,402 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>题目阅读器 · 单列视图（REF → GEN）</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='64' height='64'%3E%3Ctext y='0.9em' font-size='64'%3Eπ%3C/text%3E%3C/svg%3E">
+
+<style>
+  /* ===== 全局（亮色高对比） ===== */
+  :root{
+    --bg:#f7f9fc;
+    --surface:#ffffff;
+    --text:#0a1a2b;
+    --muted:#51637a;
+    --line:#dfe7f3;
+    --brand:#2f6bff;
+    --brand-weak:#e7efff;
+    --accent:#0f3bbd;
+    --step-bg:#f3f6fb;
+    --code:#f4f6fb;
+    --shadow: 0 10px 24px rgba(18, 38, 66, .08);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%}
+  body{
+    margin:0 auto;
+    max-width:960px;
+    padding:16px;
+    color:var(--text);
+    background:var(--bg);
+    font: 16px/1.75 ui-sans-serif, -apple-system, system-ui, "Segoe UI", Roboto, "Helvetica Neue", Arial;
+  }
+
+  /* ===== 顶部工具栏 ===== */
+  header{
+    position:sticky; top:0; z-index:10;
+    margin:-8px -8px 18px;
+    padding:12px 12px 10px;
+    background:rgba(247,249,252,.92);
+    backdrop-filter: blur(6px);
+    border-bottom:1px solid var(--line);
+  }
+  .row{display:flex; gap:12px; align-items:center; flex-wrap:wrap}
+  h1{font-size:1.25rem; margin:0; letter-spacing:.2px}
+  .sub{color:var(--muted); font-size:.95rem}
+  .grow{flex:1}
+  .btn,.input{
+    background:#fff; border:1px solid var(--line);
+    color:var(--text); border-radius:12px;
+    padding:8px 12px; font-size:1rem;
+    box-shadow: var(--shadow);
+  }
+  .btn{cursor:pointer; transition: box-shadow .15s ease, transform .03s ease}
+  .btn:hover{box-shadow: 0 0 0 3px var(--brand-weak), var(--shadow)}
+  .btn:active{transform: translateY(1px)}
+  .btn[disabled]{opacity:.55; cursor:not-allowed}
+  .input{min-width:200px; background:#fff}
+  .counter{color:var(--muted); font-size:.95rem}
+
+  /* ===== 主卡片 ===== */
+  main.card{
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:18px 16px;
+    background:var(--surface);
+    box-shadow: var(--shadow);
+  }
+  .meta{display:flex; gap:18px; flex-wrap:wrap; color:var(--muted); font-size:.98rem}
+  .meta .item{display:flex; gap:6px}
+  .sep{height:1px; background:var(--line); margin:14px 0}
+  .section-title{font-weight:800; color:var(--accent); margin:0 0 6px}
+  .problem{font-size:1.08rem}
+
+  /* ===== 步骤清单：单列 ===== */
+  .steps{display:block}
+  ol.step-list{counter-reset:s; list-style:none; padding:0; margin:0}
+  ol.step-list li{
+    counter-increment:s;
+    position:relative;
+    padding:12px 14px 12px 48px;
+    margin:10px 0;
+    border:1px solid var(--line);
+    border-radius:12px;
+    background:var(--step-bg);
+    box-shadow: inset 0 0 0 1px #eef3fb;
+  }
+  ol.step-list li::before{
+    content:counter(s);
+    position:absolute; left:12px; top:12px;
+    width:26px; height:26px; line-height:26px; text-align:center;
+    border-radius:999px; background:var(--brand);
+    color:#fff; font-weight:800; font-size:.9rem;
+    box-shadow: 0 1px 2px rgba(47,107,255,.25);
+  }
+
+  .nav{display:flex; gap:10px; justify-content:center; margin-top:10px}
+  #err,#hint{display:none; margin-top:10px; padding:10px 12px; border-radius:10px; border:1px solid}
+  #err{background:#fff5f5; border-color:#ffd3d3; color:#5d1515}
+  #hint{background:#f3f8ff; border-color:#d7e5ff; color:#0f2b5a}
+  footer{color:var(--muted); text-align:center; font-size:.94rem; margin:16px 0 40px}
+  code{background:var(--code); padding:2px 6px; border-radius:8px}
+</style>
+
+<!-- MathJax v3 -->
+<script>
+  window.MathJax = {
+    tex: {
+      inlineMath: [['\\(','\\)'], ['$', '$']],
+      displayMath: [['\\[','\\]']],
+      tags: 'ams'
+    },
+    chtml: { scale: 1.0 },
+  };
+</script>
+<script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
+</head>
+<body>
+  <header>
+    <div class="row">
+      <div class="grow">
+        <h1>题目阅读器（单列视图）</h1>
+        <div class="sub">支持 JSONL（每行对象）或 JSON 数组。默认尝试加载 <code>gen_only*</code>。</div>
+      </div>
+      <label class="btn">
+        <input id="file" type="file" accept=".jsonl,.json,.txt" hidden />
+        选择文件
+      </label>
+      <button id="reload" class="btn">重载默认</button>
+    </div>
+    <div class="row" style="margin-top:10px">
+      <div class="counter">当前：<b id="page">0</b> / <b id="total">0</b></div>
+      <div class="grow"></div>
+      <input id="jump" class="input" placeholder="按 ID 跳转，回车" />
+      <button id="go" class="btn" title="跳到指定ID">跳转</button>
+      <button id="prev" class="btn" disabled>上一题</button>
+      <button id="next" class="btn" disabled>下一题</button>
+    </div>
+  </header>
+
+  <main id="view" class="card">
+    <div class="meta">
+      <div class="item"><span>编号：</span><span id="id" class="muted"></span></div>
+      <div class="item"><span>难度：</span><span id="difficulty" class="muted"></span></div>
+      <div class="item"><span>来源：</span><span id="source" class="muted"></span></div>
+    </div>
+
+    <div id="err"></div>
+    <div id="hint"></div>
+
+    <div class="sep"></div>
+
+    <div class="section-title">题目</div>
+    <div id="problem" class="problem"></div>
+
+    <div class="sep"></div>
+
+    <section class="steps">
+      <div class="section-title">参考步骤（REF）</div>
+      <ol id="refSteps" class="step-list"></ol>
+    </section>
+
+    <div class="sep"></div>
+
+    <section class="steps">
+      <div class="section-title">生成步骤（GEN）</div>
+      <ol id="genSteps" class="step-list"></ol>
+    </section>
+
+    <div class="sep"></div>
+
+    <div class="section-title">答案</div>
+    <div id="answer"></div>
+
+    <div class="nav">
+      <button id="prev2" class="btn" disabled>« 上一题</button>
+      <button id="next2" class="btn" disabled>下一题 »</button>
+    </div>
+  </main>
+
+  <footer>
+    <div>若默认加载失败，多数是浏览器 <code>file://</code> 安全限制。建议在同目录启动：<code>python -m http.server</code></div>
+  </footer>
+
+<script>
+  // ---- DOM refs ----
+  const el = {
+    file: document.getElementById('file'),
+    reload: document.getElementById('reload'),
+    id: document.getElementById('id'),
+    difficulty: document.getElementById('difficulty'),
+    source: document.getElementById('source'),
+    problem: document.getElementById('problem'),
+    refSteps: document.getElementById('refSteps'),
+    genSteps: document.getElementById('genSteps'),
+    answer: document.getElementById('answer'),
+    prev: document.getElementById('prev'),
+    next: document.getElementById('next'),
+    prev2: document.getElementById('prev2'),
+    next2: document.getElementById('next2'),
+    page: document.getElementById('page'),
+    total: document.getElementById('total'),
+    jump: document.getElementById('jump'),
+    go: document.getElementById('go'),
+    err: document.getElementById('err'),
+    hint: document.getElementById('hint'),
+  };
+
+  // ---- helpers ----
+  function normalizeLatex(s) {
+    if (s == null) return "";
+    return String(s)
+      .replaceAll("\\\\(", "\\(")
+      .replaceAll("\\\\)", "\\)")
+      .replaceAll("\\\\[", "\\[")
+      .replaceAll("\\\\]", "\\]")
+      .replaceAll("\\\\", "\\");
+  }
+
+  function parseSteps(val) {
+    if (!val) return [];
+    if (Array.isArray(val)) return val.map(x => String(x));
+    if (typeof val !== 'string') return [];
+    const s = val.trim();
+    try { // JSON array string
+      const j = JSON.parse(s);
+      if (Array.isArray(j)) return j.map(x => String(x));
+    } catch {}
+
+    // Python list string: '...'
+    const out = [];
+    const re = /'([^'\\]*(?:\\.[^'\\]*)*)'/g;
+    let m;
+    while ((m = re.exec(s)) !== null) {
+      out.push(m[1].replaceAll("\\'", "'").replaceAll('\\\\', '\\'));
+    }
+    if (out.length) return out;
+
+    // Fallback: split by sentence-ish
+    return s.split(/(?<=[。；;.!?])\s+/).map(x => x.trim()).filter(Boolean);
+  }
+
+  function norm(x) {
+    const get = (...keys) => { for (const k of keys) if (x[k] != null) return x[k]; return ""; };
+    const item = {
+      id: String(get('id','ID','uid')).trim(),
+      difficulty: Number(get('difficulty','diff','level') || 0),
+      source: String(get('source','Source','competition','Competition') || ""),
+      problem: String(get('problem','question','Question','content') || ""),
+      answer: String(get('answer','final_answer','ans','Answer') || ""),
+      ref_steps: get('ref_steps','refSteps','reference_steps','reference_solution'),
+      gen_output: get('gen_output','gen','generation','generated_steps'),
+    };
+    item.problem = normalizeLatex(item.problem);
+    item.answer = normalizeLatex(item.answer);
+    return item;
+  }
+
+  function renderSteps(ul, arr) {
+    ul.innerHTML = "";
+    arr.forEach(t => {
+      const li = document.createElement('li');
+      li.textContent = normalizeLatex(t);
+      ul.appendChild(li);
+    });
+    if (window.MathJax?.typesetPromise) MathJax.typesetPromise([ul]);
+  }
+
+  let RAW = [];
+  let DATA = [];
+  let idx = 0;
+
+  async function render(i){
+    if (!DATA.length) {
+      el.page.textContent = "0"; el.total.textContent = "0";
+      el.id.textContent = el.difficulty.textContent = el.source.textContent = "";
+      el.problem.textContent = el.answer.textContent = "";
+      el.refSteps.innerHTML = el.genSteps.innerHTML = "";
+      [el.prev, el.next, el.prev2, el.next2].forEach(b => b.disabled = true);
+      return;
+    }
+    const it = DATA[i];
+    el.page.textContent = `${i+1}`; el.total.textContent = `${DATA.length}`;
+    el.id.textContent = it.id || "";
+    el.difficulty.textContent = isFinite(it.difficulty) ? String(it.difficulty) : "";
+    el.source.textContent = it.source || "";
+    el.problem.textContent = it.problem || "";
+    el.answer.textContent = it.answer || "";
+    if (window.MathJax?.typesetPromise) await MathJax.typesetPromise([el.problem, el.answer]);
+    renderSteps(el.refSteps, parseSteps(it.ref_steps));
+    renderSteps(el.genSteps, parseSteps(it.gen_output));
+    [el.prev, el.prev2].forEach(b => b.disabled = i <= 0);
+    [el.next, el.next2].forEach(b => b.disabled = i >= DATA.length - 1);
+  }
+
+  // ---- navigation ----
+  function goPrev(){ if (idx > 0) { idx--; render(idx); } }
+  function goNext(){ if (idx < DATA.length - 1) { idx++; render(idx); } }
+  el.prev.addEventListener('click', goPrev);
+  el.prev2.addEventListener('click', goPrev);
+  el.next.addEventListener('click', goNext);
+  el.next2.addEventListener('click', goNext);
+  document.addEventListener('keydown', e => {
+    if (e.target.matches('input, textarea')) return;
+    if (e.key === 'ArrowLeft') goPrev();
+    if (e.key === 'ArrowRight') goNext();
+  });
+
+  function jumpById(){
+    const id = el.jump.value.trim();
+    if (!id) return;
+    const j = DATA.findIndex(x => String(x.id) === id);
+    if (j >= 0) { idx = j; render(idx); }
+  }
+  el.go.addEventListener('click', jumpById);
+  el.jump.addEventListener('keydown', e => { if (e.key === 'Enter') jumpById(); });
+
+  // ---- loaders ----
+  async function tryFetchFirst(paths) {
+    for (const path of paths) {
+      try {
+        const res = await fetch(path, { cache: 'no-store' });
+        if (!res.ok) continue;
+        const text = await res.text();
+        return { text, path };
+      } catch {}
+    }
+    throw new Error("所有候选文件均无法读取");
+  }
+
+  async function loadFromText(text, label=""){
+    el.err.style.display = "none"; el.hint.style.display = "none";
+    RAW = []; DATA = []; idx = 0;
+    const lines = text.split(/\r?\n/);
+
+    // Pass 1: JSONL per-line
+    for (let ln=0; ln<lines.length; ln++) {
+      const raw = lines[ln].trim();
+      if (!raw || raw.startsWith("//") || raw.startsWith("#")) continue;
+      try { RAW.push(norm(JSON.parse(raw))); } catch {}
+    }
+
+    // Pass 2: Whole-file JSON (array or {data:[]})
+    if (!RAW.length) {
+      try {
+        const j = JSON.parse(text);
+        if (Array.isArray(j)) RAW = j.map(norm);
+        else if (j && Array.isArray(j.data)) RAW = j.data.map(norm);
+      } catch {}
+    }
+
+    if (!RAW.length) {
+      const looksHTML = /^\s*<(!doctype|html|head|body)\b/i.test(text);
+      el.err.innerHTML = looksHTML
+        ? "未解析到任何题目：得到的是 HTML（可能 404）。请核对文件名或使用“选择文件”导入。"
+        : "未解析到任何题目。请确认是 JSONL（逐行 JSON）或 JSON 数组。";
+      el.err.style.display = "block";
+      return render(0);
+    }
+
+    RAW.sort((a,b)=>{
+      const ai = parseInt(a.id,10), bi = parseInt(b.id,10);
+      if (!Number.isNaN(ai) && !Number.isNaN(bi)) return ai - bi;
+      return (a.id||"").localeCompare(b.id||"");
+    });
+    DATA = RAW.slice();
+    el.total.textContent = String(DATA.length);
+    el.hint.style.display = "block";
+    el.hint.innerHTML = `加载 <b>${DATA.length}</b> 条${label?`（${label}）`:""}。`;
+    await render(0);
+  }
+
+  async function tryLoadDefault(){
+    el.err.style.display = "none"; el.hint.style.display = "none";
+    const candidates = ['gen_only.jsonl', 'gen_only', 'gen_only.txt', 'gen_only.json', 'gen_only.ndjson'];
+    try {
+      const got = await tryFetchFirst(candidates);
+      await loadFromText(got.text, got.path);
+    } catch (e) {
+      el.err.innerHTML = "默认文件加载失败：可能是浏览器禁止本地读取或文件不在同目录。你可以点击“选择文件”导入。";
+      el.err.style.display = "block";
+    }
+  }
+
+  // file/dnd
+  el.file.addEventListener('change', async (e) => {
+    const f = e.target.files?.[0]; if (!f) return;
+    await loadFromText(await f.text(), `文件：${f.name}`);
+  });
+  document.addEventListener('dragover', e=>e.preventDefault());
+  document.addEventListener('drop', async e => {
+    e.preventDefault();
+    const f = e.dataTransfer?.files?.[0]; if (!f) return;
+    await loadFromText(await f.text(), `拖入：${f.name}`);
+  });
+  el.reload.addEventListener('click', tryLoadDefault);
+
+  // init
+  document.addEventListener('DOMContentLoaded', tryLoadDefault);
+</script>
+</body>
+</html>

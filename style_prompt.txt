@@ -1,1 +1,1 @@
-Tone: Academic and formal; Sentence length concise; Paragraphs short and to the point; Math notation used in LaTeX; Reasoning structured in a line-by-line format; Degree of rigor is formal with clear justifications; Symbols are used extensively alongside natural language.
+academic tone; formal justification; short sentences; LaTeX for math; rigorous proofs; balanced symbol and language use;
