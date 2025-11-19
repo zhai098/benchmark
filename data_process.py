@@ -338,4 +338,4 @@ def extract_last_score_part(text: str) -> str:
         score = float(match.group(1))
         return score
     else:
-        return 0.0  # 如果没有找到匹配，返回0.0 
+        return -1  # 如果没有找到匹配，返回-1

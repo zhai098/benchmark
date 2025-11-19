@@ -6,7 +6,7 @@ from typing import Dict, Any, List, Tuple
 from config import Config
 from runner import VLLMRunner
 from data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
-from prompt import Judge_Prompt, PairwiseEntailmentPrompt
+from prompt import Judge_Prompt, Pairwise_Prompt, Holistic_Prompt, SelfJudge_Prompt
 
 logger = logging.getLogger(__name__)
 
@@ -20,69 +20,151 @@ def build_judge_model():
         sampling_config=Config["judge_sampling_params"],
         gpus=Config["judge_model_gpus"],
     )
-    judge_promptbuilder = Judge_Prompt(judge_model)
-    entail_promptbuilder = PairwiseEntailmentPrompt(judge_model)
-    return judge_promptbuilder, entail_promptbuilder
+    # 三路 evaluator
+    pairwise = Pairwise_Prompt(judge_model)
+    holistic = Holistic_Prompt(judge_model)
+    selfjudge = SelfJudge_Prompt(judge_model)
+    return pairwise, holistic, selfjudge
 
-# === 复制 align_next_step_LLM_2（不改逻辑）===
-def align_next_step_LLM_2(
-    gen: str,
-    ref: str,
+
+# ---- 聚合器实现：可用 Config 选择 ----
+def _aggregate(scores: List[float], *,
+               mode: str = "weighted",
+               weights: Tuple[float, float, float] = (0.4, 0.4, 0.2),
+               threshold: float = 3.0) -> Tuple[float, bool]:
+    """
+    scores = [pairwise, holistic, selfjudge], 各 ∈ [0,5]
+    mode: 'weighted' | 'mean' | 'min' | 'geom' | 'harmonic' | 'vote'
+    返回: (agg_score, is_hallucination)
+    """
+    import math
+
+    # 清理 NaN
+    clean = [0.0 if s is None else float(s) for s in scores]
+
+    if mode == "weighted":
+        w = list(weights)
+        if len(w) != 3 or sum(w) <= 0:
+            w = [0.4, 0.4, 0.2]
+        agg = sum(s * w_i for s, w_i in zip(clean, w)) / sum(w)
+    elif mode == "mean":
+        agg = sum(clean) / len(clean)
+    elif mode == "min":
+        agg = min(clean)
+    elif mode == "geom":
+        eps = 1e-6
+        prod = 1.0
+        for s in clean:
+            prod *= max(eps, s)
+        agg = prod ** (1.0 / len(clean))
+    elif mode == "harmonic":
+        eps = 1e-6
+        agg = len(clean) / sum(1.0 / max(eps, s) for s in clean)
+    elif mode == "vote":
+        # 将分数二值化：>=threshold 记为 1，否则 0，少数服从多数
+        votes = sum(1 if s >= threshold else 0 for s in clean)
+        agg = sum(clean) / len(clean)
+        # 若投票不通过则强制更保守：把聚合分下拉到 min(agg, threshold - 0.5)
+        if votes < 2:  # 三路至少两票通过才算通过
+            agg = min(agg, threshold - 0.5)
+    else:
+        # 回退到 mean
+        agg = sum(clean) / len(clean)
+
+    is_hallu = bool(agg < threshold)
+    return float(agg), is_hallu
+
+
+def _evaluate_step_multiroute(
     *,
-    judge_promptbuilder: Judge_Prompt,
-    ent: PairwiseEntailmentPrompt,
-    threshold: float = Config["threshold"],
-    overall_threshold: float = Config["overall threshold"],
-    max_len: int = Config["max prefix_num"],
-) -> Tuple[float, bool]:
+    gen_step: str,
+    ref_steps: List[str],
+    idx: int,
+    builders: Dict[str, Any],
+    agg_mode: str,
+    agg_weights: Tuple[float, float, float],
+    overall_threshold: float,
+) -> Tuple[float, Dict[str, float], bool]:
+    """
+    对单步进行三路打分并聚合。
+    返回: (agg_score, per_route_scores, is_hallu)
+    """
+    # --- Holistic
+    prior_ref = "\n".join(ref_steps[: idx + 1]) if ref_steps else ""
+    s_hol = builders["holistic"].run(gen_step, prior_ref)
 
-    gen = _normalize_generation_input(gen)
-    ref = _normalize_generation_input(ref)
-    if not gen or not ref:
-        logger.debug("Empty text in entailment alignment.")
-        return 0.0, True
+    # --- Pairwise
+    s_pairs = builders["pairwise"].run(gen_step, ref_steps[: idx + 1])
+        
+    s_pair = min(s_pairs) if s_pairs else 0.0
 
-    gen_sents_all = processor.sentence_split_en(gen)
-    if not gen_sents_all:
-        logger.debug("Sentence splitter returned no sentences for generated text.")
-        return 0.0, True
+    # --- Self-judge
+    s_self = builders["selfjudge"].run(gen_step)
 
-    K = max(1, min(max_len, len(gen_sents_all)))
-    gen_prefix = " ".join(gen_sents_all[:K])                  # 
+    # --- aggregate
+    agg, is_hallu = _aggregate(
+        [s_pair, s_hol, s_self],
+        mode=agg_mode,
+        weights=agg_weights,
+        threshold=overall_threshold,
+    )
 
-    score = judge_promptbuilder.run(gen_prefix, ref)           # 
-    is_hallu = score < overall_threshold
-    return float(score), bool(is_hallu)
+    per_route = {"pairwise": float(s_pair), "holistic": float(s_hol), "selfjudge": float(s_self)}
+    return float(agg), per_route, bool(is_hallu)
 
-def score_case(rec: Dict[str, Any], judge_promptbuilder: Judge_Prompt, ent: PairwiseEntailmentPrompt) -> Dict[str, Any]:
-    """与 execute_evaluation() 的评测部分等价：对 (gen_output[i], ref_steps[i+1]) 逐步打分并累加。"""
+
+def score_case(rec: Dict[str, Any], builders: Dict[str, Any]) -> Dict[str, Any]:
+    """对 (gen_output[i], ref_steps[:i+1]) 逐步多路打分并聚合。"""
     ref_steps: List[str] = rec["ref_steps"]
     gen_output: List[str] = rec["gen_output"]
-    N = len(ref_steps)  # 与原逻辑一致，用参考步数计入分母
+    N = len(ref_steps)
+    
+    # 读取聚合配置（若 Config 中无，则使用默认）
+    agg_mode = Config.get("judge_aggregation", "weighted")
+    agg_weights = tuple(Config.get("judge_aggregation_weights", (0.4, 0.4, 0.2)))
+    overall_threshold = float(Config.get("overall threshold", 3.0))
 
     total_score = 0.0
     steps_log: List[Dict[str, Any]] = []
-    i = 1
-    for idx in range(len(gen_output) - 1):                     # 
-        current_output = gen_output[idx]
-        next_ref_step = ref_steps[idx + 1]
 
-        score, is_hallu = align_next_step_LLM_2(
-            current_output, next_ref_step,
-            judge_promptbuilder=judge_promptbuilder,
-            ent=ent
+    i = 1
+    # 与原逻辑一致的遍历
+    for idx in range(len(gen_output) - 1):
+        current_output = _normalize_generation_input(gen_output[idx])
+        if not current_output:
+            step_score = 0.0
+            step_contrib = 0.0
+            steps_log.append({
+                "index": i,
+                "score": step_score,
+                "hallucination": 1,
+                "routes": {"pairwise": 0.0, "holistic": 0.0, "selfjudge": 0.0},
+            })
+            i += 1
+            continue
+        
+        agg_score, per_route, is_hallu = _evaluate_step_multiroute(
+            gen_step=current_output,
+            ref_steps=ref_steps,
+            idx=idx,
+            builders=builders,
+            agg_mode=agg_mode,
+            agg_weights=agg_weights,
+            overall_threshold=overall_threshold,
         )
-        # 原逻辑里步分=score；总分累加 = step_score / N * 20
-        step_score = float(score)                               # 
-        step_contrib = step_score / N * 20.0
+
+        step_score = float(agg_score)                 # 0..5
+        step_contrib = step_score / max(1, N) * 20.0  
         total_score += step_contrib
 
-        print(f"[DEBUG] Step {i}: step_score={step_score:.4f}, contribution={step_contrib:.4f}")
+        print(f"[DEBUG] Step {i}: pair={per_route['pairwise']:.2f}, hol={per_route['holistic']:.2f}, "
+              f"self={per_route['selfjudge']:.2f} -> agg={step_score:.2f}, contrib={step_contrib:.4f}")
+
         steps_log.append({
             "index": i,
             "score": step_score,
             "hallucination": int(bool(is_hallu)),
-            "step_score": step_score,
+            "routes": per_route,
         })
         i += 1
 
@@ -91,7 +173,8 @@ def score_case(rec: Dict[str, Any], judge_promptbuilder: Judge_Prompt, ent: Pair
         "total_score": total_score,
         "steps": steps_log,
     }
-
+    
+    
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--gen_file", type=str, required=True,
@@ -108,8 +191,12 @@ def main():
     out_cases_pretty = os.path.join(run_dir, "case_results_pretty.json")
     out_summary = os.path.join(run_dir, "summary.json")
 
-    judge_promptbuilder, entail_promptbuilder = build_judge_model()
-
+    pairwise, holistic, selfjudge = build_judge_model()
+    builders = {
+        "pairwise": pairwise,
+        "holistic": holistic,
+        "selfjudge": selfjudge,
+    }
     scores: List[float] = []
     num = 0
     with open(gen_file, "r", encoding="utf-8") as fin, \
@@ -117,6 +204,8 @@ def main():
          open(out_cases_pretty, "w", encoding="utf-8", buffering=1) as fout_cases_pretty:
 
         for line in fin:
+            if num > 50:
+                break
             t0 = time.time()
             line = line.strip()
             if not line:
@@ -124,7 +213,7 @@ def main():
             rec = json.loads(line)
             num += 1
 
-            eval_res = score_case(rec, judge_promptbuilder, entail_promptbuilder)
+            eval_res = score_case(rec, builders)
             score = float(eval_res["total_score"])
             scores.append(score)
 
@@ -141,15 +230,15 @@ def main():
             _write_pretty_json(fout_cases_pretty, case_record)
 
             t1 = time.time()
-            print(f"[INFO][Stage2] scored case {rec['id']}, score={score:.4f}, time={t1 - t0:.2f}s")
+            print(f"[INFO][JUDGE] scored case {rec['id']}, score={score:.4f}, time={t1 - t0:.2f}s")
 
     # 汇总（与 main.py 风格一致：近似百分制）
     model_score = (sum(scores) * 10 / max(1, num))
     with open(out_summary, "w", encoding="utf-8") as fsum:
         json.dump({"num": num, "avg_score": model_score}, fsum, ensure_ascii=False, indent=2)
 
-    print(f"[RESULT][Stage2] Processed {num} cases")
-    print(f"[RESULT][Stage2] Final model score ≈ {model_score:.2f}")
+    print(f"[RESULT][JUDGE] Processed {num} cases")
+    print(f"[RESULT][JUDGE] Final model score ≈ {model_score:.2f}")
 
 if __name__ == "__main__":
     main()

@@ -19,7 +19,7 @@ class VLLMRunner:
 
 
 
-    def generate(self, prompt: str, schema: dict | None) -> str:
+    def generate(self, prompt: str | list[str], schema: dict | None) -> str:
         ###后期增加统计tokens和延迟的功能
         sp = copy.deepcopy(self.sampling_params)
         if schema:
@@ -29,7 +29,10 @@ class VLLMRunner:
             
         
         t0 = time.time()
-        outs = self.llm.generate([prompt], sp)
+        if isinstance(prompt, list):
+            outs = self.llm.generate(prompt, sp)
+        else:
+            outs = self.llm.generate([prompt], sp)
         """model_inputs = self.tokenizer([prompt], return_tensors="pt")
         generated_ids = self.llm.generate(
             **model_inputs,
@@ -48,7 +51,9 @@ class VLLMRunner:
         content = self.tokenizer.decode(output_ids[index:], skip_special_tokens=True).strip("\n")"""
         latency = time.time() - t0
 
-        text = outs[0].outputs[0].text.strip()
+        text = outs[0].outputs[0].text
+        print("Generated text:", text)
+        
         print(f"[INFO] latency={latency:.3f}s")
         return text
 

@@ -119,92 +119,324 @@ class On_Policy_Prompt:
     
         
 class Generate_Prompt:
-    def __init__(self, model: VLLMRunner, query: str = None, max_lines: int = 18, max_words: int = 400):
-        self.query = query
-        self.current_solution = ""
-        self.promptbuilder = PromptBuilder(model)
-        self.max_lines = max_lines
-        self.max_words = max_words
+    """
+    Refined class that directly uses `continue_final_message=True` for continuation.
+    The class focuses on building and validating the prompt more simply.
+    """
+    def __init__(self, model: VLLMRunner, query: str = None):
+        self.query = query or ""
         self.model = model
-        #这里可以尝试不同的system prompt
-        #直接让续写，
-        self.system_message = (
-        "Reasoning: high\n"
-        "You are a mathematician.\n"
-        "Continue the solution from the given partial work and complete a polished, standard textbook-style solution.\n"
-        "Do not restate the problem. Do not restart from scratch. Do not repeat already given steps.\n"
-        "Use precise mathematical language and notation (LaTeX allowed). Keep the same notation as in the partial work.\n"
-        "No chain-of-thought, no self-reflection, no inner monologue, no meta commentary, no first-person pronouns.\n"
-        "Be concise and coherent.\n"
-        "\nCONCISE OUTPUT (length budget):\n"
-        f"- At most {self.max_lines} lines OR {self.max_words} words in total.\n"
-        "- Prefer compact derivations; summarize routine algebra succinctly.\n"
-        "- Stop immediately once the conclusion is stated.\n"
-        "\nSTRICT FORMAT:\n"
-        "- Output only the final solution text (plain text). No headings, no lists, no code fences, no extra wrappers.\n"
-        "- Do not mention the stop sentinel inside the solution.\n"
-        "- Final line must be exactly <<<END>>> with nothing after it.\n"
-        "- VALID: <solution text>\\n<<<END>>>\n"
-        "- INVALID: any explanation, reflection, or text after <<<END>>>."
-        )
-        
-        self.user_message = ""
-        self.prompt = ""
-        self.output_schema = None
+        self.system_message = "You are a mathematician. Solve the problem."
+        self.current_solution = ""
+        self.schema = None
 
-
-    def build_user(self):
-        self.user_message = (
-        "Problem:\n"
-        f"{self.query}\n\n"
-        "Partial solution so far:\n<<<\n"
-        f"{self.current_solution.strip()}\n"
-        ">>>\n\n"
-        f"Continue directly from the last line and complete a coherent, standard solution within "
-        f"{self.max_lines} lines or {self.max_words} words. "
-        "Do not recap the task, do not add reflections or quality checks, and do not mention forbidden phrases. "
-        "Produce only the final polished solution text; if the solution is already complete, restate the final result succinctly without commentary. "
-        "When done, output <<<END>>> on a new line and nothing else."
-        )
-    
     def add_step(self, step: str):
-        self.current_solution += "\n" + step
+        if step:
+            self.current_solution += "\n" + step if self.current_solution else step
+
+    def _get_tokenizer(self):
+        tok = getattr(self.model, "tokenizer", None)
+        if not tok or not hasattr(tok, "apply_chat_template"):
+            raise RuntimeError("Tokenizer with `apply_chat_template` is required for validation.")
+        return tok
+
+    def _render_and_validate(self, messages) -> str:
+        tok = self._get_tokenizer()
+        prompt_str = tok.apply_chat_template(
+            messages,
+            tokenize=False,
+            continue_final_message=True,
+            add_generation_prompt=False
+        )
+
+        # If continuing, ensure the prompt ends with the current solution
+        if not prompt_str.rstrip().endswith(self.current_solution.rstrip()):
+            raise ValueError("Validation failed: rendered prompt does not end with the partial solution.")
+
+        return prompt_str
+
+    def return_prompt(self) -> str:
+        messages = [{"role": "system", "content": self.system_message}]
+        if self.query:
+            messages.append({"role": "user", "content": f"Problem:\n{self.query}"})
+        if self.current_solution.strip():
+            messages.append({"role": "assistant", "content": self.current_solution.strip()})
+        
+        # Render and validate the prompt
+        return self._render_and_validate(messages)
+
+    def run(self) -> str:
+        prompt = self.return_prompt()
+        out = self.model.generate(prompt, self.schema).strip()  # Assuming the model can generate with the prompt directly
+        return out
+
+
+class Pairwise_Prompt:
+    def __init__(self, model: VLLMRunner):
+        self.model = model
+        self.promptbuilder = PromptBuilder(model)
+        self.user_message = ""
+        self.system_message = (
+            """
+            Reasoning: high
+            Role: You are an automated evaluator for pairwise contradiction checking against prior context.
+            Task
+            A single prior step REF_STEP is selected from REF as the anchor. GEN is the immediate next step. Judge whether GEN introduces any factual or contextual information that CONTRADICTS or is INCONSISTENT WITH REF_STEP.
+            Focus
+            1) Factual inconsistency vs REF_STEP: numbers, formulas, definitions, signs/inequality directions, stated results that conflict with or are not inferable from REF_STEP.
+            2) Context inconsistency vs REF_STEP: variables/constraints/assumptions/notations that are missing in, redefined from, or contradicted by REF_STEP.
+            Rules
+            - Use ONLY REF_STEP to evaluate GEN; do not use outside knowledge.
+            - Pairwise scope: compare GEN strictly against REF_STEP (the chosen earlier step). Do not grade other earlier or later steps beyond this pairwise check.
+            - Equivalence allowed: accept algebraically/logically equivalent restatements that preserve REF_STEP’s meaning.
+            - Zero tolerance on numeric/constraint drift: any changed value/sign/domain/condition relative to REF_STEP is a factual inconsistency .
+            - Bias to caution when uncertain (prefer the lower adjacent score).
+            Input
+            - REF_STEP: one earlier step selected from REF as the anchor for this pairwise check.
+            - GEN: the immediate next step.
+            Output (strict)
+            - JSON only: {"score": k} where k ∈ {0,1,2,3,4,5}; higher = fewer inconsistencies/contradictions with REF_STEP.
+            Scoring Guide
+            5 No contradictions; GEN fully consistent with REF_STEP.
+            4 Minor harmless rephrasing/notation; meaning intact relative to REF_STEP.
+            3 Generally aligned but with small gaps or weakly justified links vs REF_STEP.
+            2 Noticeable factual/context mismatches or skipped details that conflict with REF_STEP.
+            1 Clear unsupported/contradictory claims vs REF_STEP; only superficial overlap.
+            0 GEN contradicts REF_STEP or relies on content outside REF_STEP.
+            Instruction
+            Read REF_STEP and GEN. Compare GEN pairwise against REF_STEP ONLY. Identify contradictions/inconsistencies, then output {"score": k}.
+            """)
+        self.prompt = ""
+        self.output_schema = {
+            "type": "object",
+            "properties": {
+                "score": {
+                    "type": "number",
+                    "enum": [0, 1, 2, 3, 4, 5],
+                    "description": "discrete degree of entailment (0–5), higher = stronger entailment"
+                }
+            },
+            "required": [
+                "score"
+            ],
+            "additionalProperties": False
+        }
+        
+    def build_user(self, gen_text: str, ref_text: str) -> str:
+        self.user_message = (
+            "Task: Pairwise contradiction check between the current GEN step and one prior step (REF_STEP) from the context.\n"
+            "Compare GEN ONLY against REF_STEP; detect factual or contextual inconsistencies relative to REF_STEP.\n"
+            "Use only REF_STEP; When uncertain between two scores, choose the lower.\n"
+            "Output strictly JSON: {{\"score\": k}} where k ∈ {{0,1,2,3,4,5}}.\n"
+            "REF_STEP (the single anchor step selected from REF):\n"
+            f"{ref_text}\n"
+            "GEN (the immediate next step):\n"
+            f"{gen_text}\n"
+            "Valid outputs: 0,1,2,3,4,5."
+        )
+
         
     def return_prompt(self) -> str:
-        self.build_user()
         self.prompt = self.promptbuilder.make_chat_prompt(self.system_message, self.user_message)
         return self.prompt
     
-    def run(self) -> str:
-        """返回续写完成的纯文本解答（在 <<<END>>> 处截断）"""
-        prompt = self.return_prompt()
-        out = self.model.generate(prompt, self.output_schema).strip()
-        # 截断到哨兵；若无哨兵则原样返回
-        cut = out.split("<<<END>>>", 1)[0].rstrip()
-        return cut if cut else out
+    def run(self, gen_claim: str, ref: str) -> list:
+        """Returns a strict JSON: {score: float, label: str, justification: str}"""
+        prompts = []
+        scores = []
+        for ref_step in ref:
+            self.build_user(gen_claim, ref_step)
+            prompt = self.return_prompt()
+            prompts.append(prompt)
+        
+        outs = self.model.generate(prompts, self.output_schema)
+        if not isinstance(outs, list):
+            print("Not a list")
+        for out in outs:            
+            score = extract_last_score_part(out)
+            scores.append(score)
+        return scores
+
+class Holistic_Prompt:
+    def __init__(self, model: VLLMRunner):
+        self.model = model
+        self.promptbuilder = PromptBuilder(model)
+        self.user_message = ""
+        self.system_message = (
+            """
+            Reasoning: high
+            Role: You are an automated evaluator of method-level logical alignment for NEXT-STEP continuation.
+            Task
+            REF contains all prior steps of the solution (context up to, but not including, the current step). GEN is the immediate next step that continues from REF. Judge whether GEN faithfully CONTINUES the SAME method/flow already committed to in REF.
+            Focus
+            - Structural (method) continuation: Does GEN carry forward the same inference rule(s), transformation type(s), and step ordering discipline that REF has already committed to (e.g., the same inequality tool, induction scaffold, substitution, case split, or geometric construction)?
+            - Legitimate variations are allowed ONLY if they are clearly equivalent in logic and preserve the intermediate commitments established by REF (notations may change, the method may be compressed slightly, but the route and commitments must remain the same).
+            Rules
+            - Use ONLY REF as ground truth for the intended method/flow; treat REF’s prior decisions/commitments as given (do not re-grade REF).
+            - Penalize “jumping ahead” (skipping required intermediate moves implied by REF’s method) and “route switching” (changing to a different technique when REF has fixed one).
+            - Penalize numeric/constraint changes if they alter the commitments or invariants introduced in REF.
+            - No backtracking: redefining symbols, undoing prior commitments, or starting a new approach is misaligned unless explicitly implied by REF.
+            - Bias to caution when uncertain.
+            Input
+            - REF: all prior steps (the committed method/flow up to now).
+            - GEN: the immediate next step intended to continue that method/flow.
+            Output (strict)
+            - JSON only: {"score": k} where k ∈ {0,1,2,3,4,5}; higher = closer continuation of REF’s method/flow.
+            Scoring Guide
+            5 Method/flow is faithfully continued; any reordering/compression is clearly equivalent and preserves commitments.
+            4 Largely the same method with tiny harmless compressions/omissions; commitments intact.
+            3 General idea continues the route, but with notable gaps or mild drifting from the committed scaffold.
+            2 Significant deviation (skips key sub-steps or partially switches route) or weak preservation of commitments.
+            1 Mostly a different route; only superficial echoes of REF’s context/method.
+            0 No method alignment; GEN pursues an unrelated/conflicting approach or breaks prior commitments.
+            Instruction
+            Using REF as the committed context and method, judge whether GEN properly continues that method at this next step only, then output {"score": k}.
+            """)
+        self.prompt = ""
+        self.output_schema = {
+            "type": "object",
+            "properties": {
+                "score": {
+                    "type": "number",
+                    "enum": [0, 1, 2, 3, 4, 5],
+                    "description": "discrete degree of entailment (0–5), higher = stronger entailment"
+                }
+            },
+            "required": [
+                "score"
+            ],
+            "additionalProperties": False
+        }
+        
+    def build_user(self, gen_text: str, ref_text: str) -> str:
+        self.user_message = (
+            "Task: Judge whether GEN faithfully CONTINUES the SAME method/flow committed in REF (all prior steps).\n"
+            "Penalize route switching, jumping ahead (skipping moves implied by REF), or breaking prior commitments.\n"
+            "Use REF only; no outside knowledge. When uncertain between two scores, choose the lower.\n"
+            "Output strictly JSON: {{\"score\": k}} where k ∈ {{0,1,2,3,4,5}}.\n"
+            "REF (all prior steps up to now):\n"
+            f"{ref_text}\n"
+            "GEN (the immediate next step):\n"
+            f"{gen_text}\n"
+            "Valid outputs: 0,1,2,3,4,5."
+        )
+        
+    def return_prompt(self) -> str:
+        self.prompt = self.promptbuilder.make_chat_prompt(self.system_message, self.user_message)
+        return self.prompt
     
+    def run(self, gen_claim: str, ref_claim: str) -> dict:
+        """Returns a strict JSON: {score: float, label: str, justification: str}"""
+        self.build_user(gen_claim, ref_claim)
+        prompt = self.return_prompt()
+        out = self.model.generate(prompt, self.output_schema)
+        score = extract_last_score_part(out)
+        return score
+    
+class SelfJudge_Prompt:
+    def __init__(self, model: VLLMRunner):
+        self.model = model
+        self.promptbuilder = PromptBuilder(model)
+        self.user_message = ""
+        self.system_message = (
+            """
+            Reasoning: high
+            Role: You are an automated evaluator for reference-free factual soundness and internal consistency.
+            Task
+            Without any REF, inspect GEN for internal mathematical correctness and self-consistency. Identify arithmetic/algebraic mistakes, illegal operations, undefined or redefined symbols, incompatible constraints, and self-contradictions.
+            Rules
+            - No outside knowledge: judge only by logic/maths that are explicitly stated or standardly valid given the expressions in GEN.
+            - Check internal coherence: variable definitions, domain restrictions, equation manipulations, sign/inequality directions, step-to-step consistency within GEN.
+            - Penalize unverifiable claims (results stated without derivation when derivation is necessary to validate them within GEN).
+            - Bias to caution when uncertain.
+            Input
+            - GEN: a short mathematical reasoning excerpt.
+            Output (strict)
+            - JSON only: {"score": k} where k ∈ {0,1,2,3,4,5}; higher = fewer detectable internal errors/contradictions.
+            Scoring Guide
+            5 No detectable internal errors; operations and symbols are coherent.
+            4 Minor slips/omissions that do not change correctness.
+            3 Generally sound but with one or two questionable/under-justified links.
+            2 Clear error(s) in manipulation or conflicting constraints.
+            1 Multiple errors; reasoning largely unsound.
+            0 Nonsensical or self-contradictory throughout.
+            Instruction
+            Evaluate GEN’s internal mathematical correctness and self-consistency only, then output {"score": k}.
+            """)
+        self.prompt = ""
+        self.output_schema = {
+            "type": "object",
+            "properties": {
+                "score": {
+                    "type": "number",
+                    "enum": [0, 1, 2, 3, 4, 5],
+                    "description": "discrete degree of entailment (0–5), higher = stronger entailment"
+                }
+            },
+            "required": [
+                "score"
+            ],
+            "additionalProperties": False
+        }
+        
+    def build_user(self, gen_text: str) -> str:
+        self.user_message = (
+            "Task: Reference-free evaluation of GEN’s internal mathematical correctness and self-consistency.\n"
+            "Check symbol definitions, domain/constraint compatibility, legality of operations, sign/inequality directions, "
+            "and step-to-step coherence within GEN. Penalize unverifiable claims that require derivation inside GEN.\n"
+            "Use no outside knowledge. When uncertain between two scores, choose the lower.\n"
+            "Output strictly JSON: {{\"score\": k}} where k ∈ {{0,1,2,3,4,5}}.\n"
+            "GEN:\n"
+            f"{gen_text}\n"
+            "Valid outputs: 0,1,2,3,4,5."
+        )
+
+        
+    def return_prompt(self) -> str:
+        self.prompt = self.promptbuilder.make_chat_prompt(self.system_message, self.user_message)
+        return self.prompt
+    
+    def run(self, gen_claim: str) -> dict:
+        """Returns a strict JSON: {score: float, label: str, justification: str}"""
+        self.build_user(gen_claim)
+        prompt = self.return_prompt()
+        out = self.model.generate(prompt, self.output_schema)
+        score = extract_last_score_part(out)
+        return score
     
 class Judge_Prompt:
     def __init__(self, model: VLLMRunner):
         self.user_message = ""
         self.system_message = (
-            "Reasoning: high\n"
-            "You are tasked with rigorously evaluating the semantic entailment between a long generated text (GEN) and a short reference text (REF). "
-            "Focus on mathematical logic and reasoning steps. Be strict and consistent.\n"
-            "[INPUTS] GEN: <long generated text>  REF: <short reference text>.\n"
-            "[SCORING — DISCRETE] Assign an INTEGER score in {0,1,2,3,4,5} ONLY.\n"
-            "Interpretation:\n"
-            "5: Perfect entailment — GEN fully and correctly entails REF; logic sound; all necessary intermediate steps and quantifiers/edge cases are covered; no contradictions.\n"
-            "4: Strong entailment — GEN entails REF with only minor omissions or nuance gaps; logic is sound; missing details do not affect the conclusion.\n"
-            "3: Substantial but incomplete — main claim is mostly supported, but 1–2 critical intermediate steps/assumptions are missing OR minor local errors that do not flip the conclusion.\n"
-            "2: Moderate/partial — several key steps are missing or unclear; GEN supports parts of REF but not enough for a full entailment; possible unresolved edge cases.\n"
-            "1: Weak — only vague or fragmentary alignment; major gaps or inconsistencies in reasoning; support is insufficient and unreliable.\n"
-            "0: No entailment/contradiction/irrelevant — GEN fails to support REF or conflicts with it.\n"
-            "Decision rules: choose the HIGHEST score k such that ALL requirements for k are satisfied. If uncertain between two levels, pick the LOWER one.\n"
-            "[OUTPUT FORMAT] Return STRICT JSON ONLY as: {\"score\": <one of 0,1,2,3,4,5>}.\n"
-            "[STYLE & GUARDRAILS] Output MUST be exactly valid JSON with a single key 'score'. No explanations, no extra text, no code fences."
+            """
+            Reasoning: high
+            Task Description: You are an automated evaluator. Examine a reference math solution (REF) and a generated solution excerpt (GEN). Determine how faithfully GEN follows REF, focusing on any hallucinations. A hallucination is any content in GEN that is not supported by REF – including factual errors, changes in reasoning structure, or altered context that breaks consistency with REF.
+            Hallucination Types to Detect
+            Factual Inconsistency: GEN introduces numerical results, formulas, or assumptions that are not logically or explicitly derived from the information in REF.
+            Structural Inconsistency: GEN alters the logical flow or method of solution. It changes derivation steps or the solving approach in a way that deviates from REF’s structure.
+            Context Inconsistency: GEN omits, adds, or misrepresents critical context from REF (e.g. variables, constraints, or conditions), resulting in a mismatch with the scenario or assumptions in REF.
+            Constraints
+            Reference (REF): One or more paragraphs of detailed mathematical reasoning (the authoritative solution).
+            Generated (GEN): A short solution segment (only a few sentences) purportedly summarizing or partially solving the problem.
+            Domain-General: The evaluation must apply to any math domain (algebra, calculus, geometry, etc.), using general mathematical language not tied to a specific field.
+            Use Only REF Content: Base all judgments strictly on the content of REF. Do not use outside knowledge or unstated mathematical facts – if GEN relies on any knowledge not present or inferable from REF, treat it as a hallucination.
+            Output Format
+            JSON Only: Return the final judgment as a JSON object with no extra text. Use the format: {"score": k} where k is an integer from 0 to 5.
+            Score Value: A higher score means GEN is more faithful to REF (5 = perfect consistency, 0 = complete hallucination).
+            Scoring Rubric
+            5 — Fully Consistent: GEN’s statements and logic are entirely supported by REF, with no extraneous steps or assumptions. Every claim in GEN can be directly traced to REF.
+            4 — Mostly Consistent: GEN is almost fully faithful to REF. It may have minor rewordings or slight omissions, but these do not alter the meaning or correctness of the solution.
+            3 — Generally Aligned: GEN aligns with REF on main points but has gaps or mild extrapolations. Some logical links may be missing or not clearly justified by REF’s content.
+            2 — Loose Alignment: GEN is thematically related to REF’s topic but significantly diverges in reasoning or facts. It might introduce an unsupported method or misstate a result from REF.
+            1 — Weak Relevance: GEN shows only superficial similarity to REF. It contains clear hallucinations — major steps or claims that are unsupported or contradict REF, omitting critical parts of the solution.
+            0 — No Alignment (Complete Hallucination): GEN bears no meaningful correspondence to REF. It fabricates solution steps, uses incorrect facts, or makes assumptions entirely outside the scope of REF.
+            Additional Evaluation Rules
+            No Unjustified Additions: Do not credit GEN for any extrapolation, generalization, or known formula that isn’t explicitly present or derivable from REF. Extra knowledge, even if correct, counts as hallucination if REF didn’t include it.
+            Allow Legitimate Variations: It’s acceptable if GEN uses different notation, reorders steps, or simplifies expressions only when these variations are logically equivalent and clearly inferable from REF’s reasoning.
+            Penalize Contradictions: If GEN introduces any claim that conflicts with REF (even a minor contradiction or a changed constraint), reduce the score significantly to reflect the inconsistency.
+            Bias to Caution: When in doubt between two adjacent scores, choose the lower (more critical) score. The scoring should err on the side of penalizing potential hallucinations rather than overlooking them.
+            Instruction: Read REF and GEN carefully. Identify any hallucinations per the above criteria. Then output the appropriate consistency score (0–5) in the specified JSON format, and nothing else."""
         )
-
         self.model = model
         self.prompt = ""
         self.promptbuilder = PromptBuilder(model)
@@ -225,24 +457,28 @@ class Judge_Prompt:
 
     def build_user(self, gen_text: str, ref_text: str) -> str:
         self.user_message = (
-            "You are given GEN (long text) and REF (short text). "
-            "Assess how strongly GEN semantically entails REF under the system scoring rubric. "
-            "Return STRICT JSON ONLY: {\"score\": <one of 0,1,2,3,4,5>}.\n"
-            f"GEN: {gen_text}\n"
-            f"REF: {ref_text}\n"
-            "Remember: the ONLY valid outputs are 0,1,2,3,4,5 (integers)."
+           "You are given REF (authoritative solution, one or more paragraphs) and GEN (short solution segment, a few sentences)."
+            "Judge whether GEN contains hallucinations relative to REF (factual, structural, or context inconsistencies). Use only information present or directly inferable from REF; any outside knowledge counts as hallucination. Evaluate only this segment; ignore any later steps or unstated context."
+            "Apply the system rubric. If uncertain between two adjacent levels, choose the lower."
+            "Return STRICT JSON ONLY: {'score': <0|1|2|3|4|5>}"
+            "No explanations, no extra keys, no code fences."
+            f"REF: {ref_text}"
+            f"GEN: {gen_text}"
+            "Valid outputs: 0,1,2,3,4,5."
         )
+
+
 
     def return_prompt(self) -> str:
         self.prompt = self.promptbuilder.make_chat_prompt(self.system_message, self.user_message)
         return self.prompt
-
+    
     def run(self, gen_claim: str, ref_claim: str) -> dict:
         """Returns a strict JSON: {score: float, label: str, justification: str}"""
         self.build_user(gen_claim, ref_claim)
         prompt = self.return_prompt()
         out = self.model.generate(prompt, self.output_schema)
-        print(out)
+        
         score = extract_last_score_part(out)
         return score
 

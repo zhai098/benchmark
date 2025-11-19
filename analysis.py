@@ -7,7 +7,7 @@ import pandas as pd
 import re
 
 # 读取 JSONL 文件并修复格式
-file_path = "/home/zhaipengxiang/111/outputs/ibm-granite/granite-4.0-micro_openai/gpt-oss-20b_862536/case_results.jsonl"
+file_path = "res.json"
 
 # 尝试加载 JSONL 文件并修复其中的格式问题
 data = []
@@ -33,8 +33,8 @@ data_df = pd.DataFrame(data)
 data_subset = data_df.head(25)
 
 # 创建保存分析结果的文件夹
-analysis_dir = os.path.abspath("./analysis")
-analysis_dir = os.path.join(analysis_dir, "granite-4.0-micro")
+analysis_dir = os.path.abspath("./analysis_new")
+analysis_dir = os.path.join(analysis_dir, "Qwen3-30B-A3B-Thinking-2507_long_output_11_13_0")
 os.makedirs(analysis_dir, exist_ok=True)
 
 # 计算前25个case的分数平均值和方差

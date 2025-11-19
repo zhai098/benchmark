@@ -368,7 +368,7 @@ def main():
     out_dir = os.path.abspath("./outputs")
     os.makedirs(out_dir, exist_ok=True)
     
-    rand_tag = str(random.randint(100000, 999999))
+    rand_tag = Config["tag"]
     run_dir_name = f"{Config["reasoning_model"]}_{Config["judge_model"]}_{rand_tag}"
     run_dir = os.path.join(out_dir, run_dir_name)
     os.makedirs(run_dir, exist_ok=True)
@@ -391,6 +391,8 @@ def main():
          open(out_case_text, "w", encoding="utf-8", buffering=1) as fcase_text, \
          open(input_path, "r", encoding="utf-8") as fin:
         for line in fin:
+            if num == 51 :
+                break
             time_start = time.time()
             line = line.strip()
             if not line:

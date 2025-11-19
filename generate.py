@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import os, json, time, random, logging
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Tuple
 from config import Config
 from runner import VLLMRunner
 from prompt import Generate_Prompt
@@ -27,24 +27,27 @@ def generate_case(obj: Dict[str, Any], reasoning_model: VLLMRunner) -> Dict[str,
 
     # 初始化 prompt（与原逻辑一致）
     generate_promptbuilder = Generate_Prompt(reasoning_model, problem)
-    _ = generate_promptbuilder.return_prompt()  # 保持行为一致
 
     # 只取 content，等价于你现在的 thought_policy 构造
     thought_policy: List[str] = [seg["content"] for seg in thought_seg]  # 
-
-    unprocessed = list(thought_policy)
+    type_list: List[str] = [seg["type"] for seg in thought_seg]  
+    unprocessed: List[Tuple[str, str]] = list(zip(thought_policy, type_list))
     processed: List[str] = []
+    processed_types: List[str] = []
     gen_output: List[str] = []
     i = 1
     while unprocessed:
-        current_step = unprocessed.pop(0)
-        generate_promptbuilder.add_step(current_step)          # 
-        current_output = generate_promptbuilder.run()          # 
+        current_step, current_type = unprocessed.pop(0)
+        generate_promptbuilder.add_step(current_step)
+        current_output = generate_promptbuilder.run()
         print(f"[DEBUG] Generation step {i}")
-        gen_output.append(current_output)                      # 
+
+        gen_output.append(current_output)
         processed.append(current_step)
+        processed_types.append(current_type)
+
         if not unprocessed:
-            print("[DEBUG] Reached last step (generation), stop generation loop")  # 
+            print("[DEBUG] Reached last step (generation), stop generation loop")
             break
         i += 1
 
@@ -52,17 +55,18 @@ def generate_case(obj: Dict[str, Any], reasoning_model: VLLMRunner) -> Dict[str,
         "problem": problem,
         "answer": answer,
         "ref_steps": processed,     # 评测阶段需要参考步骤（与 processed_thought 等价）
+        "ref_types": processed_types, 
         "gen_output": gen_output,   # 待评测的模型生成
         "difficulty": float(obj.get("difficulty", 0.0)),
     }
 
 def main():
     # 输出目录命名沿用 main.py 风格
-    out_root = os.path.abspath("./_outputs")
+    out_root = os.path.abspath("./gen_output")
     os.makedirs(out_root, exist_ok=True)
 
-    rand_tag = str(random.randint(100000, 999999))
-    run_dir_name = f"{Config['reasoning_model']}_{Config['judge_model']}_{rand_tag}"
+    rand_tag = Config["tag"]
+    run_dir_name = f"{Config['reasoning_model']}_{rand_tag}"
     run_dir = os.path.join(out_root, run_dir_name)
     os.makedirs(run_dir, exist_ok=True)
 
@@ -72,7 +76,7 @@ def main():
     manifest_path = os.path.join(run_dir, "run_info.json")
 
     input_path = Config["Input_path"]
-    print(f"[INFO][Stage1] loading: {input_path}")
+    print(f"[INFO][GENERATE] loading: {input_path}")
     reasoning_model = build_reasoning_model()
 
     num = 0
@@ -81,6 +85,9 @@ def main():
          open(gen_only_pretty, "w", encoding="utf-8", buffering=1) as fgen_pretty:
 
         for line in fin:
+            if num < Config.get("skip_generate_num", 0):
+                num += 1
+                continue
             t0 = time.time()
             line = line.strip()
             if not line:
@@ -107,7 +114,7 @@ def main():
             _write_pretty_json(fgen_pretty, out_record)
 
             t1 = time.time()
-            print(f"[INFO][Stage1] generated case {num}, time={t1 - t0:.2f}s")
+            print(f"[INFO][GENERATE] generated case {num}, time={t1 - t0:.2f}s")
 
     # 写一个小 manifest，第二阶段方便指向文件
     with open(manifest_path, "w", encoding="utf-8") as f:
@@ -119,8 +126,8 @@ def main():
             "num": num,
         }, f, ensure_ascii=False, indent=2)
 
-    print(f"[RESULT][Stage1] wrote {num} generations to: {gen_only_jsonl}")
-    print(f"[RESULT][Stage1] run_dir = {run_dir}")
+    print(f"[RESULT][GENERATE] wrote {num} generations to: {gen_only_jsonl}")
+    print(f"[RESULT][GENERATE] run_dir = {run_dir}")
 
 if __name__ == "__main__":
     main()

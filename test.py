@@ -1,5 +1,39 @@
-import math
+from vllm import LLM, SamplingParams
 
-score = 0.6332064951901978+0.7895011717329765+0.2711514123115577+0.3236967766106935+0.2609292107663403+0.3625637661064925+0.5290034908644258+0.6540779453554453+0.042000806308274616+0.43839634712534664+0.28004450167489386+0.42501268741393006+0.2444772030894615+0.4141612250517282+0.6449545979138874+0.36084840985293276+0.3459097404486479+0.6019770736646551+0.19723904419670976+0.8280770212293518+0.3697693071707648+0.6531765202239248+0.29766478477287484+0.2793068320227546+0.5897030241724185
-score /= 25
-print(score)
+def main():
+    # 一组示例 prompts
+    prompts = [
+        "介绍一下 Python，限制在一句话：",
+        "把下面这句话翻译成英文：今天天气不错，就是有点冷。",
+        "给我一个 1-10 的随机幸运数字，并解释为什么：",
+    ]
+
+    # 采样参数：这里 n=1，只要每个 prompt 一个结果
+    sampling_params = SamplingParams(
+        temperature=0.7,
+        top_p=0.9,
+        max_tokens=64,
+        n=1,          # 每个 prompt 只要一个候选
+    )
+
+    # 创建 LLM 实例（模型名你按自己机器情况改）
+    llm = LLM(model="facebook/opt-125m")
+
+    # 直接把 list[str] 喂进去
+    outputs = llm.generate(prompts, sampling_params)
+    if isinstance(outputs, list):
+        print("Outputs is a list.")
+    
+    # 逐个输出，对应关系是一一对应、按顺序不变
+    for i, output in enumerate(outputs):
+        prompt = output.prompt               # 原始 prompt
+        generated = output.outputs[0].text   # 第一个候选的生成文本
+
+        print("=" * 60)
+        print(f"Prompt {i}: {prompt!r}\n")
+        print("Generation:")
+        print(generated.strip())
+        print()
+
+if __name__ == "__main__":
+    main()
