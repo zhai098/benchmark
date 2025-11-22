@@ -1,13 +1,13 @@
 # stage2_judge.py
 from __future__ import annotations
 
-import os, json, time, argparse, logging
+import os, json, time, argparse, logging, math
 from typing import Dict, Any, List, Tuple
 from config import Config
 from runner import VLLMRunner
 from data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
 from prompt import Judge_Prompt, Pairwise_Prompt, Holistic_Prompt, SelfJudge_Prompt
-
+import numpy as np
 logger = logging.getLogger(__name__)
 
 # === 与 main.py 保持同逻辑的全局组件 ===
@@ -74,6 +74,17 @@ def _aggregate(scores: List[float], *,
     is_hallu = bool(agg < threshold)
     return float(agg), is_hallu
 
+def agg_top_k_mean(scores: List[float], k: int = 1, take_highest: bool = True) -> Tuple[float, Dict]:
+    # 过滤掉负分（将负值视为无效/缺失），只使用 >= 0 的分数参与聚合
+    valid = [float(x) for x in scores if x is not None and float(x) >= 0]
+    if not valid:
+        # 当没有有效分数时，返回 0 并标注原因
+        return 0.0, {"method": "top_k_mean", "k": 0, "take_highest": take_highest, "note": "no_nonnegative_scores"}
+
+    s_sorted = sorted(valid, reverse=take_highest)
+    k = max(1, min(k, len(s_sorted)))
+    chosen = s_sorted[:k]
+    return float(np.mean(chosen)), {"method": "top_k_mean", "k": k, "take_highest": take_highest}
 
 def _evaluate_step_multiroute(
     *,
@@ -81,9 +92,6 @@ def _evaluate_step_multiroute(
     ref_steps: List[str],
     idx: int,
     builders: Dict[str, Any],
-    agg_mode: str,
-    agg_weights: Tuple[float, float, float],
-    overall_threshold: float,
 ) -> Tuple[float, Dict[str, float], bool]:
     """
     对单步进行三路打分并聚合。
@@ -91,26 +99,27 @@ def _evaluate_step_multiroute(
     """
     # --- Holistic
     prior_ref = "\n".join(ref_steps[: idx + 1]) if ref_steps else ""
-    s_hol = builders["holistic"].run(gen_step, prior_ref)
+    hol_res = builders["holistic"].run(gen_step, prior_ref)
 
     # --- Pairwise
-    s_pairs = builders["pairwise"].run(gen_step, ref_steps[: idx + 1])
+    pairs_res = builders["pairwise"].run(gen_step, ref_steps[: idx + 1])
         
-    s_pair = min(s_pairs) if s_pairs else 0.0
-
     # --- Self-judge
-    s_self = builders["selfjudge"].run(gen_step)
+    # self_res = builders["selfjudge"].run(gen_step)
 
+    #pair_score = agg_top_k_mean(pairs_res["scores"], k=math.ceil(len(pairs_res["scores"])/2))[0]
+    pair_score = sum(sorted(pairs_res["scores"])[:2]) / 2
     # --- aggregate
-    agg, is_hallu = _aggregate(
-        [s_pair, s_hol, s_self],
-        mode=agg_mode,
-        weights=agg_weights,
-        threshold=overall_threshold,
-    )
+    agg = pair_score + hol_res["score"]  # + self_res["score"]
+    agg /= 2  # 3 路平均
 
-    per_route = {"pairwise": float(s_pair), "holistic": float(s_hol), "selfjudge": float(s_self)}
-    return float(agg), per_route, bool(is_hallu)
+    per_route = {"pairwise": float(pair_score), "holistic": float(hol_res["score"])}  # , "selfjudge": float(self_res["score"])}
+    detail = {
+        "pairwise": pairs_res,
+        "holistic": hol_res,
+        # "selfjudge": self_res,
+    }
+    return float(agg), per_route, detail
 
 
 def score_case(rec: Dict[str, Any], builders: Dict[str, Any]) -> Dict[str, Any]:
@@ -118,7 +127,7 @@ def score_case(rec: Dict[str, Any], builders: Dict[str, Any]) -> Dict[str, Any]:
     ref_steps: List[str] = rec["ref_steps"]
     gen_output: List[str] = rec["gen_output"]
     N = len(ref_steps)
-    
+
     # 读取聚合配置（若 Config 中无，则使用默认）
     agg_mode = Config.get("judge_aggregation", "weighted")
     agg_weights = tuple(Config.get("judge_aggregation_weights", (0.4, 0.4, 0.2)))
@@ -130,41 +139,43 @@ def score_case(rec: Dict[str, Any], builders: Dict[str, Any]) -> Dict[str, Any]:
     i = 1
     # 与原逻辑一致的遍历
     for idx in range(len(gen_output) - 1):
+        
         current_output = _normalize_generation_input(gen_output[idx])
-        if not current_output:
+        gen_sents_all = processor.sentence_split_en(current_output)
+        K = max(1, min(Config["max prefix_num"], len(gen_sents_all)))
+        gen_sents = gen_sents_all[:K]
+        gen_prefix = " ".join(gen_sents)
+        
+        if not gen_prefix.strip():
             step_score = 0.0
             step_contrib = 0.0
             steps_log.append({
                 "index": i,
                 "score": step_score,
                 "hallucination": 1,
-                "routes": {"pairwise": 0.0, "holistic": 0.0, "selfjudge": 0.0},
+                "routes": {"pairwise": 0.0, "holistic": 0.0},
             })
             i += 1
             continue
         
-        agg_score, per_route, is_hallu = _evaluate_step_multiroute(
-            gen_step=current_output,
+        agg_score, per_route, detail = _evaluate_step_multiroute(
+            gen_step=gen_prefix,
             ref_steps=ref_steps,
             idx=idx,
             builders=builders,
-            agg_mode=agg_mode,
-            agg_weights=agg_weights,
-            overall_threshold=overall_threshold,
         )
 
         step_score = float(agg_score)                 # 0..5
         step_contrib = step_score / max(1, N) * 20.0  
         total_score += step_contrib
 
-        print(f"[DEBUG] Step {i}: pair={per_route['pairwise']:.2f}, hol={per_route['holistic']:.2f}, "
-              f"self={per_route['selfjudge']:.2f} -> agg={step_score:.2f}, contrib={step_contrib:.4f}")
+        print(f"[DEBUG] Step {i}: pair={per_route['pairwise']:.2f}, hol={per_route['holistic']:.2f} -> agg={step_score:.2f}, contrib={step_contrib:.4f}")
 
         steps_log.append({
             "index": i,
             "score": step_score,
-            "hallucination": int(bool(is_hallu)),
             "routes": per_route,
+            "judge_detail": detail,
         })
         i += 1
 
@@ -187,10 +198,13 @@ def main():
     run_dir = os.path.abspath(args.run_dir) if args.run_dir else os.path.dirname(gen_file)
     os.makedirs(run_dir, exist_ok=True)
 
+    per_case_dir = os.path.join(run_dir, "cases")
+    os.makedirs(per_case_dir, exist_ok=True)
+    
+    out_summary = os.path.join(run_dir, "summary.json")
     out_cases = os.path.join(run_dir, "case_results.jsonl")
     out_cases_pretty = os.path.join(run_dir, "case_results_pretty.json")
-    out_summary = os.path.join(run_dir, "summary.json")
-
+    
     pairwise, holistic, selfjudge = build_judge_model()
     builders = {
         "pairwise": pairwise,
@@ -202,7 +216,7 @@ def main():
     with open(gen_file, "r", encoding="utf-8") as fin, \
          open(out_cases, "w", encoding="utf-8", buffering=1) as fout_cases, \
          open(out_cases_pretty, "w", encoding="utf-8", buffering=1) as fout_cases_pretty:
-
+        total_time = 0.0
         for line in fin:
             if num > 50:
                 break
@@ -226,12 +240,28 @@ def main():
                 "problem": rec["problem"],
                 "answer": rec.get("answer", ""),
             }
-            _write_jsonl_line(fout_cases, case_record)
-            _write_pretty_json(fout_cases_pretty, case_record)
+            simple_case_record = {
+                "id": rec["id"],
+                "score": score,
+                "num_steps": eval_res["num_steps"],
+                "problem": rec["problem"],
+                "answer": rec.get("answer", ""),
+            }
+            _write_jsonl_line(fout_cases, simple_case_record)
+            _write_pretty_json(fout_cases_pretty, simple_case_record)
+            
+            raw_id = str(rec["id"])
+            safe_id = "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in raw_id)
+            case_path = os.path.join(per_case_dir, f"{safe_id}.json")
+            with open(case_path, "w", encoding="utf-8") as fcase:
+                json.dump(case_record, fcase, ensure_ascii=False, indent=2)
+            
 
             t1 = time.time()
+            total_time += (t1 - t0)
             print(f"[INFO][JUDGE] scored case {rec['id']}, score={score:.4f}, time={t1 - t0:.2f}s")
-
+            
+    print(f"[INFO][JUDGE] Total scoring time: {total_time:.2f}s")
     # 汇总（与 main.py 风格一致：近似百分制）
     model_score = (sum(scores) * 10 / max(1, num))
     with open(out_summary, "w", encoding="utf-8") as fsum:

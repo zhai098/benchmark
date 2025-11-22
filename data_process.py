@@ -339,3 +339,41 @@ def extract_last_score_part(text: str) -> str:
         return score
     else:
         return -1  # 如果没有找到匹配，返回-1
+    
+def extract_prefix_value(raw: str) -> str | None:
+    """
+    从类似
+      'assistantfinal{"prefix":"..."}'
+    这样的字符串里提取 prefix 字段对应的字符串内容。
+    解析失败或没有 prefix 时返回 None。
+    """
+    # 1. 截到第一个 '{'，拿到纯 JSON 部分
+    brace_idx = raw.find("{")
+    if brace_idx == -1:
+        return None
+    json_part = raw[brace_idx:]
+
+    # 2. 解析 JSON
+    try:
+        obj = json.loads(json_part)
+    except json.JSONDecodeError:
+        return None
+
+    # 3. 取 prefix 字段
+    val = obj.get("prefix")
+    print("提取到的 prefix 字段值:", val)
+    return val 
+
+import re
+
+def extract_prefix(text: str) -> str | None:
+    """
+    在字符串中查找模式：
+    assistantfinal{"prefix":"..."}
+    返回 ... 的内容（不含引号）。
+    找不到则返回 None。
+    """
+    m = re.search(r'assistantfinal\{"prefix"\s*:\s*"([^"]*)"', text)
+    if not m:
+        return None
+    return m.group(1)

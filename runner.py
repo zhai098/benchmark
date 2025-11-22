@@ -30,32 +30,20 @@ class VLLMRunner:
         
         t0 = time.time()
         if isinstance(prompt, list):
+            print("Generating for a list of prompts, count:", len(prompt))
             outs = self.llm.generate(prompt, sp)
         else:
             outs = self.llm.generate([prompt], sp)
-        """model_inputs = self.tokenizer([prompt], return_tensors="pt")
-        generated_ids = self.llm.generate(
-            **model_inputs,
-            max_new_tokens=32768
-        )
-        output_ids = generated_ids[0][len(model_inputs.input_ids[0]):].tolist() 
         
-        # parsing thinking content
-        try:
-            # rindex finding 151668 (</think>)
-            index = len(output_ids) - output_ids[::-1].index(151668)
-        except ValueError:
-            index = 0
-
-        thinking_content = self.tokenizer.decode(output_ids[:index], skip_special_tokens=True).strip("\n")
-        content = self.tokenizer.decode(output_ids[index:], skip_special_tokens=True).strip("\n")"""
         latency = time.time() - t0
 
-        text = outs[0].outputs[0].text
-        print("Generated text:", text)
+        texts = []
+        for i, out in enumerate(outs):
+            text = out.outputs[0].text
+            texts.append(text)
         
         print(f"[INFO] latency={latency:.3f}s")
-        return text
+        return texts
 
         
     
