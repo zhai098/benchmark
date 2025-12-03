@@ -26,7 +26,7 @@ def generate_case(obj: Dict[str, Any], reasoning_model: VLLMRunner) -> Dict[str,
     answer = obj.get("answer", "")
 
     # 初始化 prompt（与原逻辑一致）
-    generate_promptbuilder = Generate_Prompt(reasoning_model, problem)
+    generate_promptbuilder = Generate_Prompt(reasoning_model, query=problem)
 
     # 只取 content，等价于你现在的 thought_policy 构造
     thought_policy: List[str] = [seg["content"] for seg in thought_seg]  # 
@@ -36,13 +36,21 @@ def generate_case(obj: Dict[str, Any], reasoning_model: VLLMRunner) -> Dict[str,
     processed_types: List[str] = []
     gen_output: List[str] = []
     i = 1
+    prompt_lists = []
     while unprocessed:
         current_step, current_type = unprocessed.pop(0)
         generate_promptbuilder.add_step(current_step)
-        current_output = generate_promptbuilder.run()
-        print(f"[DEBUG] Generation step {i}")
+        
+        # Print string for debug
+        print(generate_promptbuilder.return_prompt())
+        print("\n")
+        
+        # Use IDs for generation if available
+        if hasattr(generate_promptbuilder, "return_prompt_ids"):
+            prompt_lists.append(generate_promptbuilder.return_prompt_ids())
+        else:
+            prompt_lists.append(generate_promptbuilder.return_prompt())
 
-        gen_output.append(current_output)
         processed.append(current_step)
         processed_types.append(current_type)
 
@@ -50,11 +58,15 @@ def generate_case(obj: Dict[str, Any], reasoning_model: VLLMRunner) -> Dict[str,
             print("[DEBUG] Reached last step (generation), stop generation loop")
             break
         i += 1
-
+    # 一次性生成所有步骤
+    prompts = prompt_lists 
+    generations = reasoning_model.generate(prompts, schema=None)
+    gen_output.extend(generations)
     return {
         "problem": problem,
         "answer": answer,
         "ref_steps": processed,     # 评测阶段需要参考步骤（与 processed_thought 等价）
+        "prompts": prompts,
         "ref_types": processed_types, 
         "gen_output": gen_output,   # 待评测的模型生成
         "difficulty": float(obj.get("difficulty", 0.0)),
@@ -78,13 +90,14 @@ def main():
     input_path = Config["Input_path"]
     print(f"[INFO][GENERATE] loading: {input_path}")
     reasoning_model = build_reasoning_model()
-
     num = 0
     with open(input_path, "r", encoding="utf-8") as fin, \
          open(gen_only_jsonl, "w", encoding="utf-8", buffering=1) as fgen, \
          open(gen_only_pretty, "w", encoding="utf-8", buffering=1) as fgen_pretty:
 
         for line in fin:
+            if num >= 50:
+                break
             if num < Config.get("skip_generate_num", 0):
                 num += 1
                 continue
@@ -107,6 +120,7 @@ def main():
                 "difficulty": res["difficulty"],
                 "problem": res["problem"],
                 "answer": res["answer"],
+                "prompts": res["prompts"],        # 复现用
                 "ref_steps": res["ref_steps"],      # 评测要用
                 "gen_output": res["gen_output"],    # 评测要用
             }

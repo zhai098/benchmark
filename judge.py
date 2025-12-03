@@ -102,7 +102,7 @@ def _evaluate_step_multiroute(
     hol_res = builders["holistic"].run(gen_step, prior_ref)
 
     # --- Pairwise
-    pairs_res = builders["pairwise"].run(gen_step, ref_steps[: idx + 1])
+    pairs_res = builders["pairwise"].run(gen_step, ref_steps[: idx + 1], prior_ref)
         
     # --- Self-judge
     # self_res = builders["selfjudge"].run(gen_step)
@@ -263,7 +263,7 @@ def main():
             
     print(f"[INFO][JUDGE] Total scoring time: {total_time:.2f}s")
     # 汇总（与 main.py 风格一致：近似百分制）
-    model_score = (sum(scores) * 10 / max(1, num))
+    model_score = (sum(scores) / num)
     with open(out_summary, "w", encoding="utf-8") as fsum:
         json.dump({"num": num, "avg_score": model_score}, fsum, ensure_ascii=False, indent=2)
 

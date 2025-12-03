@@ -10,19 +10,22 @@ class PromptBuilder:
         self.model_name = model.model_name
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=True)
 
-    def make_chat_prompt(self, system: str, user: str):
+    def make_chat_prompt(self, system: str, user: str, add_generation_prompt=True, continue_final_message=False,
+):
         messages = []
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": user})
         if hasattr(self.tokenizer, 'chat_template'):
-            text = self.tokenizer.apply_chat_template(messages, tokenize=False, add_generation_prompt=True)
+            text = self.tokenizer.apply_chat_template(messages, tokenize=False, 
+                                                      add_generation_prompt=add_generation_prompt,
+                                                      continue_final_message=continue_final_message)
             return text
         else:
             # 如果不支持聊天模板，使用简单的提示构建方法
             return '\n'.join([f"{message['role']}: {message['content']}" for message in messages])
        
-###on-policy转化prompt类
+###on-policy转化prompt类  
 #先不要改写
 #question不转写
 class On_Policy_Prompt:
@@ -120,54 +123,51 @@ class On_Policy_Prompt:
         
 class Generate_Prompt:
     """
-    Refined class that directly uses `continue_final_message=True` for continuation.
-    The class focuses on building and validating the prompt more simply.
+    Simplified class that uses PromptBuilder for prompt construction,
+    mimicking the structure of Pairwise_Prompt.
     """
     def __init__(self, model: VLLMRunner, query: str = None):
         self.query = query or ""
         self.model = model
+        self.promptbuilder = PromptBuilder(model)
         self.system_message = "You are a mathematician. Solve the problem."
         self.current_solution = ""
         self.schema = None
+        self.prompt = ""
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model.model_name, use_fast=True)
+
 
     def add_step(self, step: str):
         if step:
             self.current_solution += "\n" + step if self.current_solution else step
 
-    def _get_tokenizer(self):
-        tok = getattr(self.model, "tokenizer", None)
-        if not tok or not hasattr(tok, "apply_chat_template"):
-            raise RuntimeError("Tokenizer with `apply_chat_template` is required for validation.")
-        return tok
-
-    def _render_and_validate(self, messages) -> str:
-        tok = self._get_tokenizer()
-        prompt_str = tok.apply_chat_template(
-            messages,
-            tokenize=False,
-            continue_final_message=True,
-            add_generation_prompt=False
-        )
-
-        # If continuing, ensure the prompt ends with the current solution
-        if not prompt_str.rstrip().endswith(self.current_solution.rstrip()):
-            raise ValueError("Validation failed: rendered prompt does not end with the partial solution.")
-
-        return prompt_str
-
     def return_prompt(self) -> str:
-        messages = [{"role": "system", "content": self.system_message}]
-        if self.query:
-            messages.append({"role": "user", "content": f"Problem:\n{self.query}"})
-        if self.current_solution.strip():
-            messages.append({"role": "assistant", "content": self.current_solution.strip()})
+        # Construct the base prompt (System + User)
+        # make_chat_prompt adds generation prompt (e.g. "Assistant:")
+        if self.current_solution:
+            message = [
+                {"role": "system", "content": self.system_message},
+                {"role": "user", "content": f"Problem:\n{self.query}"},
+                {"role": "assistant", "content": self.current_solution}
+            ]
+        else:
+            message = [
+                {"role": "system", "content": self.system_message},
+                {"role": "user", "content": f"Problem:\n{self.query}"}
+            ]
         
-        # Render and validate the prompt
-        return self._render_and_validate(messages)
+        self.prompt = self.tokenizer.apply_chat_template(
+            message,
+            tokenize=False,
+            add_generation_prompt=False,
+            continue_final_message=True,
+        )
+        
+        return self.prompt
 
     def run(self) -> str:
         prompt = self.return_prompt()
-        out = self.model.generate(prompt, self.schema).strip()  # Assuming the model can generate with the prompt directly
+        out = self.model.generate(prompt, self.schema).strip()
         return out
 
 
@@ -176,7 +176,7 @@ class Pairwise_Prompt:
         self.model = model
         self.promptbuilder = PromptBuilder(model)
         self.user_message = ""
-        self.system_message = (
+        self.system_message = self.system_message = (
             """
             Reasoning: high.
 
@@ -184,7 +184,30 @@ class Pairwise_Prompt:
 
             You are an automatic judge for **pairwise hallucination / contradiction** relative to a **single prior reasoning step** (REF_STEP) in a math solution.
 
-            Your job is to check whether the next step GEN **locally respects** the content of REF_STEP, **using only information explicitly present in REF_STEP and GEN**.
+            Your job is to check whether the next step GEN **locally respects** the content of REF_STEP.
+
+            You will see three texts:
+            - GLOBAL_PREFIX: the whole solution prefix (all earlier steps before GEN).
+            - REF_STEP: one specific step taken from within GLOBAL_PREFIX (your local anchor).
+            - GEN: the candidate next step to be judged.
+
+            --- 
+
+            ## Critical Separation of Roles
+
+            - GLOBAL_PREFIX is **background context only**.
+            You may read it to understand the meaning of symbols and the rough topic,
+            but you MUST NOT treat any fact from GLOBAL_PREFIX as a constraint
+            when deciding hallucination / inconsistency.
+
+            - REF_STEP is the ONLY **normative local contract** you are allowed to enforce.
+            All hallucination / inconsistency decisions must be based purely on comparing REF_STEP and GEN.
+
+            - GEN is what you are judging.
+
+            In short:
+            - GLOBAL_PREFIX: "read-only background".
+            - REF_STEP + GEN: the **only** texts that can create a contradiction you are allowed to penalize.
 
             ---
 
@@ -192,20 +215,25 @@ class Pairwise_Prompt:
 
             You MUST obey ALL of the following rules:
 
-            1. You are ONLY allowed to use information that appears **explicitly** in:
+            1. For the **score**, you are ONLY allowed to use information that appears explicitly in:
             - REF_STEP
             - GEN
 
-            2. You MUST IGNORE:
-            - any earlier or later steps of the solution (they are invisible to you),
-            - the original problem statement,
-            - any background mathematical facts that are not clearly implied by REF_STEP itself.
+            2. You MUST IGNORE, as a source of constraints:
+            - any earlier or later steps beyond REF_STEP, even though they appear inside GLOBAL_PREFIX,
+            - the original problem statement (which is not explicitly pasted into REF_STEP),
+            - any background mathematical facts not clearly implied by REF_STEP itself.
+
+            You may read GLOBAL_PREFIX for notation and flavour,
+            but you CANNOT use any statement that appears **only in GLOBAL_PREFIX**
+            to accuse GEN of hallucination or inconsistency.
 
             3. You may use **basic logical and algebraic reasoning**, but ONLY as applied to
             expressions and conditions explicitly appearing in REF_STEP and GEN.
 
             4. A behavior can be penalized as hallucination / inconsistency ONLY IF
             the conflict can be demonstrated **purely by comparing the text of REF_STEP and GEN**.
+            GLOBAL_PREFIX cannot be used as extra evidence of conflict.
 
             5. If you are unsure whether a conflict really follows from REF_STEP alone,
             you MUST treat GEN as **consistent** and choose the **higher score**.
@@ -281,7 +309,7 @@ class Pairwise_Prompt:
 
             You MUST NOT penalize GEN for:
 
-            - Contradicting or ignoring any step **other than REF_STEP**.
+            - Contradicting or ignoring any step **other than REF_STEP**, even if it appears in GLOBAL_PREFIX.
             - Contradicting the **original problem statement** (which you do not see).
             - Using a method that is globally suboptimal, unusual, or strange.
             - Appearing "off-topic" from a human viewpoint, **unless** you can point to a specific statement in REF_STEP that GEN contradicts or ignores.
@@ -339,6 +367,7 @@ class Pairwise_Prompt:
             - The entire reply must be **exactly one JSON object**.
             """
         )
+
         self.prompt = ""
         self.output_schema = {
             "type": "object",
@@ -346,19 +375,35 @@ class Pairwise_Prompt:
                 "score": {
                     "type": "number",
                     "enum": [0, 1, 2, 3, 4, 5],
-                    "description": "discrete degree of entailment (0–5), higher = stronger entailment"
+                    "description": "discrete consistency score (0–5), higher = more consistent"
                 }
             },
             "required": ["score"],
             "additionalProperties": False
         }
+        # 新增：缓存一份全局前缀，方便多次复用
+        self.global_prefix = ""
 
-    def build_user(self, gen_text: str, ref_text: str) -> str:
+    def set_global_prefix(self, prefix: str | None):
+        """在一轮实验开始前，先把整段前缀传进来缓存一下。"""
+        self.global_prefix = prefix or ""
+
+    def build_user(self, gen_text: str, ref_text: str, prefix: str | None = None) -> None:
+        """
+        prefix:
+            - 如果传入，则覆盖 self.global_prefix
+            - 如果为 None，则使用之前 set_global_prefix 的缓存
+        """
+        if prefix is None:
+            prefix = self.global_prefix
+
         self.user_message = (
+            "## GLOBAL_PREFIX (background only; DO NOT use it as a source of constraints)\n"
+            f"{prefix}\n\n"
             "## Task\n"
             "- Perform a **pairwise contradiction / hallucination check** between the current step **GEN** and the single prior step **REF_STEP**.\n"
-            "- Treat **REF_STEP as your entire visible context**.\n"
-            "- You MUST ignore any other possible steps or problem statements.\n"
+            "- Treat **REF_STEP as your only normative local context for judging inconsistency**.\n"
+            "- You may read GLOBAL_PREFIX only to understand notation, but you MUST NOT use it as extra evidence of conflict.\n"
             "- When uncertain whether there is a conflict based on REF_STEP alone, treat GEN as **consistent** and choose the **higher score**.\n"
             "\n"
             "## REF_STEP (local anchor)\n"
@@ -374,11 +419,19 @@ class Pairwise_Prompt:
         self.prompt = self.promptbuilder.make_chat_prompt(self.system_message, self.user_message)
         return self.prompt
 
-    def run(self, gen_claim: str, ref: list[str]) -> dict:
+    def run(self, gen_claim: str, ref: list[str], prefix: str | None = None) -> dict:
+        """
+        gen_claim: 当前要评估的 GEN（完整一步或前缀）
+        ref:       多个 REF_STEP，逐个和 GEN 做 pairwise 检查
+        prefix:    整段 GLOBAL_PREFIX（通常就是完整的已有解答前缀）
+                   - 可以传入；如果为 None，则使用 self.global_prefix
+        """
         prompts = []
         scores = []
+
         for ref_step in ref:
-            self.build_user(gen_claim, ref_step)
+            # 这里所有 ref_step 共用同一个 prefix
+            self.build_user(gen_claim, ref_step, prefix=prefix)
             prompt = self.return_prompt()
             prompts.append(prompt)
 
