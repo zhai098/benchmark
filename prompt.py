@@ -121,54 +121,54 @@ class On_Policy_Prompt:
         return {"modified_text": response}
     
         
+
+
 class Generate_Prompt:
     """
-    Simplified class that uses PromptBuilder for prompt construction,
-    mimicking the structure of Pairwise_Prompt.
+    用于构造推理 prompt，返回 OpenAI 风格 messages。
+    外部接口保持不变：仍然通过 return_prompt() 拿“要喂给模型的东西”，
+    只不过现在是 messages 列表，而不是已经套好 chat_template 的纯文本。
     """
-    def __init__(self, model: VLLMRunner, query: str = None):
+    def __init__(self, model: "VLLMRunner", query: str = None):
         self.query = query or ""
         self.model = model
-        self.promptbuilder = PromptBuilder(model)
-        self.system_message = "You are a mathematician. Solve the problem."
+        #self.promptbuilder = PromptBuilder(model)  # 你原来的东西，保持不动
+
+        self.system_message = (
+            "You are a mathematician. Solve the problem.\n\n"
+            "Reasoning: high.\n"
+        )
+
         self.current_solution = ""
         self.schema = None
         self.prompt = ""
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model.model_name, use_fast=True)
-
+        # 注意：不再在这里用 tokenizer.apply_chat_template 了
+        # self.tokenizer = AutoTokenizer.from_pretrained(self.model.model_name, use_fast=True)
 
     def add_step(self, step: str):
         if step:
             self.current_solution += "\n" + step if self.current_solution else step
 
-    def return_prompt(self) -> str:
-        # Construct the base prompt (System + User)
-        # make_chat_prompt adds generation prompt (e.g. "Assistant:")
+    def return_prompt(self):
+        """
+        返回 OpenAI / vLLM OpenAI server 直接可用的 messages 列表。
+        文本内容（system + user + current_solution）保持不变。
+        """
         if self.current_solution:
-            message = [
+            messages = [
                 {"role": "system", "content": self.system_message},
-                {"role": "user", "content": f"Problem:\n{self.query}"},
-                {"role": "assistant", "content": self.current_solution}
+                {"role": "user", "content": f"Solve the Problem:\n{self.query}"},
+                {"role": "assistant", "content": self.current_solution},
             ]
         else:
-            message = [
+            messages = [
                 {"role": "system", "content": self.system_message},
-                {"role": "user", "content": f"Problem:\n{self.query}"}
+                {"role": "user", "content": f"Problem:\n{self.query}"},
             ]
-        
-        self.prompt = self.tokenizer.apply_chat_template(
-            message,
-            tokenize=False,
-            add_generation_prompt=False,
-            continue_final_message=True,
-        )
-        
-        return self.prompt
 
-    def run(self) -> str:
-        prompt = self.return_prompt()
-        out = self.model.generate(prompt, self.schema).strip()
-        return out
+        # 为了兼容旧调用习惯，这里仍然赋值到 self.prompt
+        self.prompt = messages
+        return messages
 
 
 class Pairwise_Prompt:

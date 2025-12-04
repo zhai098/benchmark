@@ -1,81 +1,78 @@
-from vllm import LLM, SamplingParams
-from vllm.sampling_params import GuidedDecodingParams
-from transformers import AutoTokenizer
+from openai import OpenAI
 import os
 import time
-import copy 
+import copy
+
+
 class VLLMRunner:
     def __init__(self, model: str, vllm_config: dict, sampling_config: dict, gpus: str):
+        # 这些信息主要用于记录 & 方便你在别处使用
         self.model_name = model
-        os.environ["CUDA_VISIBLE_DEVICES"] = gpus
-        self.llm = LLM(model=model,
-            tokenizer=model,
-            **vllm_config)
-        self.sampling_params = SamplingParams(temperature=sampling_config.get("temperature", 0.7),
-            top_p=sampling_config.get("top_p", 0.95),
-            max_tokens=sampling_config.get("max_tokens", 256),
-            stop=sampling_config.get("stop", ["<<<END>>>"]))
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
+        self.vllm_config = vllm_config
+        self.sampling_config = sampling_config
+        self.gpus = gpus
+
+        # openai 客户端，指向 vLLM 的 OpenAI 兼容服务
+        self.client = OpenAI(
+            base_url="http://localhost:8000/v1",
+            api_key="EMPTY",          # 和 vLLM 启动脚本里保持一致
+        )
+
+        # 采样配置直接缓存，用于每次请求时传给 vLLM
+        self.temperature = sampling_config.get("temperature", 0.7)
+        self.top_p = sampling_config.get("top_p", 0.95)
+        self.max_tokens = sampling_config.get("max_tokens", 256)
+        self.repetition_penalty = sampling_config.get("repetition_penalty", 1.0)
+        self.presence_penalty = sampling_config.get("presence_penalty", 0.0)
+        self.stop = sampling_config.get("stop", None)
+        self.debug_prompt = ""
+
+    def generate(self, prompt, schema=None) -> list[str]:
+        """
+        支持三种输入：
+        1) str
+        2) list[dict]（单个 messages）
+        3) list[list[dict]]（多个 messages 批处理）
+        """
+
+        # --- 情况 3: 批量 list[list[dict]] ---
+        if isinstance(prompt, list) and len(prompt) > 0 and isinstance(prompt[0], list):
+            results = []
+            for idx, one_messages in enumerate(prompt):
+                print(f"[DEBUG] Generating batch item {idx+1}/{len(prompt)}")
+                if not (isinstance(one_messages, list) and isinstance(one_messages[0], dict)):
+                    raise TypeError("Batch item must be list[dict] messages")
+
+                out = self.generate(one_messages, schema)   # 递归调用单条生成
+                results.extend(out)
+            return results
+
+        # --- 情况 2: 单条 list[dict] ---
+        if isinstance(prompt, list) and len(prompt) > 0 and isinstance(prompt[0], dict):
+            messages = prompt
 
 
-
-    def generate(self, prompt: str | list[str] | list[int] | list[list[int]], schema: dict | None) -> list[str]:
-        ###后期增加统计tokens和延迟的功能
-        sp = copy.deepcopy(self.sampling_params)
-        if schema:
-            sp.guided_decoding = GuidedDecodingParams(json=schema)
         else:
-            sp.guided_decoding = None
-            
-        t0 = time.time()
-        
-        # Check if prompt is token IDs (list of ints or list of list of ints)
-        is_token_ids = False
-        if isinstance(prompt, list):
-            if len(prompt) > 0:
-                if isinstance(prompt[0], int):
-                    # Single prompt as list of ints
-                    is_token_ids = True
-                    prompt_arg = None
-                    prompt_token_ids = [prompt]
-                elif isinstance(prompt[0], list) and len(prompt[0]) > 0 and isinstance(prompt[0][0], int):
-                    # Batch of prompts as list of list of ints
-                    is_token_ids = True
-                    prompt_arg = None
-                    prompt_token_ids = prompt
-                else:
-                    # List of strings
-                    prompt_arg = prompt
-                    prompt_token_ids = None
-            else:
-                # Empty list
-                prompt_arg = prompt
-                prompt_token_ids = None
-        else:
-            # Single string
-            prompt_arg = [prompt]
-            prompt_token_ids = None
+            raise TypeError(f"Unsupported prompt type: {type(prompt)}")
 
-        if is_token_ids:
-            print("Generating for a list of token IDs, count:", len(prompt_token_ids))
-            outs = self.llm.generate(prompts=None, sampling_params=sp, prompt_token_ids=prompt_token_ids)
-        else:
-            if isinstance(prompt, list):
-                print("Generating for a list of prompts, count:", len(prompt))
-                outs = self.llm.generate(prompt, sp)
-            else:
-                outs = self.llm.generate([prompt], sp)
-        
-        latency = time.time() - t0
+        # --- 调用 openai 接口 ---
+        extra_params = {
+            "temperature": self.temperature,
+            "top_p": self.top_p,
+            "max_tokens": self.max_tokens,
+            "presence_penalty": self.presence_penalty,
+            "stop": self.stop,
+        }
 
-        texts = []
-        for i, out in enumerate(outs):
-            text = out.outputs[0].text
-            texts.append(text)
-        
-        print(f"[INFO] latency={latency:.3f}s")
-        return texts
+        if schema is not None:
+            extra_params["guided_json"] = schema
 
-        
-    
-        
+        completion = self.client.chat.completions.create(
+            model=self.model_name,
+            messages=messages,
+            **extra_params
+        )
+
+        text = completion.choices[0].message.content
+        print(completion)
+        return [text]

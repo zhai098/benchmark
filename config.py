@@ -1,7 +1,7 @@
 
 Config = {
-    "tag" : "12_03_0",
-    "reasoning_model" : "Qwen/Qwen3-8B",
+    "tag" : "12_04_0",
+    "reasoning_model" : "openai/gpt-oss-20b",
     "reasoning_model_params": {
         "tensor_parallel_size": 4,          
         "dtype": "bfloat16",
@@ -15,7 +15,6 @@ Config = {
         "temperature": 0.4,                 
         "top_p": 0.95,
         "max_tokens": 8192,
-        "repetition_penalty": 1.0,          
         "presence_penalty": 0.0,           
         "stop": ["<<<END>>>", "<|endoftext|>", "</s>", "<|im_end|>", "<|eot_id|>"]
     },

@@ -40,11 +40,7 @@ def generate_case(obj: Dict[str, Any], reasoning_model: VLLMRunner) -> Dict[str,
     while unprocessed:
         current_step, current_type = unprocessed.pop(0)
         generate_promptbuilder.add_step(current_step)
-        
-        # Print string for debug
-        print(generate_promptbuilder.return_prompt())
-        print("\n")
-        
+                
         # Use IDs for generation if available
         if hasattr(generate_promptbuilder, "return_prompt_ids"):
             prompt_lists.append(generate_promptbuilder.return_prompt_ids())
