@@ -1,7 +1,7 @@
 
 Config = {
-    "tag" : "12_04_0",
-    "reasoning_model" : "openai/gpt-oss-20b",
+    "tag" : "12_12_0",
+    "reasoning_model" : "Qwen/Qwen3-32B-AWQ",
     "reasoning_model_params": {
         "tensor_parallel_size": 4,          
         "dtype": "bfloat16",
@@ -12,10 +12,12 @@ Config = {
         "enable_prefix_caching": False,
     },
     "reasoning_sampling_params": {
-        "temperature": 0.4,                 
+        "temperature": 0.6,                 
         "top_p": 0.95,
         "max_tokens": 8192,
-        "presence_penalty": 0.0,           
+        "repetition_penalty": 1.05,
+        "presence_penalty": 0.3,
+        "frequency_penalty": 0.3,
         "stop": ["<<<END>>>", "<|endoftext|>", "</s>", "<|im_end|>", "<|eot_id|>"]
     },
     "reasoning_model_gpus" : "0,1,2,3",

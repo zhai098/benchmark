@@ -125,51 +125,65 @@ class On_Policy_Prompt:
 
 class Generate_Prompt:
     """
-    用于构造推理 prompt，返回 OpenAI 风格 messages。
-    外部接口保持不变：仍然通过 return_prompt() 拿“要喂给模型的东西”，
-    只不过现在是 messages 列表，而不是已经套好 chat_template 的纯文本。
+    Simplified class that uses PromptBuilder for prompt construction,
+    mimicking the structure of Pairwise_Prompt.
     """
-    def __init__(self, model: "VLLMRunner", query: str = None):
+    def __init__(self, model: VLLMRunner, query: str = None):
         self.query = query or ""
         self.model = model
-        #self.promptbuilder = PromptBuilder(model)  # 你原来的东西，保持不动
-
+        self.promptbuilder = PromptBuilder(model)
         self.system_message = (
-            "You are a mathematician. Solve the problem.\n\n"
-            "Reasoning: high.\n"
+            "You are a mathematician. Solve the problem."
+            "## Additional style constraints: "
+                "- When continuing with the current solution, simply continue the reasoning naturally as if it were within the same answer."
+                "- Maintain the same notation and writing style as the current solution; **do not** restate the problem conditions."
+                "- Begin the reasoning as quickly as possible at the start, rather than reflecting and summarizing."
+            "## Important: "
+            "Please adhere to the following expression conventions, only adjusting the wording, not altering your mathematical thought process:"
+            "1. Treat the information in `current_solution`/`ref` as confirmed premises, directly building upon them to proceed to the next step of reasoning. Avoid lengthy restates of the problem or previous text, and refrain from summaries such as 'briefly stated' or 'in conclusion.'"
+            "2. Write in natural, continuous mathematical language. Avoid using structured subheadings or numbering such as 'Step 1/2,' 'Step 1/2/3,' or 'Final Answer:.'"
+            "3. Each sentence should generate a new derivation (a new equation, geometric relation, or conclusion). Avoid repeatedly rewriting the same conditions or lengthy 'self-checking/self-doubting/re-proving.'"
+            "4. When you have arrived at the answer, write down the final key derivations first, then provide the answer, rather than jumping directly to the conclusion or substituting memorized conclusions for your reasoning."
         )
-
         self.current_solution = ""
         self.schema = None
         self.prompt = ""
-        # 注意：不再在这里用 tokenizer.apply_chat_template 了
-        # self.tokenizer = AutoTokenizer.from_pretrained(self.model.model_name, use_fast=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model.model_name, use_fast=True)
+
 
     def add_step(self, step: str):
         if step:
             self.current_solution += "\n" + step if self.current_solution else step
 
-    def return_prompt(self):
-        """
-        返回 OpenAI / vLLM OpenAI server 直接可用的 messages 列表。
-        文本内容（system + user + current_solution）保持不变。
-        """
+    def return_prompt(self) -> str:
+        # Construct the base prompt (System + User)
+        # make_chat_prompt adds generation prompt (e.g. "Assistant:")
         if self.current_solution:
-            messages = [
+            message = [
                 {"role": "system", "content": self.system_message},
                 {"role": "user", "content": f"Solve the Problem:\n{self.query}"},
-                {"role": "assistant", "content": self.current_solution},
+                {"role": "assistant", "content": self.current_solution}
             ]
         else:
-            messages = [
+            message = [
                 {"role": "system", "content": self.system_message},
-                {"role": "user", "content": f"Problem:\n{self.query}"},
+                {"role": "user", "content": f"Problem:\n{self.query}"}
             ]
+        
+        self.prompt = self.tokenizer.apply_chat_template(
+            message,
+            tokenize=False,
+            add_generation_prompt=False,
+            continue_final_message=True,
+            enable_thinking = True
+        )
+        
+        return self.prompt
 
-        # 为了兼容旧调用习惯，这里仍然赋值到 self.prompt
-        self.prompt = messages
-        return messages
-
+    def run(self) -> str:
+        prompt = self.return_prompt()
+        out = self.model.generate(prompt, self.schema).strip()
+        return out
 
 class Pairwise_Prompt:
     def __init__(self, model: VLLMRunner):

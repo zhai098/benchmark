@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>JSONL 题目查看器</title>
+
+  <!-- MathJax 配置：支持 $...$ 和 $$...$$ -->
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$','$$'], ['\\[','\\]']]
+      },
+      svg: { fontCache: 'global' }
+    };
+  </script>
+  <script
+    id="MathJax-script"
+    async
+    src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js">
+  </script>
+
+  <style>
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+      margin: 0;
+      padding: 0 1.5rem 2rem;
+      background: #f5f5f5;
+    }
+    h1 {
+      text-align: center;
+      margin-top: 1rem;
+    }
+    .controls {
+      margin: 1rem auto;
+      max-width: 1100px;
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+      align-items: center;
+    }
+    textarea {
+      width: 100%;
+      max-width: 1100px;
+      height: 200px;
+      font-family: "JetBrains Mono", Consolas, monospace;
+      font-size: 13px;
+      padding: 0.5rem;
+      box-sizing: border-box;
+    }
+    button {
+      padding: 0.4rem 0.8rem;
+      cursor: pointer;
+    }
+    .file-input-label {
+      border: 1px solid #ccc;
+      padding: 0.4rem 0.8rem;
+      background: white;
+      cursor: pointer;
+      border-radius: 4px;
+    }
+    .file-input-label input {
+      display: none;
+    }
+    #status {
+      font-size: 13px;
+      color: #555;
+      margin-left: 0.5rem;
+    }
+    .container {
+      max-width: 1100px;
+      margin: 0 auto;
+    }
+    .item {
+      background: white;
+      border-radius: 8px;
+      padding: 1rem 1.2rem;
+      margin-top: 1rem;
+      box-shadow: 0 2px 4px rgba(0,0,0,0.06);
+    }
+    .item-header {
+      display: flex;
+      justify-content: space-between;
+      font-weight: bold;
+      margin-bottom: 0.4rem;
+    }
+    .section-title {
+      font-weight: 600;
+      margin-top: 0.7rem;
+      margin-bottom: 0.2rem;
+    }
+    .problem, .answer, .step {
+      margin: 0.2rem 0;
+      line-height: 1.5;
+    }
+    ol {
+      padding-left: 1.3rem;
+      margin: 0.2rem 0;
+    }
+    .gen-block {
+      border-left: 3px solid #ddd;
+      padding-left: 0.6rem;
+      margin: 0.2rem 0 0.4rem;
+      white-space: pre-wrap;
+    }
+    .gen-title {
+      font-size: 13px;
+      color: #666;
+      margin-top: 0.3rem;
+    }
+    .error {
+      color: #c00;
+      font-size: 13px;
+      margin-top: 0.3rem;
+    }
+  </style>
+</head>
+<body>
+  <h1>JSONL 题目查看器（支持 LaTeX）</h1>
+
+  <div class="controls container">
+    <label class="file-input-label">
+      选择 JSONL 文件
+      <input type="file" id="fileInput" accept=".jsonl,.txt,.json" />
+    </label>
+    <button id="renderBtn">从文本框渲染</button>
+    <span id="status"></span>
+  </div>
+
+  <div class="container">
+    <textarea id="jsonlInput" placeholder="在这里粘贴 JSONL，每行一个对象……"></textarea>
+  </div>
+
+  <div class="container" id="output"></div>
+
+  <script>
+    const inputEl = document.getElementById('jsonlInput');
+    const outputEl = document.getElementById('output');
+    const statusEl = document.getElementById('status');
+    const renderBtn = document.getElementById('renderBtn');
+    const fileInput = document.getElementById('fileInput');
+
+    // 将普通字符串中的换行替换成 <br>，方便 MathJax 渲染
+    function texHtml(text) {
+      // 简单处理：只替换换行
+      return text.replace(/\n/g, '<br>');
+    }
+
+    function renderJSONL(text) {
+      outputEl.innerHTML = '';
+      statusEl.textContent = '';
+
+      const lines = text.split(/\r?\n/).filter(line => line.trim().length > 0);
+      if (lines.length === 0) {
+        statusEl.textContent = '没有可解析的行。';
+        return;
+      }
+
+      let ok = 0, fail = 0;
+
+      lines.forEach((line, idx) => {
+        let obj;
+        try {
+          obj = JSON.parse(line);
+          ok++;
+        } catch (e) {
+          fail++;
+          const errDiv = document.createElement('div');
+          errDiv.className = 'error';
+          errDiv.textContent = `第 ${idx + 1} 行解析失败：${e.message}`;
+          outputEl.appendChild(errDiv);
+          return;
+        }
+
+        const card = document.createElement('div');
+        card.className = 'item';
+
+        const header = document.createElement('div');
+        header.className = 'item-header';
+        header.innerHTML =
+          `<span>ID: ${obj.id ?? '-'} | difficulty: ${obj.difficulty ?? '-'}</span>` +
+          `<span>answer: ${texHtml(String(obj.answer ?? ''))}</span>`;
+        card.appendChild(header);
+
+        // Problem
+        if (obj.problem !== undefined) {
+          const title = document.createElement('div');
+          title.className = 'section-title';
+          title.textContent = 'Problem';
+          card.appendChild(title);
+
+          const p = document.createElement('div');
+          p.className = 'problem';
+          p.innerHTML = texHtml(String(obj.problem));
+          card.appendChild(p);
+        }
+
+        // Ref steps
+        if (Array.isArray(obj.ref_steps)) {
+          const title = document.createElement('div');
+          title.className = 'section-title';
+          title.textContent = 'Reference steps';
+          card.appendChild(title);
+
+          const ol = document.createElement('ol');
+          obj.ref_steps.forEach(step => {
+            const li = document.createElement('li');
+            li.className = 'step';
+            li.innerHTML = texHtml(String(step));
+            ol.appendChild(li);
+          });
+          card.appendChild(ol);
+        }
+
+        // Generated outputs
+        if (Array.isArray(obj.gen_output)) {
+          const title = document.createElement('div');
+          title.className = 'section-title';
+          title.textContent = 'Generated outputs';
+          card.appendChild(title);
+
+          obj.gen_output.forEach((g, i) => {
+            if (!g) return;
+            const label = document.createElement('div');
+            label.className = 'gen-title';
+            label.textContent = `gen_output[${i}]`;
+            card.appendChild(label);
+
+            const block = document.createElement('div');
+            block.className = 'gen-block';
+            block.innerHTML = texHtml(String(g));
+            card.appendChild(block);
+          });
+        }
+
+        outputEl.appendChild(card);
+      });
+
+      statusEl.textContent = `解析成功 ${ok} 行，失败 ${fail} 行。`;
+
+      // 调用 MathJax 重新排版
+      if (window.MathJax && window.MathJax.typesetPromise) {
+        MathJax.typesetPromise([outputEl]).catch(err => {
+          console.error('MathJax error:', err);
+        });
+      }
+    }
+
+    renderBtn.addEventListener('click', () => {
+      renderJSONL(inputEl.value);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = () => {
+        inputEl.value = reader.result;
+        renderJSONL(reader.result);
+      };
+      reader.readAsText(file, 'utf-8');
+      statusEl.textContent = `读取文件：${file.name}`;
+    });
+
+    // Demo：你可以在这里预置一行测试数据（可删）
+    // inputEl.value = `{"id":1,"difficulty":7.0,"problem":"In an acute scalene triangle $ABC$ ...","answer":"1","ref_steps":["step 1: $AD\\perp BC$"],"gen_output":["Example with $\\frac{HQ}{HR}=1$."]}`;
+  </script>
+</body>
+</html>
