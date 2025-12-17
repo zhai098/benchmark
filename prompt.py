@@ -134,16 +134,11 @@ class Generate_Prompt:
         self.promptbuilder = PromptBuilder(model)
         self.system_message = (
             "You are a mathematician. Solve the problem."
-            "## Additional style constraints: "
-                "- When continuing with the current solution, simply continue the reasoning naturally as if it were within the same answer."
-                "- Maintain the same notation and writing style as the current solution; **do not** restate the problem conditions."
-                "- Begin the reasoning as quickly as possible at the start, rather than reflecting and summarizing."
-            "## Important: "
-            "Please adhere to the following expression conventions, only adjusting the wording, not altering your mathematical thought process:"
-            "1. Treat the information in `current_solution`/`ref` as confirmed premises, directly building upon them to proceed to the next step of reasoning. Avoid lengthy restates of the problem or previous text, and refrain from summaries such as 'briefly stated' or 'in conclusion.'"
-            "2. Write in natural, continuous mathematical language. Avoid using structured subheadings or numbering such as 'Step 1/2,' 'Step 1/2/3,' or 'Final Answer:.'"
-            "3. Each sentence should generate a new derivation (a new equation, geometric relation, or conclusion). Avoid repeatedly rewriting the same conditions or lengthy 'self-checking/self-doubting/re-proving.'"
-            "4. When you have arrived at the answer, write down the final key derivations first, then provide the answer, rather than jumping directly to the conclusion or substituting memorized conclusions for your reasoning."
+            "## Style preferences (keep them light; do not change your underlying approach):"
+                "- Treat `current_solution`/`ref` as correct established premises and build directly on them."
+                "- Start immediately with the next logical derivation. Do not restate the problem or re-summarize what has already been established."
+                "- Write as continuous mathematical prose (no section headers, no “Step 1/2/3”)."
+                "- Avoid repeating the same conditions. If you must reference a prior premise, do it minimally (e.g., “from the previous inequality …”)."
         )
         self.current_solution = ""
         self.schema = None
@@ -162,7 +157,7 @@ class Generate_Prompt:
             message = [
                 {"role": "system", "content": self.system_message},
                 {"role": "user", "content": f"Solve the Problem:\n{self.query}"},
-                {"role": "assistant", "content": self.current_solution}
+                {"role": "assistant", "content": self.current_solution + "The next step should be: "}
             ]
         else:
             message = [

@@ -1,6 +1,6 @@
 
 Config = {
-    "tag" : "12_12_0",
+    "tag" : "12_17_0",
     "reasoning_model" : "Qwen/Qwen3-32B-AWQ",
     "reasoning_model_params": {
         "tensor_parallel_size": 4,          
@@ -20,7 +20,7 @@ Config = {
         "frequency_penalty": 0.3,
         "stop": ["<<<END>>>", "<|endoftext|>", "</s>", "<|im_end|>", "<|eot_id|>"]
     },
-    "reasoning_model_gpus" : "0,1,2,3",
+    "reasoning_model_gpus" : "0,1,2,3,4,5,6,7",
     "judge_model_gpus" : "0,1,2,3,4,5,6,7",
     "judge_model" : "openai/gpt-oss-20b",
     "judge_model_params" : {
@@ -35,7 +35,7 @@ Config = {
         "max_tokens": 8192,
     }
     , 
-    "Input_path" : "Omni_MATH/Omni_MATH_Human_Segmented.jsonl",
+    "Input_path" : "Omni_MATH/Omni_MATH_Human_Segmented_100_1.jsonl",
     "beta" : 1,
     "alpha" : 1,
     "lambda_h": 1,

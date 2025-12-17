@@ -92,7 +92,7 @@ def main():
          open(gen_only_pretty, "w", encoding="utf-8", buffering=1) as fgen_pretty:
 
         for line in fin:
-            if num >= 50:
+            if num >= 100:
                 break
             if num < Config.get("skip_generate_num", 0):
                 num += 1
