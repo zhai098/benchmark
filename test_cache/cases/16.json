@@ -1,0 +1,157 @@
+{
+  "id": "16",
+  "difficulty": 0.0,
+  "score": 55.0,
+  "num_steps": 9,
+  "steps": [
+    {
+      "index": 1,
+      "score": 1.5,
+      "routes": {
+        "pairwise": 2.0,
+        "holistic": 1.0
+      },
+      "pairwise_scores": [
+        2.0
+      ],
+      "contrib": 3.333333333333333
+    },
+    {
+      "index": 2,
+      "score": 3.0,
+      "routes": {
+        "pairwise": 5.0,
+        "holistic": 1.0
+      },
+      "pairwise_scores": [
+        5.0,
+        5.0
+      ],
+      "contrib": 6.666666666666666
+    },
+    {
+      "index": 3,
+      "score": 4.5,
+      "routes": {
+        "pairwise": 5.0,
+        "holistic": 4.0
+      },
+      "pairwise_scores": [
+        5.0,
+        5.0,
+        5.0
+      ],
+      "contrib": 10.0
+    },
+    {
+      "index": 4,
+      "score": 2.75,
+      "routes": {
+        "pairwise": 4.5,
+        "holistic": 1.0
+      },
+      "pairwise_scores": [
+        4.0,
+        5.0,
+        5.0,
+        5.0
+      ],
+      "contrib": 6.111111111111112
+    },
+    {
+      "index": 5,
+      "score": 3.25,
+      "routes": {
+        "pairwise": 4.5,
+        "holistic": 2.0
+      },
+      "pairwise_scores": [
+        4.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0
+      ],
+      "contrib": 7.222222222222222
+    },
+    {
+      "index": 6,
+      "score": 2.5,
+      "routes": {
+        "pairwise": 4.0,
+        "holistic": 1.0
+      },
+      "pairwise_scores": [
+        3.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0
+      ],
+      "contrib": 5.555555555555555
+    },
+    {
+      "index": 7,
+      "score": 3.5,
+      "routes": {
+        "pairwise": 5.0,
+        "holistic": 2.0
+      },
+      "pairwise_scores": [
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0
+      ],
+      "contrib": 7.777777777777778
+    },
+    {
+      "index": 8,
+      "score": 2.0,
+      "routes": {
+        "pairwise": 2.0,
+        "holistic": 2.0
+      },
+      "pairwise_scores": [
+        0.0,
+        5.0,
+        5.0,
+        5.0,
+        4.0,
+        5.0,
+        5.0,
+        5.0
+      ],
+      "contrib": 4.444444444444445
+    },
+    {
+      "index": 9,
+      "score": 1.75,
+      "routes": {
+        "pairwise": 0.5,
+        "holistic": 3.0
+      },
+      "pairwise_scores": [
+        1.0,
+        5.0,
+        5.0,
+        0.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0,
+        5.0
+      ],
+      "contrib": 3.888888888888889
+    }
+  ],
+  "problem": "",
+  "answer": "",
+  "request_file": "/home/zhaipengxiang/benchmark/gen_output/google/medgemma-27b-text-it_1_2_0/cache_prompts/case_16_cache.jsonl",
+  "max_workers": 32,
+  "batch_size": 256
+}

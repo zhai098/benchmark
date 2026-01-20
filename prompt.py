@@ -131,7 +131,7 @@ class Generate_Prompt:
     def __init__(self, model: VLLMRunner, query: str = None):
         self.query = query or ""
         self.model = model
-        self.promptbuilder = PromptBuilder(model)
+        #self.promptbuilder = PromptBuilder(model)
         self.system_message = (
             "You are a mathematician. Solve the problem."
             "## Style preferences (keep them light; do not change your underlying approach):"
@@ -149,6 +149,8 @@ class Generate_Prompt:
     def add_step(self, step: str):
         if step:
             self.current_solution += "\n" + step if self.current_solution else step
+        #print(f"[DEBUG] Generation query: {self.current_solution}")
+
 
     def return_prompt(self) -> str:
         # Construct the base prompt (System + User)
@@ -157,20 +159,20 @@ class Generate_Prompt:
             message = [
                 {"role": "system", "content": self.system_message},
                 {"role": "user", "content": f"Solve the Problem:\n{self.query}"},
-                {"role": "assistant", "content": self.current_solution + "The next step should be: "}
+                {"role": "assistant", "content": self.current_solution, "partial": True}
             ]
         else:
             message = [
                 {"role": "system", "content": self.system_message},
                 {"role": "user", "content": f"Problem:\n{self.query}"}
             ]
-        
+        #self.prompt = message
         self.prompt = self.tokenizer.apply_chat_template(
             message,
             tokenize=False,
             add_generation_prompt=False,
             continue_final_message=True,
-            enable_thinking = True
+            enable_thinking=True
         )
         
         return self.prompt
@@ -183,7 +185,6 @@ class Generate_Prompt:
 class Pairwise_Prompt:
     def __init__(self, model: VLLMRunner):
         self.model = model
-        self.promptbuilder = PromptBuilder(model)
         self.user_message = ""
         self.system_message = self.system_message = (
             """
@@ -425,15 +426,22 @@ class Pairwise_Prompt:
         )
 
     def return_prompt(self) -> str:
-        self.prompt = self.promptbuilder.make_chat_prompt(self.system_message, self.user_message)
-        return self.prompt
+        sys = self.system_message + "\n\nReturn only a valid json object, e.g. {\"score\": 5}."
+        usr = self.user_message + "\n\nRemember: output json only. Example: {\"score\": 3}."
+
+        return {
+            "messages": [
+                {"role": "system", "content": sys},
+                {"role": "user", "content": usr},
+            ]
+        }
 
     def run(self, gen_claim: str, ref: list[str], prefix: str | None = None) -> dict:
         """
         gen_claim: 当前要评估的 GEN（完整一步或前缀）
         ref:       多个 REF_STEP，逐个和 GEN 做 pairwise 检查
         prefix:    整段 GLOBAL_PREFIX（通常就是完整的已有解答前缀）
-                   - 可以传入；如果为 None，则使用 self.global_prefix
+                    - 可以传入；如果为 None，则使用 self.global_prefix
         """
         prompts = []
         scores = []
@@ -444,16 +452,17 @@ class Pairwise_Prompt:
             prompt = self.return_prompt()
             prompts.append(prompt)
 
-        outs = self.model.generate(prompts, self.output_schema)
+        reasonings, outs = self.model.generate(prompts, None)
 
         for out in outs:
             score = extract_last_score_part(out)
             scores.append(score)
 
-        print("pairwise scores:", scores)
+        #print("pairwise scores:", scores)
         return {
             "scores": scores,
             "raw_outputs": outs,
+            "reasoning_outputs": reasonings,
             "gen": gen_claim,
             "refs": ref,
         }
@@ -462,7 +471,6 @@ class Pairwise_Prompt:
 class Holistic_Prompt:
     def __init__(self, model: VLLMRunner):
         self.model = model
-        self.promptbuilder = PromptBuilder(model)
         self.user_message = ""
         self.system_message = (
             """
@@ -590,18 +598,27 @@ class Holistic_Prompt:
         )
         
     def return_prompt(self) -> str:
-        self.prompt = self.promptbuilder.make_chat_prompt(self.system_message, self.user_message)
-        return self.prompt
+        sys = self.system_message + "\n\nReturn only a valid json object, e.g. {\"score\": 5}."
+        usr = self.user_message + "\n\nOutput json only. Example: {\"score\": 4}."
+        return {
+            "messages": [
+                {"role": "system", "content": sys},
+                {"role": "user", "content": usr},
+            ]
+        }
     
     def run(self, gen_claim: str, ref_claim: str) -> dict:
         """Returns a dict with the structural continuation score and raw model output."""
         self.build_user(gen_claim, ref_claim)
         prompt = self.return_prompt()
-        out = self.model.generate(prompt, self.output_schema)
-        score = extract_last_score_part(out[0])
+        resp = self.model.generate([prompt], None)
+        reasonings = resp.get("reasoning", "")
+        outs = resp.get("content", "")
+        score = extract_last_score_part(outs)
         return {
             "score": score,
-            "raw_output": out,
+            "raw_output": outs,
+            "reasoning_output": reasonings,
             "gen": gen_claim,
             "ref": ref_claim,
         }
@@ -674,7 +691,7 @@ class SelfJudge_Prompt:
         """Returns a strict JSON: {score: float, label: str, justification: str}"""
         self.build_user(gen_claim)
         prompt = self.return_prompt()
-        out = self.model.generate(prompt, self.output_schema)
+        out = self.model.generate(prompt, None)
         score = extract_last_score_part(out[0])
         return {
             "score": score,

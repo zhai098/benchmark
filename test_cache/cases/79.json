@@ -1,0 +1,12 @@
+{
+  "id": "79",
+  "difficulty": 0.0,
+  "score": 0.0,
+  "num_steps": 19,
+  "steps": [],
+  "problem": "",
+  "answer": "",
+  "request_file": "/home/zhaipengxiang/benchmark/gen_output/google/medgemma-27b-text-it_1_2_0/cache_prompts/case_79_cache.jsonl",
+  "max_workers": 32,
+  "batch_size": 256
+}
