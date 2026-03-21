@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 processor = Processor()
 
 def build_judge_model():
-    judge_model = DOUBAO_deepseek_API_runner()
+    judge_model = DEEPSEEK_API_runner()
     # 三路 evaluator
     pairwise = Pairwise_Prompt(judge_model)
     holistic = Holistic_Prompt(judge_model)

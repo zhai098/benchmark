@@ -15,9 +15,10 @@ Output:
   <out_dir>/ALL.cache.jsonl                # (optional) concatenation of all case requests in cache-optimal order
 
 Cache-optimal ordering strategy (prefix cache friendly):
-  1) Within each case:
-     - Emit ALL pairwise requests first, grouped by idx (step index), then by ref_idx.
-     - Then emit all holistic requests, grouped by idx.
+    1) Within each case:
+         - Emit ALL pairwise requests first, grouped by idx (step index), then by ref_idx.
+         - Then emit all holistic requests, grouped by idx.
+         - Then emit all selfjudge requests, grouped by idx.
   2) Across cases: keep input order (you can optionally sort; see --sort_cases).
 
 Why this helps:
@@ -38,7 +39,7 @@ from typing import Any, Dict, List, Optional, Tuple
 
 from config import Config
 from data_process import Processor, _normalize_generation_input
-from prompt import Pairwise_Prompt, Holistic_Prompt
+from prompt import Pairwise_Prompt, Holistic_Prompt, SelfJudge_Prompt
 
 
 class _NullModel:
@@ -74,13 +75,14 @@ def _iter_case_requests_cache_optimal(
     rec: Dict[str, Any],
     pairwise: Pairwise_Prompt,
     holistic: Holistic_Prompt,
+    selfjudge: SelfJudge_Prompt,
 ) -> List[Dict[str, Any]]:
     """
     Return ordered request objects for a single case.
     Each entry:
-      {
-        "request_id": str,
-        "route": "pairwise"|"holistic",
+            {
+                "request_id": str,
+                "route": "pairwise"|"holistic"|"selfjudge",
         "idx": int,
         "ref_idx": int|None,
         "prompt": {"messages":[...]},
@@ -94,7 +96,7 @@ def _iter_case_requests_cache_optimal(
     requests: List[Dict[str, Any]] = []
 
     # --- Pairwise first (maximizes reuse of pairwise system prompt + growing prefix)
-    for idx in range(len(gen_output) - 1):
+    for idx in range(len(gen_output)):
         gen_prefix = _build_gen_prefix(gen_output[idx])
         if not gen_prefix:
             continue
@@ -122,7 +124,7 @@ def _iter_case_requests_cache_optimal(
             )
 
     # --- Then Holistic (different system prompt; keep grouped so cache isn't thrashed)
-    for idx in range(len(gen_output) - 1):
+    for idx in range(len(gen_output)):
         gen_prefix = _build_gen_prefix(gen_output[idx])
         if not gen_prefix:
             continue
@@ -141,6 +143,28 @@ def _iter_case_requests_cache_optimal(
                 "meta": {
                     "gen_prefix_len_chars": len(gen_prefix),
                     "prior_ref_len_chars": len(prior_ref),
+                },
+            }
+        )
+
+    # --- Then SelfJudge (reference-free, distinct system prompt)
+    for idx in range(len(gen_output)):
+        gen_prefix = _build_gen_prefix(gen_output[idx])
+        if not gen_prefix:
+            continue
+
+        selfjudge.build_user(gen_prefix)
+        p = selfjudge.return_prompt()
+        requests.append(
+            {
+                "request_id": f"selfjudge_i{idx:04d}",
+                "route": "selfjudge",
+                "idx": idx,
+                "ref_idx": None,
+                "prompt": p,
+                "schema": selfjudge.output_schema,
+                "meta": {
+                    "gen_prefix_len_chars": len(gen_prefix),
                 },
             }
         )
@@ -171,6 +195,7 @@ def main():
     dummy = _NullModel()
     pairwise = Pairwise_Prompt(dummy)
     holistic = Holistic_Prompt(dummy)
+    selfjudge = SelfJudge_Prompt(dummy)
 
     cases: List[Tuple[str, Dict[str, Any]]] = []
     with open(gen_file, "r", encoding="utf-8") as fin:
@@ -187,7 +212,7 @@ def main():
     all_rows: List[Dict[str, Any]] = []
 
     for i, (case_id, rec) in enumerate(cases):
-        reqs = _iter_case_requests_cache_optimal(rec, pairwise, holistic)
+        reqs = _iter_case_requests_cache_optimal(rec, pairwise, holistic, selfjudge)
 
         # per-case file
         case_path = os.path.join(out_dir, f"case_{case_id}_cache.jsonl")

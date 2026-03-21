@@ -1,9 +1,10 @@
 from vllm import LLM, SamplingParams
 from vllm.sampling_params import GuidedDecodingParams
-from transformers import AutoTokenizer
+from transformers import AutoTokenizer, AutoModelForCausalLM
 import time
-import copy 
+import copy
 from typing import List, Union, Dict, Any, Tuple
+import math
 from openai import OpenAI
 from config import Config
 from concurrent.futures import ThreadPoolExecutor, as_completed
@@ -12,6 +13,8 @@ import httpx
 import sys
 import asyncio
 import json
+import inspect
+import torch
 from typing import Any, Dict, List, Tuple, Union
 from volcenginesdkarkruntime import AsyncArk
 
@@ -93,7 +96,269 @@ class VLLMRunner:
         print(f"[INFO] latency={latency:.3f}s")
         return texts
 
+    @staticmethod
+    def _get_lp_value(lp_obj: Any) -> float | None:
+        """vLLM logprob object compatibility: sometimes has .logprob, sometimes is float."""
+        if lp_obj is None:
+            return None
+        return float(getattr(lp_obj, "logprob", lp_obj))
 
+    def score(
+        self,
+        problem: str,
+        solution: str,
+        sep: str = "\n\n",
+        *,
+        prompt_logprobs_k: int = 1,
+    ) -> dict:
+        """
+        Return log-likelihood metrics of `solution` given `problem` under THIS vLLM model.
+
+        Computes sum log p(token) over solution tokens only:
+        logp = Σ log p(y_t | problem, y_<t)
+        plus avg_nll and ppl.
+
+        Keep problem/sep constant across candidates for fair comparison.
+        """
+
+        system_message = (
+            "You are a mathematician. Solve the problem."
+            "## Style preferences (keep them light; do not change your underlying approach):"
+                "- Treat `current_solution`/`ref` as correct established premises and build directly on them."
+                "- Start immediately with the next logical derivation. Do not restate the problem or re-summarize what has already been established."
+                "- Write as continuous mathematical prose (no section headers, no “Step 1/2/3”)."
+                "- Avoid repeating the same conditions. If you must reference a prior premise, do it minimally (e.g., “from the previous inequality …”)."
+        )
+        user_message = f"Solve the Problem:\n{problem}"
+        prefix_message = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_message},
+        ]
+        prefix_prompt = self.tokenizer.apply_chat_template(
+            prefix_message,
+            tokenize=False,
+            enable_thinking=True,
+        )
+        full_message = [
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_message},
+            {"role": "assistant", "content": solution},
+        ]
+        #print(full_message)
+        prompt = self.tokenizer.apply_chat_template(
+            full_message,
+            tokenize=False,
+            add_generation_prompt=False,
+            continue_final_message=True,
+            enable_thinking=True,
+        )
+        boundary = len(self.tokenizer.encode(prefix_prompt, add_special_tokens=False))
+
+        sp = SamplingParams(
+            temperature=0.0,
+            top_p=1.0,
+            max_tokens=1,                 # generate 1 token, ignore it; we only use prompt_logprobs
+            prompt_logprobs=prompt_logprobs_k,
+        )
+
+        out = self.llm.generate([prompt], sp)[0]
+        prompt_ids = out.prompt_token_ids
+        prompt_lps = out.prompt_logprobs  # list[Optional[dict[token_id -> logprob]]]
+        print(prompt_lps)
+        if prompt_lps is None:
+            raise RuntimeError("prompt_logprobs not returned. Check vLLM version / SamplingParams(prompt_logprobs=...).")
+
+        if boundary > len(prompt_ids):
+            raise RuntimeError(f"Boundary token index {boundary} > prompt length {len(prompt_ids)}. Check sep/prefix.")
+
+        logp = 0.0
+        n = 0
+        for i in range(boundary, len(prompt_ids)):
+            d = prompt_lps[i]
+            if not d:
+                continue
+            tid = prompt_ids[i]
+            lp = self._get_lp_value(d.get(tid))
+            if lp is None:
+                continue
+            logp += lp
+            n += 1
+
+        avg_nll = -logp / max(n, 1)
+        ppl = math.exp(avg_nll)
+
+        return {
+            "logp_answer_given_problem": logp,
+            "answer_tokens_counted": n,
+            "avg_nll": avg_nll,
+            "ppl": ppl,
+        }
+
+    def score_batch(
+        self,
+        problems: list[str],
+        answers: list[str],
+        sep: str = "\n\n",
+        *,
+        prompt_logprobs_k: int = 1,
+    ) -> list[dict]:
+        """Batch version: same computation, one vLLM call."""
+        assert len(problems) == len(answers)
+        prefixes = [p + sep for p in problems]
+        fulls = [pref + a for pref, a in zip(prefixes, answers)]
+        boundaries = [len(self.tokenizer.encode(pref, add_special_tokens=False)) for pref in prefixes]
+
+        sp = SamplingParams(
+            temperature=0.0,
+            top_p=1.0,
+            max_tokens=1,
+            prompt_logprobs=prompt_logprobs_k,
+        )
+
+        outs = self.llm.generate(fulls, sp)
+
+        results = []
+        for out, boundary in zip(outs, boundaries):
+            prompt_ids = out.prompt_token_ids
+            prompt_lps = out.prompt_logprobs
+            if prompt_lps is None:
+                raise RuntimeError("prompt_logprobs not returned. Check vLLM version / SamplingParams(prompt_logprobs=...).")
+            if boundary > len(prompt_ids):
+                raise RuntimeError(f"Boundary token index {boundary} > prompt length {len(prompt_ids)}.")
+
+            logp = 0.0
+            n = 0
+            for i in range(boundary, len(prompt_ids)):
+                d = prompt_lps[i]
+                if not d:
+                    continue
+                tid = prompt_ids[i]
+                lp = self._get_lp_value(d.get(tid))
+                if lp is None:
+                    continue
+                logp += lp
+                n += 1
+
+            avg_nll = -logp / max(n, 1)
+            ppl = math.exp(avg_nll)
+            results.append({
+                "logp_answer_given_problem": logp,
+                "answer_tokens_counted": n,
+                "avg_nll": avg_nll,
+                "ppl": ppl,
+            })
+        return results
+
+
+class TransformersLogProbRunner:
+    def __init__(
+        self,
+        model: str,
+        *,
+        device: str | None = None,
+        torch_dtype: str | None = "bfloat16",
+        trust_remote_code: bool = True,
+        model_kwargs: dict | None = None,
+    ):
+        self.model_name = model
+        self.tokenizer = AutoTokenizer.from_pretrained(
+            model,
+            trust_remote_code=trust_remote_code,
+        )
+        dtype = getattr(torch, torch_dtype) if isinstance(torch_dtype, str) and hasattr(torch, torch_dtype) else None
+        kwargs = dict(model_kwargs or {})
+        if device is None:
+            kwargs.setdefault("device_map", "auto")
+        else:
+            kwargs.setdefault("device_map", {"": device})
+        if dtype is not None:
+            kwargs.setdefault("torch_dtype", dtype)
+        kwargs.setdefault("trust_remote_code", trust_remote_code)
+        self.model = AutoModelForCausalLM.from_pretrained(model, **kwargs)
+        self.model.eval()
+
+    def _apply_chat_template(self, messages: List[Dict[str, str]], *, tokenize: bool) -> List[int]:
+        if not hasattr(self.tokenizer, "apply_chat_template"):
+            raise AttributeError("Tokenizer does not support chat template")
+
+        sig = inspect.signature(self.tokenizer.apply_chat_template)
+        kwargs: dict[str, Any] = {"tokenize": tokenize}
+        if "add_generation_prompt" in sig.parameters:
+            kwargs["add_generation_prompt"] = False
+        if "continue_final_message" in sig.parameters:
+            kwargs["continue_final_message"] = True
+        if "enable_thinking" in sig.parameters:
+            kwargs["enable_thinking"] = True
+
+        res = self.tokenizer.apply_chat_template(messages, **kwargs)
+        if isinstance(res, dict):
+            return res["input_ids"]
+        return res
+
+    def _build_inputs(self, problem: str, solution: str, sep: str) -> tuple[List[int], int]:
+        system_message = (
+            "You are a mathematician. Solve the problem."
+            "## Style preferences (keep them light; do not change your underlying approach):"
+            "- Treat `current_solution`/`ref` as correct established premises and build directly on them."
+            "- Start immediately with the next logical derivation. Do not restate the problem or re-summarize what has already been established."
+            "- Write as continuous mathematical prose (no section headers, no “Step 1/2/3”)."
+            "- Avoid repeating the same conditions. If you must reference a prior premise, do it minimally (e.g., “from the previous inequality …”)."
+        )
+        user_message = f"Solve the Problem:\n{problem}"
+        try:
+            prefix_messages = [
+                {"role": "system", "content": system_message},
+                {"role": "user", "content": user_message},
+            ]
+            full_messages = prefix_messages + [{"role": "assistant", "content": solution}]
+            prefix_ids = self._apply_chat_template(prefix_messages, tokenize=True)
+            full_ids = self._apply_chat_template(full_messages, tokenize=True)
+            return full_ids, len(prefix_ids)
+        except Exception:
+            prefix = problem + sep
+            full = prefix + solution
+            prefix_ids = self.tokenizer(prefix, add_special_tokens=False).input_ids
+            full_ids = self.tokenizer(full, add_special_tokens=False).input_ids
+            return full_ids, len(prefix_ids)
+
+    def score(self, problem: str, solution: str, sep: str = "\n\n") -> Dict[str, Any]:
+        input_ids, boundary = self._build_inputs(problem, solution, sep)
+        if not input_ids:
+            return {
+                "logp_answer_given_problem": 0.0,
+                "answer_tokens_counted": 0,
+                "avg_nll": None,
+                "ppl": None,
+            }
+
+        device = next(self.model.parameters()).device
+        input_tensor = torch.tensor([input_ids], device=device)
+        with torch.inference_mode():
+            logits = self.model(input_tensor).logits
+            log_probs = torch.log_softmax(logits, dim=-1)
+
+        start = max(boundary, 1)
+        logp = 0.0
+        n = 0
+        for i in range(start, len(input_ids)):
+            tok_id = input_ids[i]
+            lp = log_probs[0, i - 1, tok_id].item()
+            logp += lp
+            n += 1
+
+        avg_nll = -logp / max(n, 1)
+        ppl = math.exp(avg_nll) if n > 0 else None
+
+        return {
+            "logp_answer_given_problem": logp,
+            "answer_tokens_counted": n,
+            "avg_nll": avg_nll,
+            "ppl": ppl,
+        }
+
+    def score_batch(self, problems: List[str], solutions: List[str], sep: str = "\n\n") -> List[Dict[str, Any]]:
+        assert len(problems) == len(solutions)
+        return [self.score(p, s, sep=sep) for p, s in zip(problems, solutions)]
 
 Message = Dict[str, str]
 PackedPrompt = Dict[str, Any]
@@ -101,13 +366,15 @@ PackedPrompt = Dict[str, Any]
 class DEEPSEEK_API_runner:
     def __init__(self, max_workers_default: int = 16):
         self.model_name = "deepseek-reasoner"
-        self.api_key = os.environ["DEEPSEEK_API_KEY"]
-        self.base_url = "https://api.deepseek.com"
+        self.api_key = "sk-d4cf7bbc94f74f0795a309e3be8810de"
+        self.base_url = "https://api.deepseek.com/beta"
+        self.base_url_beta = "https://api.deepseek.com/beta"
         self.default_params = dict(Config["judge_sampling_params"])
         self.max_workers_default = max_workers_default
 
         # 每个线程一个 client
         self._tls = threading.local()
+        self._tls_beta = threading.local()
 
         # deepseek-reasoner 不支持这些参数：部分“无效但不报错”，logprobs 会直接报错 :contentReference[oaicite:2]{index=2}
         for k in ["temperature", "top_p", "presence_penalty", "frequency_penalty", "logprobs", "top_logprobs"]:
@@ -133,6 +400,26 @@ class DEEPSEEK_API_runner:
                 http_client=http_client,
             )
         return self._tls.client
+
+    def _get_beta_client(self, max_workers: int) -> OpenAI:
+        """Thread-local OpenAI client for /beta endpoints (needed for /completions + logprobs)."""
+        if getattr(self._tls_beta, "client", None) is None:
+            limits = httpx.Limits(
+                max_connections=max(32, max_workers * 4),
+                max_keepalive_connections=max(16, max_workers * 2),
+                keepalive_expiry=30,
+            )
+            http_client = httpx.Client(
+                timeout=httpx.Timeout(600.0, connect=10.0),
+                limits=limits,
+                http2=True,
+            )
+            self._tls_beta.client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url_beta,
+                http_client=http_client,
+            )
+        return self._tls_beta.client
 
     def _looks_like_json_schema(self, obj: Any) -> bool:
         if not isinstance(obj, dict):
@@ -185,6 +472,8 @@ class DEEPSEEK_API_runner:
         )
 
         msg = resp.choices[0].message
+        #print(msg)
+        #print(reasoning)
         reasoning = getattr(msg, "reasoning_content", "") or ""
         content = getattr(msg, "content", "") or ""
         return {"reasoning": reasoning, "content": content}
@@ -220,6 +509,69 @@ class DEEPSEEK_API_runner:
                     contents[i] = f"<Error: {e}>"
 
         return reasonings, contents
+
+    def score(self, problem: str, answer: str, sep: str = "\n\n", logprobs_k: int = 1) -> Dict[str, Any]:
+        prefix = problem + sep
+        full = prefix + answer
+        client = self._get_beta_client(self.max_workers_default)
+        # request payload per DeepSeek /completions schema: prompt, logprobs, max_tokens
+        def _call(max_tokens: int):
+            return client.completions.create(
+                model=self.model_name,
+                prompt=full,
+                logprobs=logprobs_k,   # 0~20 in docs; 1 is enough for scoring  :contentReference[oaicite:6]{index=6}
+                max_tokens=max_tokens, # try 0 for pure scoring; fallback to 1 if needed
+                temperature=0,         # keep deterministic if any completion happens
+            )
+
+        try:
+            resp = _call(max_tokens=0)
+        except Exception:
+            # fallback: generate 1 token; we'll ignore anything beyond len(full)
+            resp = _call(max_tokens=1)
+
+        choice = resp.choices[0]
+        lp = choice.logprobs
+        if lp is None:
+            return {
+                "logp_answer_given_problem": None,
+                "answer_tokens_counted": 0,
+                "avg_nll": None,
+                "ppl": None,
+                "error": "No logprobs returned. Check /beta /completions support for logprobs without echo.",
+            }
+
+        tokens = lp.get("tokens", [])
+        token_logprobs = lp.get("token_logprobs", [])
+        offsets = lp.get("text_offset", [])
+
+        # sum logprobs for answer tokens only (offset >= len(prefix))
+        # also ignore any generated completion tokens by enforcing offset < len(full)
+        logp = 0.0
+        n = 0
+        for tok, lprob, off in zip(tokens, token_logprobs, offsets):
+            if off is None:
+                continue
+            if off < len(prefix):
+                continue
+            if off >= len(full):
+                # this is outside our provided prompt (extra generated token if max_tokens=1)
+                continue
+            if lprob is None:
+                # first token often has None logprob
+                continue
+            logp += float(lprob)
+            n += 1
+
+        avg_nll = -logp / max(n, 1)
+        ppl = math.exp(avg_nll)
+
+        return {
+            "logp_answer_given_problem": logp,
+            "answer_tokens_counted": n,
+            "avg_nll": avg_nll,
+            "ppl": ppl,
+        }
 
 
 

@@ -4,7 +4,7 @@ from __future__ import annotations
 import os, json, time, random, logging
 from typing import Dict, Any, List, Tuple
 from config import Config
-from runner import VLLMRunner, Kimi_API_runner
+from runner import VLLMRunner, Kimi_API_runner, DEEPSEEK_API_runner
 from prompt import Generate_Prompt
 from data_process import _write_jsonl_line, _write_pretty_json
 from data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
@@ -13,15 +13,16 @@ logger = logging.getLogger(__name__)
 processor = Processor()
 
 def build_reasoning_model():
-    return VLLMRunner(
+    """return VLLMRunner(
         model=Config["reasoning_model"],
         vllm_config=Config["reasoning_model_params"],
         sampling_config=Config["reasoning_sampling_params"],
         gpus=Config["reasoning_model_gpus"],
-    )
+    )"""
     #return Kimi_API_runner()
+    return DEEPSEEK_API_runner()
 
-def generate_case(obj: Dict[str, Any], reasoning_model: VLLMRunner) -> Dict[str, Any]:
+def generate_case(obj: Dict[str, Any], reasoning_model) -> Dict[str, Any]:
     """复用 main.py 的生成阶段：逐步 add_step -> run()，直到用尽参考步骤。
        逻辑等价于 execute_evaluation() 中生成部分。"""
     problem = obj["problem"]
@@ -61,7 +62,7 @@ def generate_case(obj: Dict[str, Any], reasoning_model: VLLMRunner) -> Dict[str,
         i += 1
     # 一次性生成所有步骤
     prompts = prompt_lists 
-    generations = reasoning_model.generate(prompts, None)
+    reasonings, generations = reasoning_model.generate(prompts, None)
     gen_output.extend(generations)
     for gen in generations:
         current_output = _normalize_generation_input(gen)
@@ -80,7 +81,7 @@ def generate_case(obj: Dict[str, Any], reasoning_model: VLLMRunner) -> Dict[str,
         "ref_steps": processed,     # 评测阶段需要参考步骤（与 processed_thought 等价）
         "gen_output": gen_output,   # 待评测的模型生成
         "gen_prefix": gen_prefixes,
-        #"reasoning": reasoning,
+        "reasoning": reasonings,
         "difficulty": float(obj.get("difficulty", 0.0)),
     }
 
@@ -104,8 +105,8 @@ def main():
     reasoning_model = build_reasoning_model()
     num = 0
     with open(input_path, "r", encoding="utf-8") as fin, \
-        open(gen_only_jsonl, "a", encoding="utf-8", buffering=1) as fgen, \
-        open(gen_only_pretty, "a", encoding="utf-8", buffering=1) as fgen_pretty:
+        open(gen_only_jsonl, "w", encoding="utf-8", buffering=1) as fgen, \
+        open(gen_only_pretty, "w", encoding="utf-8", buffering=1) as fgen_pretty:
 
         for line in fin:
             if num >= 100:
@@ -136,7 +137,7 @@ def main():
                 "ref_steps": res["ref_steps"],      # 评测要用
                 "gen_output": res["gen_output"],    # 评测要用
                 "gen_prefix": res["gen_prefix"],    # 评测要用
-                #"reasoning_content": res["reasoning"],
+                "reasoning_content": res["reasoning"],
             }
             _write_jsonl_line(fgen, out_record)
             _write_pretty_json(fgen_pretty, out_record)

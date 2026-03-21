@@ -1,0 +1,192 @@
+{
+  "id": 30,
+  "difficulty": 7.0,
+  "problem": "Let $\\mathbb{Z}/n\\mathbb{Z}$ denote the set of integers considered modulo $n$ (hence $\\mathbb{Z}/n\\mathbb{Z}$ has $n$ elements). Find all positive integers $n$ for which there exists a bijective function $g: \\mathbb{Z}/n\\mathbb{Z} \\to \\mathbb{Z}/n\\mathbb{Z}$, such that the 101 functions\n\\[g(x), \\quad g(x) + x, \\quad g(x) + 2x, \\quad \\dots, \\quad g(x) + 100x\\]\nare all bijections on $\\mathbb{Z}/n\\mathbb{Z}$.\n\n[i]Ashwin Sah and Yang Liu[/i]",
+  "answer": "\\text{All positive integers } n \\text{ relatively prime to } 101!",
+  "step_field": "ref_steps",
+  "num_steps": 13,
+  "steps": [
+    {
+      "step_index": 1,
+      "step_text": "Let \\(\\mathbb{Z}/n\\mathbb{Z}\\) denote the set of integers considered modulo \\(n\\).We need to find all positive integers \\(n\\) for which there exists a bijective function \\(g: \\mathbb{Z}/n\\mathbb{Z} \\to \\mathbb{Z}/n\\mathbb{Z}\\), such that the 101 functions $$g(x), \\quad g(x) + x, \\quad g(x) + 2x, \\quad \\dots, \\quad g(x) + 100x$$ are all bijections on \\(\\mathbb{Z}/n\\mathbb{Z}\\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Let \\(\\mathbb{Z}/n\\mathbb{Z}\\) denote the set of integers considered modulo \\(n\\)."
+        },
+        {
+          "id": 1,
+          "text": "We need to find all positive integers \\(n\\)."
+        },
+        {
+          "id": 2,
+          "text": "For which there exists a bijective function \\(g: \\mathbb{Z}/n\\mathbb{Z} \\to \\mathbb{Z}/n\\mathbb{Z}\\)."
+        },
+        {
+          "id": 3,
+          "text": "Such that the functions \\(g(x), g(x)+x, \\dots, g(x)+100x\\) are all bijections on \\(\\mathbb{Z}/n\\mathbb{Z}\\)."
+        }
+      ]
+    },
+    {
+      "step_index": 2,
+      "step_text": "We claim that the answer is all numbers relatively prime to \\(101!\\). The construction is to let \\(g\\) be the identity function.",
+      "claims": [],
+      "error": "Invalid \\escape: line 3 column 84 (char 101)"
+    },
+    {
+      "step_index": 3,
+      "step_text": "To prove this, we need to show that if \\(n\\) is relatively prime to \\(101!\\), then such a bijective function \\(g\\) exists.",
+      "claims": [
+        {
+          "id": 0,
+          "text": "We are to prove this."
+        },
+        {
+          "id": 1,
+          "text": "It needs to be shown that if \\(n\\) is relatively prime to \\(101!\\), then such a bijective function \\(g\\) exists."
+        }
+      ]
+    },
+    {
+      "step_index": 4,
+      "step_text": "Conversely, if \\(n\\) shares a common factor with \\(101!\\), then no such bijective function \\(g\\) can exist.",
+      "claims": [],
+      "error": "Invalid \\escape: line 5 column 31 (char 69)"
+    },
+    {
+      "step_index": 5,
+      "step_text": "### Proof:\n1. **Existence for \\(n\\) relatively prime to \\(101!\\):**",
+      "claims": [
+        {
+          "id": 0,
+          "text": "### Proof:"
+        },
+        {
+          "id": 1,
+          "text": "1. **Existence for \\(n\\) relatively prime to \\(101!\\):**"
+        }
+      ]
+    },
+    {
+      "step_index": 6,
+      "step_text": "- Let \\(g(x) = x\\).Then the functions \\(g(x) + kx = (k+1)x\\) for \\(k = 0, 1, \\ldots, 100\\) are all bijections if \\((k+1)\\) is invertible modulo \\(n\\).",
+      "claims": [],
+      "error": "Invalid \\escape: line 3 column 28 (char 45)"
+    },
+    {
+      "step_index": 7,
+      "step_text": "Since \\(n\\) is relatively prime to \\(101!\\), all integers from 1 to 101 are invertible modulo \\(n\\). Therefore, each function \\(g(x) + kx\\) is a bijection.",
+      "claims": [
+        {
+          "id": 0,
+          "text": "\\(n\\) is relatively prime to \\(101!\\)."
+        },
+        {
+          "id": 1,
+          "text": "All integers from 1 to 101 are invertible modulo \\(n\\)."
+        },
+        {
+          "id": 2,
+          "text": "Each function \\(g(x) + kx\\) is a bijection."
+        }
+      ]
+    },
+    {
+      "step_index": 8,
+      "step_text": "2. **Non-existence for \\(n\\) not relatively prime to \\(101!\\):**\n - Suppose \\(n\\) has a prime factor \\(p \\leq 101\\).",
+      "claims": [],
+      "error": "Invalid \\escape: line 5 column 34 (char 72)"
+    },
+    {
+      "step_index": 9,
+      "step_text": "Consider the sum of the functions \\(g(x) + kx\\) over all \\(x \\in \\mathbb{Z}/n\\mathbb{Z}\\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Consider the sum."
+        },
+        {
+          "id": 1,
+          "text": "The sum is of the functions \\(g(x) + kx\\)."
+        },
+        {
+          "id": 2,
+          "text": "The sum is over all \\(x \\in \\mathbb{Z}/n\\mathbb{Z}\\)."
+        }
+      ]
+    },
+    {
+      "step_index": 10,
+      "step_text": "By properties of bijections, this sum must be congruent modulo \\(n\\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Properties of bijections are given."
+        },
+        {
+          "id": 1,
+          "text": "This sum must be congruent modulo n."
+        }
+      ]
+    },
+    {
+      "step_index": 11,
+      "step_text": "However, if \\(p\\) divides \\(n\\), then the sums of powers of \\(x\\) modulo \\(n\\) will not satisfy the necessary conditions for all \\(k\\), leading to a contradiction.",
+      "claims": [
+        {
+          "id": 0,
+          "text": "\\(p\\) divides \\(n\\)"
+        },
+        {
+          "id": 1,
+          "text": "the sums of powers of \\(x\\) modulo \\(n\\)"
+        },
+        {
+          "id": 2,
+          "text": "will not satisfy the necessary conditions for all k"
+        },
+        {
+          "id": 3,
+          "text": "leading to a contradiction"
+        }
+      ]
+    },
+    {
+      "step_index": 12,
+      "step_text": "Thus, the positive integers \\(n\\) forwhich there exists a bijective function \\(g: \\mathbb{Z}/n\\mathbb{Z} \\to \\mathbb{Z}/n\\mathbb{Z}\\) such that the 101 functions \\(g(x), g(x) + x, g(x) + 2x, \\ldotsg(x) + 100x\\) are all bijections are exactly those integers \\(n\\) that are relatively prime to \\(101!\\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Thus, the positive integers n are such that."
+        },
+        {
+          "id": 1,
+          "text": "There exists a bijective function g: Z/nZ → Z/nZ."
+        },
+        {
+          "id": 2,
+          "text": "Such that the 101 functions g(x), g(x)+x, ..., g(x)+100x are all bijections."
+        },
+        {
+          "id": 3,
+          "text": "These n are exactly those relatively prime to 101!."
+        }
+      ]
+    },
+    {
+      "step_index": 13,
+      "step_text": "The answer is: \\(\\boxed{\\text{All positive integers } n \\text{ relatively prime to } 101!}\\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "The answer is:"
+        },
+        {
+          "id": 1,
+          "text": "All positive integers n relatively prime to 101!"
+        }
+      ]
+    }
+  ]
+}

@@ -1,9 +1,0 @@
-{
-  "num": 100,
-  "avg_score": 18.681085892646163,
-  "requests": 13296,
-  "wall_time_s": 16811.288399219513,
-  "max_workers": 32,
-  "batch_size": 256,
-  "max_tokens_override": null
-}

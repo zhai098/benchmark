@@ -1,0 +1,12 @@
+{
+  "id": "1",
+  "difficulty": 0.0,
+  "score": 0.0,
+  "num_steps": 6,
+  "steps": [],
+  "problem": "",
+  "answer": "",
+  "request_file": "/home/zhaipengxiang/benchmark/test/cache_prompts/case_1_cache.jsonl",
+  "max_workers": 32,
+  "batch_size": 256
+}

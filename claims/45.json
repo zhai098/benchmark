@@ -1,0 +1,226 @@
+{
+  "id": 45,
+  "difficulty": 8.0,
+  "problem": "Find out the maximum value of the numbers of edges of a solid regular octahedron that we can see from a point out of the regular octahedron.(We define we can see an edge $AB$ of the regular octahedron from point $P$ outside if and only if the intersection of non degenerate triangle $PAB$ and the solid regular octahedron is exactly edge $AB$.",
+  "answer": "9",
+  "step_field": "ref_steps",
+  "num_steps": 12,
+  "steps": [
+    {
+      "step_index": 1,
+      "step_text": "To determine the maximum number of edges of a regular octahedron that can be seen from a point outside the octahedron, we start by considering the geometric properties of the octahedronand the visibility conditions.",
+      "claims": [
+        {
+          "id": 0,
+          "text": "The task is to determine max edges of regular octahedron visible from outside."
+        },
+        {
+          "id": 1,
+          "text": "We start by considering the geometric properties of the octahedron."
+        },
+        {
+          "id": 2,
+          "text": "We also consider the visibility conditions."
+        }
+      ]
+    },
+    {
+      "step_index": 2,
+      "step_text": "A regular octahedron has 12 edges. The visibility of an edge from an external point depends on whether the plane formed by the point and the edge intersects the octahedron only along that edge.",
+      "claims": [
+        {
+          "id": 0,
+          "text": "A regular octahedron has 12 edges."
+        },
+        {
+          "id": 1,
+          "text": "For an external point, the visibility of an edge depends on a condition."
+        },
+        {
+          "id": 2,
+          "text": "The condition involves a plane formed by the point and the edge."
+        },
+        {
+          "id": 3,
+          "text": "The plane must intersect the octahedron."
+        },
+        {
+          "id": 4,
+          "text": "The intersection must be only along that edge."
+        }
+      ]
+    },
+    {
+      "step_index": 3,
+      "step_text": "Consider a regular octahedron with vertices at \\( A_1(0,0,1), A_2(0,0,-1), B_1(0,1,0), B_2(0,-1,0), C_1(1,0,0), \\) and \\( C_2(-1,0,0) \\).",
+      "claims": [],
+      "error": "Invalid \\escape: line 4 column 50 (char 124)"
+    },
+    {
+      "step_index": 4,
+      "step_text": "Let \\( P(x_0, y_0, z_0) \\) be a point outside the octahedron such that \\( x_0, y_0, z_0 \\) are nonnegative real numbers with \\( x_0 + y_0 + z_0 > 1 \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "P(x0, y0, z0) is a point."
+        },
+        {
+          "id": 1,
+          "text": "P is outside the octahedron."
+        },
+        {
+          "id": 2,
+          "text": "x0, y0, z0 are nonnegative real numbers."
+        },
+        {
+          "id": 3,
+          "text": "x0 + y0 + z0 > 1."
+        }
+      ]
+    },
+    {
+      "step_index": 5,
+      "step_text": "The octahedron is bounded by the inequality \\( |x| + |y| + |z| \\leq 1 \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "The octahedron is bounded by the inequality \\( |x| + |y| + |z| \\leq 1 \\)."
+        }
+      ]
+    },
+    {
+      "step_index": 6,
+      "step_text": "To determine the visibility of edges, we analyze the conditions under which the plane formed by \\( P \\) and an edge intersects the octahedron.",
+      "claims": [
+        {
+          "id": 0,
+          "text": "We determine the visibility of edges."
+        },
+        {
+          "id": 1,
+          "text": "We analyze conditions."
+        },
+        {
+          "id": 2,
+          "text": "The conditions involve plane-octahedron intersection."
+        },
+        {
+          "id": 3,
+          "text": "The plane is formed by P and an edge."
+        }
+      ]
+    },
+    {
+      "step_index": 7,
+      "step_text": "If \\( x_0 + y_0 \\leq 1 + z_0 \\), the plane \\( PA_2 \\) intersects the octahedron, making edges \\( A_2B_1, A_2B_2, A_2C_1, \\) and \\( A_2C_2 \\) not visible.",
+      "claims": [
+        {
+          "id": 0,
+          "text": "x0 + y0 ≤ 1 + z0"
+        },
+        {
+          "id": 1,
+          "text": "The plane PA2 intersects the octahedron."
+        },
+        {
+          "id": 2,
+          "text": "Edges A2B1, A2B2, A2C1, and A2C2 are not visible."
+        }
+      ]
+    },
+    {
+      "step_index": 8,
+      "step_text": "Similarly, if \\( y_0 + z_0 \\leq 1 + x_0 \\) or \\( z_0 + x_0 \\leq 1 + y_0 \\), we cannot see certain edges.",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Similarly, if \\( y_0 + z_0 \\leq 1 + x_0 \\)"
+        },
+        {
+          "id": 1,
+          "text": "or \\( z_0 + x_0 \\leq 1 + y_0 \\),"
+        },
+        {
+          "id": 2,
+          "text": "we cannot see certain edges."
+        }
+      ]
+    },
+    {
+      "step_index": 9,
+      "step_text": "However, for \\( P \\) in the region defined by \\( x_0 + y_0 > 1 + z_0 \\), \\( y_0 + z_0 > 1 + x_0 \\),and \\( z_0 + x_0 > 1 + y_0 \\), we can see the following edges:\n- \\( A_1B_1, B_1C_1,C_1A_1 \\)\n- \\( A_1B_2, A_1C_2, B_1A_2, B_1C_2, C_1A_2, C_1B_2 \\)",
+      "claims": [
+        {
+          "id": 0,
+          "text": "However, for P, the region is defined by inequalities."
+        },
+        {
+          "id": 1,
+          "text": "The inequality is x0 + y0 > 1 + z0."
+        },
+        {
+          "id": 2,
+          "text": "The inequality is y0 + z0 > 1 + x0."
+        },
+        {
+          "id": 3,
+          "text": "The inequality is z0 + x0 > 1 + y0."
+        },
+        {
+          "id": 4,
+          "text": "In this region, edges can be seen for P."
+        },
+        {
+          "id": 5,
+          "text": "The edges include A1B1, B1C1, C1A1."
+        },
+        {
+          "id": 6,
+          "text": "The edges also include A1B2, A1C2, B1A2, B1C2, C1A2, C1B2."
+        }
+      ]
+    },
+    {
+      "step_index": 10,
+      "step_text": "Thus, we can see a total of 9 edges from such a point \\( P \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Thus, we can see a total of 9 edges from such a point \\( P \\)."
+        }
+      ]
+    },
+    {
+      "step_index": 11,
+      "step_text": "Therefore, the maximum number of edges of a regular octahedron that can be seen from a point outside the octahedron is:",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Therefore,"
+        },
+        {
+          "id": 1,
+          "text": "the maximum number of edges of a regular octahedron"
+        },
+        {
+          "id": 2,
+          "text": "that can be seen from a point outside the octahedron"
+        },
+        {
+          "id": 3,
+          "text": "is:"
+        }
+      ]
+    },
+    {
+      "step_index": 12,
+      "step_text": "$$\n\\boxed{9}\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "$$\\boxed{9}$$"
+        }
+      ]
+    }
+  ]
+}
