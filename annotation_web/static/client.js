@@ -216,11 +216,26 @@ $('addStepBtn').onclick = () => { state.local.step_segments.push(''); renderStep
 
 $('genClaimsBtn').onclick = async () => {
   try {
+    const model = $('claimModelInput').value.trim() || 'gpt-4.1-mini';
+    const base_url = $('claimBaseUrlInput').value.trim();
+    const temperature = Number($('claimTemperatureInput').value);
+    const max_tokens = Number($('claimMaxTokensInput').value);
+    const allow_fallback = $('claimAllowFallbackInput').checked;
     const res = await api('/api/task/generate_claims', {
       method: 'POST',
-      body: JSON.stringify({ annotator: state.annotator, task_id: state.taskId, step_segments: state.local.step_segments })
+      body: JSON.stringify({
+        annotator: state.annotator,
+        task_id: state.taskId,
+        step_segments: state.local.step_segments,
+        model,
+        base_url,
+        temperature,
+        max_tokens,
+        allow_fallback
+      })
     });
     state.local.claims = res.claims;
+    if (res.source) console.info(`claim source: ${res.source}`);
     renderClaims();
     renderDependencies();
   } catch (e) { alert(e.message); }

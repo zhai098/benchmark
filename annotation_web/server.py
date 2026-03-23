@@ -10,6 +10,7 @@ from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
+from openai import OpenAI
 from urllib.parse import parse_qs, urlparse
 
 BASE_DIR = Path(__file__).resolve().parent
@@ -66,6 +67,92 @@ def split_claims(step_text: str) -> List[str]:
     parts = re.split(r"(?<=[，,；;。.!?])\s*", step_text)
     claims = [normalize_text(p) for p in parts if normalize_text(p)]
     return claims or [normalize_text(step_text)]
+
+
+def fallback_segment_claims(step_segments: List[str]) -> List[Dict[str, Any]]:
+    claims_by_step: List[Dict[str, Any]] = []
+    for sidx, step in enumerate(step_segments, start=1):
+        step_id = f"S{sidx}"
+        claims_by_step.append({"step_id": step_id, "claims": split_claims(step)})
+    return claims_by_step
+
+
+def _validate_claims_by_step(raw: Any) -> List[Dict[str, Any]]:
+    if not isinstance(raw, list):
+        raise ValueError("claims_by_step must be a list")
+    validated: List[Dict[str, Any]] = []
+    for item in raw:
+        if not isinstance(item, dict):
+            raise ValueError("each item in claims_by_step must be an object")
+        step_id = item.get("step_id")
+        claims = item.get("claims")
+        if not isinstance(step_id, str) or not step_id.strip():
+            raise ValueError("step_id must be a non-empty string")
+        if not isinstance(claims, list):
+            raise ValueError("claims must be a list of strings")
+        clean_claims = [normalize_text(c) for c in claims if isinstance(c, str) and normalize_text(c)]
+        validated.append({"step_id": step_id.strip(), "claims": clean_claims})
+    return validated
+
+
+def _build_flat_claims(claims_by_step: List[Dict[str, Any]], step_segments: List[str]) -> List[Dict[str, Any]]:
+    step_index_map = {f"S{i+1}": i for i in range(len(step_segments))}
+    claims: List[Dict[str, Any]] = []
+    for item in claims_by_step:
+        step_id = item["step_id"]
+        step_index = step_index_map.get(step_id)
+        if step_index is None:
+            digits = re.findall(r"\d+", step_id)
+            if digits:
+                guessed = int(digits[-1]) - 1
+                if 0 <= guessed < len(step_segments):
+                    step_index = guessed
+        if step_index is None:
+            continue
+        for cidx, claim in enumerate(item["claims"], start=1):
+            claims.append({"claim_id": f"S{step_index+1}-C{cidx}", "step_index": step_index, "text": claim})
+    return claims
+
+
+def generate_claims_with_openai(step_segments: List[str], config: Dict[str, Any]) -> List[Dict[str, Any]]:
+    api_key = os.environ.get("OPENAI_API_KEY", "").strip()
+    if not api_key:
+        raise RuntimeError("OPENAI_API_KEY is not set")
+
+    model = str(config.get("model") or "gpt-4.1-mini")
+    temperature = float(config.get("temperature", 0.2))
+    max_tokens = int(config.get("max_tokens", 1200))
+    base_url = (config.get("base_url") or "").strip() or None
+
+    client = OpenAI(api_key=api_key, base_url=base_url)
+    system_prompt = (
+        "你是严格的 JSON 生成器。仅输出 JSON 数组，不要输出 markdown、解释或其他文本。"
+        "JSON 目标结构：[{\"step_id\":\"S1\",\"claims\":[\"...\"]}]。"
+        "step_id 必须与输入中的 step_id 一致，每个 claims 项必须是字符串。"
+    )
+    payload = [{"step_id": f"S{i+1}", "step_text": s} for i, s in enumerate(step_segments)]
+
+    completion = client.chat.completions.create(
+        model=model,
+        temperature=temperature,
+        max_tokens=max_tokens,
+        response_format={"type": "json_object"},
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {
+                "role": "user",
+                "content": (
+                    "请对每个 step 生成可验证的最小 claim 列表，并返回 JSON："
+                    "{\"claims_by_step\":[{\"step_id\":\"S1\",\"claims\":[\"...\"]}]}\n"
+                    f"steps={json.dumps(payload, ensure_ascii=False)}"
+                ),
+            },
+        ],
+    )
+    content = (completion.choices[0].message.content or "").strip()
+    parsed = json.loads(content)
+    claims_by_step = parsed.get("claims_by_step")
+    return _validate_claims_by_step(claims_by_step)
 
 
 def load_jsonl(path: str) -> List[Dict[str, Any]]:
@@ -297,20 +384,34 @@ class Handler(BaseHTTPRequestHandler):
 
             if route == "/api/task/generate_claims":
                 step_segments = data.get("step_segments") or []
-                claims = []
-                for sidx, step in enumerate(step_segments):
-                    for cidx, claim in enumerate(split_claims(step), start=1):
-                        claims.append(
+                allow_fallback = bool(data.get("allow_fallback", False))
+                sdk_config = {
+                    "model": data.get("model"),
+                    "temperature": data.get("temperature"),
+                    "max_tokens": data.get("max_tokens"),
+                    "base_url": data.get("base_url"),
+                }
+                source = "openai_sdk"
+                try:
+                    claims_by_step = generate_claims_with_openai(step_segments, sdk_config)
+                except Exception as exc:
+                    if not allow_fallback:
+                        return self._send_json(
                             {
-                                "claim_id": f"S{sidx+1}-C{cidx}",
-                                "step_index": sidx,
-                                "text": claim,
-                            }
+                                "error": "claim generation failed",
+                                "details": str(exc),
+                                "source": source,
+                            },
+                            HTTPStatus.BAD_GATEWAY,
                         )
+                    claims_by_step = fallback_segment_claims(step_segments)
+                    source = "fallback_segment_claims"
+
+                claims = _build_flat_claims(claims_by_step, step_segments)
                 state["step_segments"] = step_segments
                 state["claims"] = claims
                 save_annotation(annotator, ann)
-                return self._send_json({"claims": claims})
+                return self._send_json({"claims": claims, "claims_by_step": claims_by_step, "source": source})
 
             state["sample_reviews"] = data.get("sample_reviews", state.get("sample_reviews", []))
             state["method_categories"] = data.get("method_categories", state.get("method_categories", []))
