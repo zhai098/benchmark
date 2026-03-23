@@ -1,0 +1,72 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>标注客户端</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>数据标注客户端</h1>
+      <p class="sub">更高效的多阶段标注工作台</p>
+    </div>
+    <div class="toolbar">
+      <input id="annotator" placeholder="标注者 ID" />
+      <input id="jsonlPath" placeholder="JSONL 文件绝对路径" />
+      <input id="claimModel" placeholder="Claim 模型（默认 gpt-4o-mini）" />
+      <input id="claimTemp" placeholder="temperature（默认 0）" />
+      <input id="claimMaxTokens" placeholder="max_tokens（默认 1500）" />
+      <button onclick="loadDataset()">加载数据</button>
+      <button onclick="toggleCasePanel()">显示/隐藏任务列表</button>
+      <button onclick="saveProgress()">手动保存</button>
+      <button class="primary" onclick="goStep(6)">提交前总览</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <aside id="casePanel" class="case-panel collapsed">
+      <div class="aside-head">
+        <h3>任务列表</h3>
+        <button onclick="toggleCasePanel()">收起</button>
+      </div>
+      <ul id="caseList"></ul>
+    </aside>
+
+    <section class="panel">
+      <div class="step-nav">
+        <button onclick="goStep(1)">1 多采样验证</button>
+        <button onclick="goStep(2)">2 Step切分</button>
+        <button onclick="goStep(3)">3 Claim生成</button>
+        <button onclick="goStep(4)">4 Claim修正</button>
+        <button onclick="goStep(5)">5 依赖关系</button>
+        <button onclick="goStep(6)">6 结果总览</button>
+      </div>
+
+      <article class="context-card">
+        <h2 id="caseTitle">未加载</h2>
+        <div class="context-grid">
+          <details open>
+            <summary>题目与标准答案</summary>
+            <pre id="qAndA"></pre>
+          </details>
+          <details>
+            <summary>已知正确解</summary>
+            <pre id="known"></pre>
+          </details>
+          <details>
+            <summary>官方指南</summary>
+            <pre id="guideText">点击“加载指南”</pre>
+            <button onclick="openGuide()">加载指南</button>
+          </details>
+        </div>
+      </article>
+
+      <article id="stepContent"></article>
+    </section>
+  </main>
+
+  <script src="{{ url_for('static', filename='app.js') }}"></script>
+</body>
+</html>

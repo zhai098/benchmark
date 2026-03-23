@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>服务器端审核面板</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <header>
+    <h1>集中审核面板</h1>
+    <button onclick="loadRecords()">刷新记录</button>
+  </header>
+  <main>
+    <section class="panel">
+      <h3>汇总</h3>
+      <div id="summary"></div>
+      <h3>记录列表</h3>
+      <table id="recordsTable">
+        <thead>
+          <tr>
+            <th>文件</th><th>标注者</th><th>题目</th><th>有效采样</th><th>step</th><th>claim</th><th>依赖</th><th>时间</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <h3>详情</h3>
+      <pre id="detail"></pre>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='review.js') }}"></script>
+</body>
+</html>
