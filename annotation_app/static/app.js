@@ -214,6 +214,39 @@ function extractPresegmentedClaims(sample) {
   return out;
 }
 
+function extractPresegmentedClaims(sample) {
+  const raw = sample?.claims_by_step || sample?.step_claims || sample?.claims || [];
+  if (!Array.isArray(raw)) return [];
+  // 兼容两种输入：
+  // 1) ["claim1", "claim2"]（仅预切分，不含 step）
+  // 2) [{text, step_id/step_index}] / [{step_id, claims:[...]}]
+  const out = [];
+  raw.forEach((item, i) => {
+    if (typeof item === 'string') {
+      const text = item.trim();
+      if (text) out.push({ id: `p${i + 1}`, text, step_idx: null });
+      return;
+    }
+    if (item && typeof item === 'object' && Array.isArray(item.claims)) {
+      const step_idx = Number.isInteger(item.step_index)
+        ? item.step_index
+        : parseInt(String(item.step_id || '').replace(/[^\d]/g, ''), 10) - 1;
+      (item.claims || []).forEach((c, ci) => {
+        const text = String(c || '').trim();
+        if (text) out.push({ id: `p${i + 1}_${ci + 1}`, text, step_idx: Number.isFinite(step_idx) ? step_idx : null });
+      });
+      return;
+    }
+    const text = String(item.text || item.claim || '').trim();
+    if (!text) return;
+    const step_idx = Number.isInteger(item.step_index)
+      ? item.step_index
+      : parseInt(String(item.step_id || '').replace(/[^\d]/g, ''), 10) - 1;
+    out.push({ id: `p${i + 1}`, text, step_idx: Number.isFinite(step_idx) ? step_idx : null });
+  });
+  return out;
+}
+
 function addCutPoint() {
   const c = selectedCase();
   const st = getCaseState(c.id);
