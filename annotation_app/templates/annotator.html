@@ -15,9 +15,6 @@
     <div class="toolbar">
       <input id="annotator" placeholder="标注者 ID" />
       <input id="jsonlPath" placeholder="JSONL 文件绝对路径" />
-      <input id="claimModel" placeholder="Claim 模型（默认 gpt-4o-mini）" />
-      <input id="claimTemp" placeholder="temperature（默认 0）" />
-      <input id="claimMaxTokens" placeholder="max_tokens（默认 1500）" />
       <button onclick="loadDataset()">加载数据</button>
       <button onclick="toggleCasePanel()">显示/隐藏任务列表</button>
       <button onclick="saveProgress()">手动保存</button>
@@ -36,12 +33,12 @@
 
     <section class="panel">
       <div class="step-nav">
-        <button onclick="goStep(1)">1 多采样验证</button>
-        <button onclick="goStep(2)">2 Step切分</button>
-        <button onclick="goStep(3)">3 Claim生成</button>
-        <button onclick="goStep(4)">4 Claim修正</button>
-        <button onclick="goStep(5)">5 依赖关系</button>
-        <button onclick="goStep(6)">6 结果总览</button>
+        <button class="step-btn" data-step="1" onclick="goStep(1)">1 多采样验证</button>
+        <button class="step-btn" data-step="2" onclick="goStep(2)">2 Step切分</button>
+        <button class="step-btn" data-step="3" onclick="goStep(3)">3 Claim整理</button>
+        <button class="step-btn" data-step="4" onclick="goStep(4)">4 Claim校验</button>
+        <button class="step-btn" data-step="5" onclick="goStep(5)">5 依赖关系</button>
+        <button class="step-btn" data-step="6" onclick="goStep(6)">6 结果总览</button>
       </div>
 
       <article class="context-card">
