@@ -110,7 +110,7 @@ def main():
     parser = argparse.ArgumentParser(description="Summarize cases folder into a compact JSON report")
     parser.add_argument("path", nargs="?", default=None, help="Path to a 'cases' folder or its parent run folder")
     parser.add_argument("--cases-dir", dest="cases_dir", help="Explicit path to the cases folder")
-    parser.add_argument("--out", dest="out_name", default="case_summary.json", help="Output file name in parent folder (default: cases_summary.json)")
+    parser.add_argument("--out", dest="out_name", default="case_summary.json", help="Output file name or path (default: cases_summary.json in parent folder)")
     args = parser.parse_args()
 
     if args.cases_dir:
@@ -137,7 +137,11 @@ def main():
 
     summaries = summarize_cases(cases)
 
-    out_path = cases.parent / args.out_name
+    out_path = Path(args.out_name)
+    if not out_path.is_absolute() and len(out_path.parts) == 1:
+        out_path = cases.parent / out_path
+    if out_path.exists() and out_path.is_dir():
+        out_path = out_path / "case_summary.json"
     out_path.write_text(json.dumps(summaries, ensure_ascii=False, indent=2), encoding="utf-8")
     print(f"Wrote summary for {len(summaries)} items to: {out_path}")
 

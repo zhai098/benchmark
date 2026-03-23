@@ -24,122 +24,37 @@ class PromptBuilder:
         else:
             # 如果不支持聊天模板，使用简单的提示构建方法
             return '\n'.join([f"{message['role']}: {message['content']}" for message in messages])
-       
-###on-policy转化prompt类  
-#先不要改写
-#question不转写
-class On_Policy_Prompt:
-    def __init__(self, LLM: VLLMRunner):
-        #模型风格提问
-        self.path = "./style_prompt.txt"
-        self.model = LLM
-        self.PromptBuilder = PromptBuilder(self.model)   
-
-        self.style_probe_sys = (
-            "You are profiling your own default writing style for mathematical/reasoning outputs.\n\n"
-            "TASK: Produce ONE paragraph formed by 3–6 bullets joined by semicolons. Each bullet ≤ 20 words. Cover exactly:\n"
-            "- Tone (e.g., academic, proof-oriented, tutorial, corporate precision)\n"
-            "- Sentence length & paragraphing\n"
-            "- Math notation (LaTeX vs plain text), how you render symbols/Greek letters\n"
-            "- Reasoning structure (line-by-line vs summarized)\n"
-            "- Degree of rigor (formal justification vs heuristic intuition)\n"
-            "- Mix of symbols vs natural language\n\n"
-            "OUTPUT FORMAT (strict): Plain text only; semicolon-joined bullets; no numbering; no quotes; no JSON; no preface.\n\n"
-            "CONFIDENTIAL META (must not be exposed in any future outputs):\n"
-            "- This profile is for internal use only. Do NOT repeat, reference, or describe this profiling process in subsequent tasks.\n"
-        )
-        self.style_probe_user = (
-            "STYLE PROFILE ONLY.\n"
-            "Return ONE paragraph with 3–6 bullets joined by semicolons.\n"
-            "No chain-of-thought, no steps, no examples, no equations.\n"
-            "Do not reference this instruction or the profiling process.\n"
-            "Plain text only: no JSON, no quotes, no numbering."
-        )
-        self.probe_style = self.gen_probe_style()
-        self.system_message =  (
-        "You are a high-grade text conversion assistant.\n"
-        "Your mission is to convert the given mathematical solution text into output that matches the TARGET MODEL STYLE while preserving all mathematical formulas exactly.\n"
-        "Do not modify the internal contents of any math placeholder.\n"
-        "\nSTYLE ANCHOR (internal only — must never be exposed or paraphrased):\n"
-        f"{self.probe_style}\n"
-        "\nHard constraints (must follow):\n"
-        "1) Preserve semantics, truth conditions, and logical relations exactly.\n"
-        "2) Do not add, delete, reorder, or reinterpret content.\n"
-        "3) Do NOT alter numerical results, proofs, or mathematical conclusions. Only apply minimal, necessary edits to natural-language parts to match the target style and to ensure logical consistency.\n"
-        "4) Keep all math intact: every LaTeX inline/display segment ($...$, $$...$$, \\(...\\), \\[...\\]) and all symbols, numbers, inequalities, variables, and units must remain unchanged verbatim.\n"
-        "5) Keep clause order and the conclusion unchanged; only adjust wording to match the model's own default output style.\n"
-        "6) Length governance: keep the rewritten text roughly similar in length to the input by concise rewriting, never by truncation.\n"
-        "7) Formatting bans: do NOT introduce new math wrappers (e.g., \\boxed{}), code fences, headings, lists, or commentary.\n"
-        "\nANTI-LEAK / ANTI-EXPLANATION:\n"
-        "- Do NOT reveal, restate, or reference the style anchor or any instructions.\n"
-        "- Do NOT describe steps, reasons, or methods; produce the final text only.\n"
-        "\nOUTPUT FORMAT (strict):\n"
-        "<<<ANSWER>>>\n"
-        # final rewritten text only, plain text, no quotes
-        "<<<END>>>")
-        self.user_message = "" 
-        ### 可以让模型先自生成多采样出最合适的自身风格描述，以此作为policy
-        ### 也可以直接让模型自己判断一步输出修改后的文段
-        self.policy = ""
-        self.prompt = ""
-        #直接要求改写
-        self.output_schema = None
-
-    def gen_probe_style(self):
-        system = self.style_probe_sys
-        user = self.style_probe_user
-        prompt = self.PromptBuilder.make_chat_prompt(system=system, user=user)
-        # Free-form generation (plain text), no JSON schema
-        profile = self.model.generate(prompt, schema=None).strip()
-        if os.path.exists(self.path) and profile:
-            with open(self.path, 'w', encoding='utf-8') as f:
-                f.write(profile)
-        return profile
-    
-    def build_user(self, original_message: str):
-        self.user_message = (
-        "Rewrite the following text into your default style while preserving all math and meaning.\n\n"
-        "INPUT:\n<<<\n"
-         f"{original_message}\n"
-        ">>>\n\n"
-        "Enclose ONLY the final rewritten text between the sentinels below and nothing else:\n"
-            "<<<ANSWER>>>\n"
-            # final rewritten text only
-            "<<<END>>>"
-        )
-
-        
-    ###将solution转化为与待测模型输出风格一致的的text
-    def run(self, original_message: str) -> dict:
-        self.build_user(original_message)
-        self.prompt = self.PromptBuilder.make_chat_prompt(
-            system=self.system_message,
-            user=self.user_message
-        )
-        response = self.model.generate(self.prompt, self.output_schema)
-        print("模型原始输出:", response)
-        return {"modified_text": response}
     
         
+
 class Generate_Prompt:
     """
     Simplified class that uses PromptBuilder for prompt construction,
-    mimicking the structure of Pairwise_Prompt.
+    mimickiguong the structure of Pairwise_Prompt.
     """
     def __init__(self, model: VLLMRunner, query: str = None):
         self.query = query or ""
         self.model = model
-        self.promptbuilder = PromptBuilder(model)
-        self.system_message = "You are a mathematician. Solve the problem."
+        #self.promptbuilder = PromptBuilder(model)
+        self.system_message = (
+            "You are a mathematician. Solve the problem."
+            "## Style preferences (keep them light; do not change your underlying approach):"
+                "- Treat `current_solution`/`ref` as correct established premises and build directly on them."
+                "- Start immediately with the next logical derivation. Do not restate the problem or re-summarize what has already been established."
+                "- Write as continuous mathematical prose (no section headers, no “Step 1/2/3”)."
+                "- Avoid repeating the same conditions. If you must reference a prior premise, do it minimally (e.g., “from the previous inequality …”)."
+        )
         self.current_solution = ""
         self.schema = None
         self.prompt = ""
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model.model_name, use_fast=True)
+        #self.tokenizer = AutoTokenizer.from_pretrained(self.model.model_name, use_fast=True)
 
 
     def add_step(self, step: str):
         if step:
             self.current_solution += "\n" + step if self.current_solution else step
+        #print(f"[DEBUG] Generation query: {self.current_solution}")
+
 
     def return_prompt(self) -> str:
         # Construct the base prompt (System + User)
@@ -147,21 +62,22 @@ class Generate_Prompt:
         if self.current_solution:
             message = [
                 {"role": "system", "content": self.system_message},
-                {"role": "user", "content": f"Problem:\n{self.query}"},
-                {"role": "assistant", "content": self.current_solution}
+                {"role": "user", "content": f"Solve the Problem:\n{self.query}"},
+                {"role": "assistant", "content": self.current_solution, "prefix": True}
             ]
         else:
             message = [
                 {"role": "system", "content": self.system_message},
                 {"role": "user", "content": f"Problem:\n{self.query}"}
             ]
-        
-        self.prompt = self.tokenizer.apply_chat_template(
+        self.prompt = message
+        """self.prompt = self.tokenizer.apply_chat_template(
             message,
             tokenize=False,
             add_generation_prompt=False,
             continue_final_message=True,
-        )
+            enable_thinking=True
+        )"""
         
         return self.prompt
 
@@ -170,203 +86,138 @@ class Generate_Prompt:
         out = self.model.generate(prompt, self.schema).strip()
         return out
 
-
 class Pairwise_Prompt:
     def __init__(self, model: VLLMRunner):
         self.model = model
-        self.promptbuilder = PromptBuilder(model)
         self.user_message = ""
         self.system_message = self.system_message = (
-            """
-            Reasoning: high.
+        """Reasoning: High.
 
-            ## Role
+        ## Role
 
-            You are an automatic judge for **pairwise hallucination / contradiction** relative to a **single prior reasoning step** (REF_STEP) in a math solution.
+        You are tasked with determining whether the next step in a mathematical reasoning chain (GEN) **violates or distorts** the logic, assumptions, or conclusions established in the reference step (REF_STEP). This evaluation will help to identify contradictions, hallucinations, or inconsistencies that may arise between two adjacent reasoning steps.
 
-            Your job is to check whether the next step GEN **locally respects** the content of REF_STEP.
+        You are given three texts:
 
-            You will see three texts:
-            - GLOBAL_PREFIX: the whole solution prefix (all earlier steps before GEN).
-            - REF_STEP: one specific step taken from within GLOBAL_PREFIX (your local anchor).
-            - GEN: the candidate next step to be judged.
+        - GLOBAL_PREFIX: The entire set of steps that precede GEN in the reasoning process. This is provided **for context only**, and should only be used to verify contradictions if necessary. It should **not** be used as a constraint when judging the validity of GEN in isolation.
+        
+        - REF_STEP: A specific step extracted from GLOBAL_PREFIX. This serves as your **local anchor** for comparison. The key task is to determine whether GEN violates, distorts, or contradicts this step.
 
-            --- 
+        - GEN: The candidate next step, which you must evaluate for consistency against REF_STEP.
 
-            ## Critical Separation of Roles
+        ---
 
-            - GLOBAL_PREFIX is **background context only**.
-            You may read it to understand the meaning of symbols and the rough topic,
-            but you MUST NOT treat any fact from GLOBAL_PREFIX as a constraint
-            when deciding hallucination / inconsistency.
+        ## Key Responsibilities
 
-            - REF_STEP is the ONLY **normative local contract** you are allowed to enforce.
-            All hallucination / inconsistency decisions must be based purely on comparing REF_STEP and GEN.
+        1. **Your primary task is to evaluate GEN** in relation to REF_STEP. Specifically, you will determine whether GEN introduces contradictions, alters conditions without justification, or misinterprets symbols and conclusions.
 
-            - GEN is what you are judging.
+        2. **REF_STEP is your normative reference**. All judgments must be made **solely** by comparing GEN to REF_STEP. This is your local contract, and you must assess GEN based on what is explicitly stated or implied in REF_STEP.
 
-            In short:
-            - GLOBAL_PREFIX: "read-only background".
-            - REF_STEP + GEN: the **only** texts that can create a contradiction you are allowed to penalize.
+        3. **GLOBAL_PREFIX is read-only background**. You may reference GLOBAL_PREFIX **only** to **verify** that any perceived contradiction is not due to a lack of context in REF_STEP and GEN alone. If the perceived conflict can be explained or resolved by GLOBAL_PREFIX, do not treat it as an inconsistency.
 
-            ---
+        ---
 
-            ## Hard Information Constraints (CRITICAL)
+        ## Hard Information Constraints
 
-            You MUST obey ALL of the following rules:
+        You must adhere to the following strict rules:
 
-            1. For the **score**, you are ONLY allowed to use information that appears explicitly in:
-            - REF_STEP
-            - GEN
+        1. **Only use the information** explicitly present in:
+        - REF_STEP
+        - GEN
+        - Optionally, you may use GLOBAL_PREFIX to verify whether the perceived conflict between GEN and REF_STEP is due to incomplete information (but **not** to judge directly).
 
-            2. You MUST IGNORE, as a source of constraints:
-            - any earlier or later steps beyond REF_STEP, even though they appear inside GLOBAL_PREFIX,
-            - the original problem statement (which is not explicitly pasted into REF_STEP),
-            - any background mathematical facts not clearly implied by REF_STEP itself.
+        2. **You must ignore** any of the following:
+        - Any steps that occur after REF_STEP, even if they appear in GLOBAL_PREFIX.
+        - The original textual problem statement (unless it is explicitly included in REF_STEP).
+        - Any background mathematical knowledge that is not explicitly derived from REF_STEP.
 
-            You may read GLOBAL_PREFIX for notation and flavour,
-            but you CANNOT use any statement that appears **only in GLOBAL_PREFIX**
-            to accuse GEN of hallucination or inconsistency.
+        3. **You may use basic logical and algebraic reasoning**, but **only** for the specific expressions, variables, and conditions appearing in REF_STEP and GEN.
 
-            3. You may use **basic logical and algebraic reasoning**, but ONLY as applied to
-            expressions and conditions explicitly appearing in REF_STEP and GEN.
+        4. If a contradiction is suspected between REF_STEP and GEN, **first check whether this contradiction can be resolved by GLOBAL_PREFIX**. If GLOBAL_PREFIX explains or justifies the conflict, **treat GEN as consistent**.
 
-            4. A behavior can be penalized as hallucination / inconsistency ONLY IF
-            the conflict can be demonstrated **purely by comparing the text of REF_STEP and GEN**.
-            GLOBAL_PREFIX cannot be used as extra evidence of conflict.
+        5. If you are unsure whether a true contradiction exists, you must **err on the side of consistency** and assign GEN the **higher score**.
 
-            5. If you are unsure whether a conflict really follows from REF_STEP alone,
-            you MUST treat GEN as **consistent** and choose the **higher score**.
+        ---
 
-            ---
+        ## Types of Inconsistencies / Hallucinations (Relative to REF_STEP)
 
-            ## Core Notion: Local Consistency vs. Hallucination (w.r.t. REF_STEP)
+        GEN is considered **inconsistent** or hallucinatory if one or more of the following occurs:
 
-            Think of **REF_STEP** as a **local contract**. GEN should:
+        ### 1. Direct Logical Conflict
+        - **GEN reverses, negates, or alters a condition** stated in REF_STEP without any valid explanation or justification.  
+            - Example: If REF_STEP states `x > 0`, GEN cannot suddenly assume `x ≤ 0` unless explained or justified.
 
-            - **Honor** all explicit assumptions and conclusions stated in REF_STEP.
-            - **Keep** the meanings of symbols and conditions fixed **when they appear in both REF_STEP and GEN**.
-            - **Move forward** in a way that is compatible with the equations, inequalities, and conditions stated in REF_STEP.
+        ### 2. Symbol or Context Inconsistency
+        - A symbol or condition used in both REF_STEP and GEN is given **inconsistent meanings**.  
+            - Example: If REF_STEP defines `x` as a positive real number, GEN cannot assume `x` is negative without stating a contradiction or subcase.
 
-            GEN may extend or refine the reasoning beyond REF_STEP. New content is **not** hallucination by itself unless it **directly breaks this local contract**.
+        - GEN introduces assumptions that **contradict** the conditions in REF_STEP.  
+            - Example: REF_STEP states `x = 0`; GEN then assumes `x ≠ 0` without justifying this shift in meaning.
 
-            ---
+        ### 3. Ignoring Explicit Constraints
+        - REF_STEP gives a crucial condition or assumption (e.g., `n` is even, or `x ≥ 1`), and GEN **proceeds as if this condition does not exist**, making logical conclusions or claims incompatible with it.  
+            - Example: REF_STEP states `x ≥ 1`; GEN then proceeds with `x < 1` without considering the constraint.
 
-            ## What Counts as CONSISTENT (Allowed) Behavior
+        ### 4. **Scope Distortion (Weakening or Strengthening Conditions)**
+        - GEN **weakens** a condition or conclusion established in REF_STEP. This can lead to an erroneous generalization or misunderstanding of the scope.  
+            - Example: If REF_STEP states `x > 0` as a key condition, GEN cannot casually conclude `x ≥ 0` without a proper logical transition or justification.
+        
+        - GEN **strengthens** a condition without proper justification.  
+            - Example: If REF_STEP indicates that `x` could be non-negative (i.e., `x ≥ 0`), GEN assuming `x > 0` without any explanation could mislead the reasoning.
 
-            GEN is considered **consistent** with REF_STEP if:
+        - **Any distortion of scope** (either weakening or strengthening) must be clearly explained or justified by GEN. If not, it is considered inconsistent.
 
-            1. **Respects assumptions and intermediate results in REF_STEP**
+        ---
 
-            - It does **not** silently drop or negate conditions that REF_STEP explicitly imposes, in a way that is visible from REF_STEP and GEN alone.
-            - It does **not** reverse inequalities or change proven equalities that appear in REF_STEP, when the corresponding expressions also appear in GEN.
+        ## What IS Allowed
 
-            2. **Keeps notation and roles stable (locally)**
+        GEN **can**:
 
-            - Symbols that appear in both REF_STEP and GEN keep the **same meaning and constraints**.
-            - New symbols or functions are introduced without contradicting how existing symbols are used in REF_STEP.
+        - Introduce **subcases or auxiliary reasoning constructs** that do not contradict or weaken any part of REF_STEP.  
+            - Example: If REF_STEP establishes a general rule, GEN may introduce a specific case where the rule applies under certain conditions.
 
-            3. **Moves locally forward in a compatible way**
+        - Introduce **new assumptions or definitions**, provided they do not contradict any explicitly stated or implied assumption in REF_STEP.  
+            - Example: If REF_STEP includes a condition `x ≥ 0`, GEN may define a new variable `y = x + 1`, as long as `y ≥ 1` is consistent with `x ≥ 0`.
 
-            - It derives new equations, inequalities, or observations that could reasonably follow from REF_STEP (using basic algebra / logic).
-            - It sets up a subcase, subgoal, or auxiliary construction that does **not** contradict REF_STEP.
+        - Extend the reasoning in a way that **preserves the validity** of the original conclusions in REF_STEP.  
+            - Example: If REF_STEP proves a relationship between `x` and `y`, GEN can explore that relationship further, provided it does not invalidate the original findings.
 
-            4. **Adds new definitions or cases that do not conflict with REF_STEP**
+        ---
 
-            - GEN can introduce a new variable, function, or assumption **as long as REF_STEP does not explicitly forbid it**.
-            - New assumptions that strengthen the situation are allowed if they do **not** contradict any explicit statement in REF_STEP.
+        ## Scoring Rules (0–5)
 
-            If a behavior cannot be clearly classified as a conflict with REF_STEP, treat it as **allowed**.
+        Your judgment reflects **how severely GEN violates** the consistency and logic of REF_STEP, not whether it is globally incorrect.
 
-            ---
+        - **5 – Fully Consistent:** GEN fully respects and extends the reasoning of REF_STEP. No contradictions or distortions are introduced. All assumptions and conclusions are consistent with REF_STEP.
 
-            ## What Counts as HALLUCINATION / INCONSISTENCY (Relative to REF_STEP Only)
+        - **4 – Minor Issues:** GEN introduces small ambiguities or unusual inferences, but these do not conflict directly with REF_STEP. There may be slightly radical conclusions, but these are not contradictions.
 
-            You may ONLY mark hallucination / inconsistency when there is a **direct, REF_STEP-based conflict** visible from REF_STEP and GEN.
+        - **3 – Weak Consistency:** GEN mostly aligns with REF_STEP but may be poorly argued or introduce some unclear logic. There is no direct contradiction, but parts of GEN are weakly connected.
 
-            ### 1. Direct factual / logical conflict with REF_STEP
+        - **2 – Significant Conflict:** GEN clearly contradicts or omits important elements from REF_STEP. The reasoning diverges in significant ways but some relevance remains to the original step.
 
-            - GEN reverses, negates, or changes a condition that appears in REF_STEP  
-            (e.g., REF_STEP: `x > 0`; GEN: `x ≤ 0`), with no valid case-split explanation.
-            - GEN changes **constants, exponents, or key structural relations** in an equation that appears in both REF_STEP and GEN.
-            - GEN asserts a conclusion that is impossible under the equations/inequalities in REF_STEP alone, using basic logic.
+        - **1 – Severe Misalignment:** GEN largely ignores or misuses the conditions or conclusions established in REF_STEP. Most of the reasoning in GEN does not conform to the core findings of REF_STEP.
 
-            ### 2. Direct context / notation conflict with REF_STEP
+        - **0 – Direct Contradiction:** GEN fundamentally contradicts REF_STEP (e.g., reversing a proven fact, altering a key equation, or concluding a point that cannot be logically reached based on REF_STEP). The contradiction is irreconcilable and cannot be resolved by GLOBAL_PREFIX.
 
-            - A symbol that appears in REF_STEP and GEN is given **incompatible meanings**.
-            - GEN introduces an assumption that directly contradicts how a symbol is constrained in REF_STEP  
-            (e.g., REF_STEP allows `x = 0`; GEN assumes `x ≠ 0` without framing it as a subcase).
+        When you are truly unsure between two adjacent scores, you must always choose the **higher score** to ensure the most favorable judgment.
 
-            ### 3. Ignoring a mandatory condition from REF_STEP
+        ---
 
-            - REF_STEP states a crucial condition (e.g., "in the case `n` is even", or "under the constraint `x ≥ 1`").
-            - GEN proceeds as if this condition does not exist and uses reasoning that is incompatible with that condition.
-            - This incompatibility must be visible **purely from REF_STEP and GEN**, without using any other step.
+        ## Output Format (Strict)
 
-            ---
+        Return **only** a JSON object of the following form:
 
-            ## What You MUST NOT Penalize
+        `{"score": k}`
 
-            You MUST NOT penalize GEN for:
+        Where `k` is an integer from `{0,1,2,3,4,5}`.  
 
-            - Contradicting or ignoring any step **other than REF_STEP**, even if it appears in GLOBAL_PREFIX.
-            - Contradicting the **original problem statement** (which you do not see).
-            - Using a method that is globally suboptimal, unusual, or strange.
-            - Appearing "off-topic" from a human viewpoint, **unless** you can point to a specific statement in REF_STEP that GEN contradicts or ignores.
+        - No explanations, comments, or natural language text.  
+        - No additional keys like `"analysis"`, `"score"`, or `"tags"`.  
+        - The entire reply must **only** contain one **JSON object**.
 
-            If you cannot identify such a specific REF_STEP-based conflict, treat GEN as **locally consistent**.
+        """)
 
-            ---
-
-            ## Scoring Guide (0–5)
-
-            Let the score reflect how serious the hallucination / inconsistency is in GEN **relative to REF_STEP only**.
-
-            - **5 – Fully consistent, well grounded**  
-            GEN clearly respects all constraints and conclusions in REF_STEP.  
-            Any new definitions or steps are locally compatible and sensible.  
-            No clear conflict or ignoring of REF_STEP.
-
-            - **4 – Mostly consistent, minor issues**  
-            GEN is on-topic and broadly consistent with REF_STEP.  
-            There may be small ambiguities or slightly aggressive extrapolations, but **no clear direct conflict** with REF_STEP.
-
-            - **3 – Weak but acceptable consistency**  
-            GEN still seems intended to operate in the same local setting as REF_STEP and does **not directly contradict** it.  
-            Parts of GEN may be vague or loosely justified, but any hallucination is mild and not dominant.
-
-            - **2 – Noticeable inconsistency or drift (locally)**  
-            GEN contains one or more **non-trivial** elements that conflict with or ignore REF_STEP (e.g., contradicting a condition, reusing notation inconsistently), while still somewhat related.
-
-            - **1 – Heavy hallucination / severe mismatch (locally)**  
-            GEN largely discards, misuses, or overrides the content of REF_STEP.  
-            Most substantive content is incompatible with what REF_STEP explicitly states.
-
-            - **0 – Direct contradiction or near-total incoherence (locally)**  
-            GEN directly and centrally contradicts REF_STEP  
-            (e.g., reverses a main inequality, denies a proven fact, or makes impossible claims given REF_STEP alone),  
-            or is essentially incoherent relative to REF_STEP.
-
-            When you are genuinely undecided between two adjacent scores, you MUST choose the **higher score** (be less harsh).
-
-            ---
-
-            ## Output Format (Very Strict)
-
-            Return **only** a single JSON object of the form:
-
-            `{"score": k}`
-
-            where `k` is an integer in `{0,1,2,3,4,5}`.
-
-            Constraints:
-
-            - Do **not** include any explanation, analysis, comments, or natural-language text.
-            - Do **not** add keys like `"analysis"` or labels like `"Score:"`.
-            - Do **not** wrap the JSON in quotes or in code fences in your actual output.
-            - The entire reply must be **exactly one JSON object**.
-            """
-        )
 
         self.prompt = ""
         self.output_schema = {
@@ -416,15 +267,22 @@ class Pairwise_Prompt:
         )
 
     def return_prompt(self) -> str:
-        self.prompt = self.promptbuilder.make_chat_prompt(self.system_message, self.user_message)
-        return self.prompt
+        sys = self.system_message + "\n\nReturn only a valid json object, e.g. {\"score\": 5}."
+        usr = self.user_message + "\n\nRemember: output json only. Example: {\"score\": 3}."
+
+        return {
+            "messages": [
+                {"role": "system", "content": sys},
+                {"role": "user", "content": usr},
+            ]
+        }
 
     def run(self, gen_claim: str, ref: list[str], prefix: str | None = None) -> dict:
         """
         gen_claim: 当前要评估的 GEN（完整一步或前缀）
         ref:       多个 REF_STEP，逐个和 GEN 做 pairwise 检查
         prefix:    整段 GLOBAL_PREFIX（通常就是完整的已有解答前缀）
-                   - 可以传入；如果为 None，则使用 self.global_prefix
+                    - 可以传入；如果为 None，则使用 self.global_prefix
         """
         prompts = []
         scores = []
@@ -435,16 +293,17 @@ class Pairwise_Prompt:
             prompt = self.return_prompt()
             prompts.append(prompt)
 
-        outs = self.model.generate(prompts, self.output_schema)
+        reasonings, outs = self.model.generate(prompts, None)
 
         for out in outs:
             score = extract_last_score_part(out)
             scores.append(score)
 
-        print("pairwise scores:", scores)
+        #print("pairwise scores:", scores)
         return {
             "scores": scores,
             "raw_outputs": outs,
+            "reasoning_outputs": reasonings,
             "gen": gen_claim,
             "refs": ref,
         }
@@ -453,100 +312,113 @@ class Pairwise_Prompt:
 class Holistic_Prompt:
     def __init__(self, model: VLLMRunner):
         self.model = model
-        self.promptbuilder = PromptBuilder(model)
         self.user_message = ""
         self.system_message = (
             """
-            Reasoning: high.
+            Reasoning: High.
 
             ## Role
 
-            You are an automated evaluator of **REASONING STRUCTURE CONTINUATION**.
+            You are tasked with evaluating the **continuity of reasoning structure** in a step-by-step mathematical solution.
 
-            ## Task
+            Your job is **not to solve the entire problem**, but to assess whether the **next step (GEN)** logically follows and continues the reasoning structure established in the **reference (REF)**. This means focusing on the **logical flow** of the solution, not on specific mathematical details (such as arithmetic or algebraic calculations). Your goal is to determine if GEN **advances the reasoning structure** appropriately, according to the methods and approach established in REF.
 
-            You are given:
+            ### Key Concepts
 
-            - **PROBLEM (optional)**: the original task being solved.
-            - **REF**: a **prefix** of a step-by-step reference solution (one or more steps).
-            - **GEN**: the **next step** generated by a model, which claims to continue the same solution.
+            ### 1. Structural Consistency
 
-            Your job is **NOT** to re-solve the full problem, but to judge whether **GEN is a GOOD STRUCTURAL CONTINUATION** of REF.
+            - **Does GEN continue to follow the same overall methodology or plan** as the reference? For example, if REF uses **mathematical induction**, does GEN continue using induction to prove the result? Does GEN still adhere to the same **case division**, **substitutions**, or **transformations** employed in REF?
 
-            Focus on **STRUCTURE and REASONING PROGRESSION**, **not** on tiny algebraic details.
+            - **Does GEN respect the context established in REF**? What are the existing symbols, variables, and sub-goals introduced in the original text? Does GEN keep using the same symbols with the same meaning, and does it build upon what was previously established?
 
-            ---
+            - **Does GEN proceed naturally** from the reasoning developed in REF? Even if the reasoning is not strictly sequential, for example in **proof by contradiction** or **backward reasoning**, does GEN still make sense within the ongoing logical structure of REF?
 
-            ## Key Concepts
+            #### Special Cases:
 
-            ### 1. Structural alignment
+            - **Backward Reasoning (e.g., conclusion-first reasoning)**: In some proofs, the conclusion is assumed first, and then the argument proceeds to show that it holds. This approach is common in **proofs by contradiction** and **reductio ad absurdum**. **GEN should not be penalized** for employing backward reasoning if REF follows this structure. Instead, GEN should continue by either proving the assumed conclusion or negating the assumption that leads to a contradiction.
 
-            - Does GEN follow the **same overall approach / plan** as REF?  
-            (e.g., still using induction if REF used induction; still following the same case split; still working with the same substitutions / transformations.)
-            - Does GEN **respect the existing notation, variables, and subgoals** introduced in REF?
+            - **Non-linear Reasoning (e.g., proof by contradiction, indirect proof)**: If REF employs **proof by contradiction**, where an assumption is made and then a contradiction is derived, GEN should **continue this approach** without penalty. Ensure that GEN respects the **contradiction structure** set up in REF, even if the steps appear to proceed out of the expected order or appear indirect.
 
-            ### 2. Local logical connection
+            - For instance, if REF assumes `A` to derive `B` and then shows that assuming `A` leads to a contradiction, GEN can conclude that `A` is false and thus `not A` is true, provided it follows the reasoning from REF.
 
-            - Can a careful reader see how GEN **naturally follows** from the last few steps of REF?
-            - Is there a **reasonable chain of reasoning** from REF to GEN (even if some low-level algebra is skipped)?
-            - Avoid judging tiny arithmetic slips; focus on whether the **intended reasoning move** makes sense.
+            - **Case Analysis (Classification)**: When REF uses **case analysis** (dividing into different cases and treating each one separately), it is important that GEN **correctly respects this structure**. Each case in the analysis should be handled independently, and GEN should continue reasoning within the correct case without prematurely generalizing or skipping between cases.
 
-            ### 3. Productive continuation vs. stagnation
+            #### Special Note on Case Analysis:
 
-            - Does GEN **actually move the reasoning forward**  
-            (e.g., deriving a new inequality, simplifying an expression, setting up the next subproblem)?
-            - Or is GEN mostly **repetition / vague commentary** that does not advance the solution?
-            - Penalize GEN if it **jumps directly to a final answer** without the intermediate structural steps that REF’s approach would require.
+            - **Case Analysis and Correct Handling of Cases**: Case analysis is a legitimate and often necessary tool in mathematical reasoning. When GEN proceeds through different cases, **it should not be penalized** simply for switching between cases or using different cases in separate steps. However, if GEN **inappropriately skips a case** or **misapplies a case’s logic** (e.g., drawing conclusions outside the scope of the case's assumption), this should be penalized.
 
-            ### 4. Structural divergence and dead ends
+            - **Example**: If REF analyzes two cases (Case 1: `x > 0`, Case 2: `x ≤ 0`), and GEN jumps from one case to the other without properly completing or justifying each case, this would be a **structural error**. GEN must **complete the logical process in each case** before moving to the next.
 
-            Give strong penalties if GEN:
+            ### 2. Local Logical Connections
 
-            - Switches to a **completely different method** without justification  
-            (e.g., REF uses geometry, GEN suddenly uses unrelated combinatorics).
-            - **Abandons the current plan** and starts a new, unrelated direction.
-            - Introduces steps that are clearly **incompatible with earlier structural choices**  
-            (e.g., contradicting previously fixed cases, changing the meaning of a variable).
-            - Moves into a **dead end** that obviously cannot lead to the stated goal under REF’s plan.
+            - Can a careful reader discern how GEN **naturally derives** from the last few steps in REF? Even if intermediate algebraic operations or detailed steps are skipped, does GEN logically progress from what was previously established in REF?
+
+            - Does the reasoning appear to **advance logically** and make sense in the context of the ongoing proof or argument? The **logical connections** between REF and GEN should be clear, and GEN should make reasonable **progress** in solving or proving the problem.
+
+            - **Example**: If REF has shown that a certain inequality holds for a case, GEN can proceed by applying this inequality in a different step or refining it further. This would be acceptable, even if the detailed arithmetic operations are omitted, as long as the logical connection remains strong.
+
+            - Avoid penalizing **minor mathematical errors** or **small inconsistencies** that do not disrupt the logical flow of reasoning. If a minor mistake does not affect the overall logic or progression of the proof, the focus should remain on the **logical flow** rather than the specific computations.
+
+            ### 3. Effective Continuation and Stagnation
+
+            - Does GEN **advance** the reasoning? Does it introduce a **new step**, such as deriving a new inequality, simplifying an expression, or setting up a subproblem?
+
+            - **Example**: If REF derived an intermediate result, GEN might use that result to derive a further step, such as a new inequality or condition, or it might simplify the expression derived in REF. This would demonstrate effective continuation.
+
+            - Alternatively, does GEN **repeat vague comments** or **restate** steps that do not move the solution forward? If GEN simply reiterates previous ideas or steps without adding new value or logical progression, this should be **penalized**.
+
+            - **Critical:** If GEN **jumps directly to the final answer** without continuing the **logical reasoning** established in REF, this should be penalized. If GEN skips over necessary intermediate steps or does not justify its conclusions through the ongoing logical process, this creates a **break in the reasoning structure**.
+
+            - **Example**: If REF develops a complex argument over several steps and GEN suddenly jumps to the final conclusion without addressing the necessary intermediate steps, it could be seen as **skipping important reasoning**, which breaks the logical flow.
+
+            ### 4. Structural Deviations and Dead Ends
+
+            - Does GEN **switch to a completely different approach** without justification? For example, if REF employs a **geometric proof**, does GEN suddenly switch to **combinatorics** or another unrelated approach without an explanation?
+
+            - **Example**: If REF proves a result using induction, but GEN introduces a new, unrelated method (such as geometric reasoning or a completely different assumption) to continue the proof without any justification, this should be marked as a **structural deviation**.
+
+            - Does GEN **abandon the ongoing plan** and pursue a new, unrelated direction? For example, if REF is progressing through a direct proof but GEN suddenly introduces a contradiction without a clear connection to REF, this should be marked as a **disruption in reasoning**.
+
+            - Does GEN **enter a dead end** in the reasoning? This could happen if GEN attempts to proceed with the proof but the path leads to an unsolvable or illogical conclusion due to the previous steps in REF. This could be because of invalid assumptions, contradiction, or failure to respect previously established conditions.
+
+            - **Example**: If REF establishes that `x > 0`, and GEN later assumes `x ≤ 0` without addressing this contradiction, the reasoning is at a **dead end**.
 
             ---
 
             ## Scoring (0–5)
 
-            Give a single integer score `"score"` in `{0,1,2,3,4,5}`:
+            Give an integer score `"score"`. `{0,1,2,3,4,5}`:
 
-            - **5: Excellent structural continuation**  
-            GEN clearly follows the same plan as REF, connects logically to recent steps, and makes strong, productive progress.
+            - **5 – Excellent Structural Continuity**  
+            GEN follows REF’s plan flawlessly. The logic is well-connected, and GEN makes **significant progress** in the proof, without introducing unnecessary deviations or dead ends.
 
-            - **4: Good structural continuation with minor issues**  
-            GEN mostly follows the same plan and is locally coherent, but has small weaknesses  
-            (slight vagueness, minor detour, or slightly rushed jump).
+            - **4 – Good Structural Continuity, but with Minor Issues**  
+            GEN largely follows the reasoning in REF and is logically coherent, with **minor issues** (e.g., slight vagueness, minor deviations in the logical flow, or slightly rushed transitions). The overall structure remains intact.
 
-            - **3: Weak but still acceptable continuation**  
-            GEN is loosely aligned with REF’s structure but is vague, only partially connected, or advances the solution only a little.
+            - **3 – Weak Structural Continuity, but Acceptable**  
+            GEN maintains a connection to REF, but the reasoning is vague or unclear. The logical connections are not strong, and GEN adds limited value in terms of **advancing the solution**.
 
-            - **2: Structurally dubious**  
-            GEN shows noticeable misalignment with REF’s plan or a weak logical link; the continuation looks confused or partially off-track.
+            - **2 – Questionable Structure**  
+            GEN diverges noticeably from the reasoning in REF. The logical connections are **weak**, and GEN introduces issues like **logical gaps**, irrelevant steps, or unaddressed contradictions that make the reasoning unclear.
 
-            - **1: Bad structural continuation**  
-            GEN is largely off-structure (wrong method, incompatible subgoal, or obvious dead end) while still loosely mentioning the same objects.
+            - **1 – Poor Structural Continuity**  
+            GEN significantly deviates from the reasoning established in REF. There are **major logical flaws**, contradictions, or **abandoned reasoning** that make GEN largely unrelated to REF's plan.
 
-            - **0: No meaningful structural relation**  
-            GEN is essentially unrelated, nonsense, or completely breaks from REF’s reasoning.
+            - **0 – No Meaningful Structural Relationships**  
+            GEN is **completely unrelated** to REF. It fails to build upon the reasoning established in REF, either by **contradicting the prior logic** or by introducing a **new approach** that is completely disconnected from the established reasoning structure.
 
             ---
 
             ## Output Format
 
-            First, in your internal reasoning (analysis), carefully compare REF and GEN along the dimensions above.
-
-            Then, in your final answer, output **ONLY** a JSON object with this exact format:
+            Your final output should be a **single JSON object** in the following format:
 
             `{"score": X}`
 
-            where `X` is an integer from `0` to `5`.
+            Where `X` is an integer in the range `{0,1,2,3,4,5}`.
 
-            Do **not** include any other keys or text in the final answer.
+            **Do not** include any additional explanations, comments, or text in your final answer.  
+            **Only output the JSON object.**
             """
         )
         self.prompt = ""
@@ -581,18 +453,27 @@ class Holistic_Prompt:
         )
         
     def return_prompt(self) -> str:
-        self.prompt = self.promptbuilder.make_chat_prompt(self.system_message, self.user_message)
-        return self.prompt
+        sys = self.system_message + "\n\nReturn only a valid json object, e.g. {\"score\": 5}."
+        usr = self.user_message + "\n\nOutput json only. Example: {\"score\": 4}."
+        return {
+            "messages": [
+                {"role": "system", "content": sys},
+                {"role": "user", "content": usr},
+            ]
+        }
     
     def run(self, gen_claim: str, ref_claim: str) -> dict:
         """Returns a dict with the structural continuation score and raw model output."""
         self.build_user(gen_claim, ref_claim)
         prompt = self.return_prompt()
-        out = self.model.generate(prompt, self.output_schema)
-        score = extract_last_score_part(out[0])
+        resp = self.model.generate([prompt], None)
+        reasonings = resp.get("reasoning", "")
+        outs = resp.get("content", "")
+        score = extract_last_score_part(outs)
         return {
             "score": score,
-            "raw_output": out,
+            "raw_output": outs,
+            "reasoning_output": reasonings,
             "gen": gen_claim,
             "ref": ref_claim,
         }
@@ -601,33 +482,52 @@ class Holistic_Prompt:
 class SelfJudge_Prompt:
     def __init__(self, model: VLLMRunner):
         self.model = model
-        self.promptbuilder = PromptBuilder(model)
+        #self.promptbuilder = PromptBuilder(model)
         self.user_message = ""
         self.system_message = (
             """
-            Reasoning: high
-            Role: You are an automated evaluator for reference-free factual soundness and internal consistency.
-            Task
-            Without any REF, inspect GEN for internal mathematical correctness and self-consistency. Identify arithmetic/algebraic mistakes, illegal operations, undefined or redefined symbols, incompatible constraints, and self-contradictions.
-            Rules
-            - No outside knowledge: judge only by logic/maths that are explicitly stated or standardly valid given the expressions in GEN.
-            - Check internal coherence: variable definitions, domain restrictions, equation manipulations, sign/inequality directions, step-to-step consistency within GEN.
-            - Penalize unverifiable claims (results stated without derivation when derivation is necessary to validate them within GEN).
-            - Bias to caution when uncertain.
-            Input
-            - GEN: a short mathematical reasoning excerpt.
-            Output (strict)
-            - JSON only: {"score": k} where k ∈ {0,1,2,3,4,5}; higher = fewer detectable internal errors/contradictions.
-            Scoring Guide
-            5 No detectable internal errors; operations and symbols are coherent.
-            4 Minor slips/omissions that do not change correctness.
-            3 Generally sound but with one or two questionable/under-justified links.
-            2 Clear error(s) in manipulation or conflicting constraints.
-            1 Multiple errors; reasoning largely unsound.
-            0 Nonsensical or self-contradictory throughout.
-            Instruction
-            Evaluate GEN’s internal mathematical correctness and self-consistency only, then output {"score": k}.
-            """)
+            # Reasoning: High
+
+            ## Role:
+            You are an automated evaluator for **reference-free factual soundness** and **internal consistency**.
+
+            ## Task:
+            Without any REF, inspect **GEN** for internal mathematical correctness and self-consistency. Identify **arithmetic/algebraic mistakes**, **illegal operations**, **undefined or redefined symbols**, **incompatible constraints**, and **self-contradictions**.
+
+            ## Rules:
+            - **No outside knowledge**: Judge only by **logic/maths** that are explicitly stated or standardly valid given the expressions in GEN. You should only evaluate facts that are **explicitly available** in the GEN step. If the context is missing, assume that certain details are unavailable for evaluation, and **do not speculate**.
+            
+            - **Focus on immediate internal coherence**: Assess the **internal logic and math** in the GEN excerpt, such as:
+            - **Variable definitions**
+            - **Domain restrictions**
+            - **Equation manipulations**
+            - **Sign/inequality directions**
+            - **Step-to-step consistency within GEN**
+            
+            - **Conservative approach for unverifiable claims**: If GEN introduces results or statements that are **unverifiable** due to missing context or the need for additional derivations, apply **caution**. Do not assume or extrapolate results beyond what is given in the GEN step.
+
+            - **Penalize unverifiable claims**: If a result is presented without sufficient derivation, and derivation is needed within the GEN step to substantiate the result, **penalize appropriately**.
+
+            - **Bias to caution when uncertain**: If uncertain about a step or claim due to incomplete context, **give the benefit of the doubt**, erring on the side of **caution**.
+
+            ## Input:
+            - **GEN**: a short mathematical reasoning excerpt.
+
+            ## Output (strict):
+            - **JSON only**: `{"score": k}` where `k` ∈ `{0,1,2,3,4,5}`; higher = fewer detectable internal errors/contradictions.
+
+            ## Scoring Guide:
+            - **5**: No detectable internal errors; operations and symbols are coherent and consistent.
+            - **4**: Minor slips/omissions that do not change correctness.
+            - **3**: Generally sound but with one or two questionable/under-justified links.
+            - **2**: Clear error(s) in manipulation or conflicting constraints.
+            - **1**: Multiple errors; reasoning largely unsound.
+            - **0**: Nonsensical or self-contradictory throughout.
+
+            ## Instruction:
+            Evaluate GEN’s **internal mathematical correctness** and **self-consistency** only, ensuring that any information is **explicitly available** in the GEN step. Be cautious when context is incomplete, and avoid extrapolating information that isn't directly given. Output only `{"score": k}`.
+        """)
+
         self.prompt = ""
         self.output_schema = {
             "type": "object",
@@ -658,14 +558,18 @@ class SelfJudge_Prompt:
 
         
     def return_prompt(self) -> str:
-        self.prompt = self.promptbuilder.make_chat_prompt(self.system_message, self.user_message)
-        return self.prompt
+        return {
+            "messages": [
+                {"role": "system", "content": self.system_message},
+                {"role": "user", "content": self.user_message},
+            ]
+        }
     
     def run(self, gen_claim: str) -> dict:
         """Returns a strict JSON: {score: float, label: str, justification: str}"""
         self.build_user(gen_claim)
         prompt = self.return_prompt()
-        out = self.model.generate(prompt, self.output_schema)
+        out = self.model.generate(prompt, None)
         score = extract_last_score_part(out[0])
         return {
             "score": score,
@@ -777,7 +681,7 @@ class Claim_Segment_Prompt:
         )
         self.model = model
         self.prompt = ""
-        self.promptbuilder = PromptBuilder(model)
+        # self.promptbuilder = PromptBuilder(model)
         self.output_schema = {
             "type": "object",
             "properties": {
@@ -814,15 +718,134 @@ class Claim_Segment_Prompt:
             f"Segment the following text into atomic propositions:\n{text}\n"        
         )
     def return_prompt(self) -> str:
-        self.prompt = self.promptbuilder.make_chat_prompt(self.system_message,self.user_message)
-        return self.prompt
-    
+        sys = self.system_message
+        usr = self.user_message + "\n\nRemember: output json only. Example: {\"segments\": [{\"id\": 0, \"text\": \"Proposition 1.\"}, {\"id\": 1, \"text\": \"Proposition 2.\"}]}"
+        return {
+            "messages": [
+                {"role": "system", "content": sys},
+                {"role": "user", "content": usr},
+            ]
+        }
     def run(self, text: str) -> dict:
         """返回严格 JSON：{"segments": [{"id": int, "text": str}, ...]}"""
         self.build_user(text)
         prompt = self.return_prompt()
-        out = self.model.generate(prompt, self.output_schema)
-        return json.loads(out)
+        out = self.model.generate([prompt], self.output_schema)
+
+        # Compatible with different runners:
+        # - tuple(reasonings, contents)
+        # - list[str]
+        # - str
+        # - already-decoded dict
+        payload = out
+        if isinstance(out, tuple) and len(out) >= 2:
+            payload = out[1]
+        if isinstance(payload, list):
+            payload = payload[0] if payload else "{}"
+        if isinstance(payload, dict):
+            return payload
+        return json.loads(payload)
+
+
+class Important_Claim_Select_Prompt:
+    def __init__(self, model: VLLMRunner):
+        self.user_message = ""
+        self.system_message = (
+            "You are a mathematical reasoning analyst. "
+            "Task: Given a sequence of claims, select the most important subset. "
+            "Important claims are those essential to problem setup, key derivations, "
+            "or final conclusions. Remove redundant, decorative, or low-value claims. "
+            "Output STRICT JSON only in this format:\n"
+            "{\n"
+            "  \"important_segments\": [\n"
+            "    {\"id\": <int>, \"text\": \"<claim text>\"},\n"
+            "    ...\n"
+            "  ]\n"
+            "}\n"
+            "Keep original meaning and claim text. Do not paraphrase."
+        )
+        self.model = model
+        self.prompt = ""
+        self.output_schema = {
+            "type": "object",
+            "properties": {
+                "important_segments": {
+                    "type": "array",
+                    "items": {
+                        "type": "object",
+                        "properties": {
+                            "id": {
+                                "type": "integer",
+                                "minimum": 0,
+                                "description": "original claim id"
+                            },
+                            "text": {
+                                "type": "string",
+                                "minLength": 1,
+                                "maxLength": 160,
+                                "description": "selected important claim text"
+                            }
+                        },
+                        "required": ["id", "text"],
+                        "additionalProperties": False
+                    },
+                    "minItems": 0
+                }
+            },
+            "required": ["important_segments"],
+            "additionalProperties": False
+        }
+
+    def build_user(self, claims: list[dict] | list[str], max_keep: int | None = None) -> None:
+        lines = []
+        for i, c in enumerate(claims):
+            if isinstance(c, dict):
+                cid = c.get("id", i)
+                txt = str(c.get("text", "")).strip()
+            else:
+                cid = i
+                txt = str(c).strip()
+            if txt:
+                lines.append(f"[{cid}] {txt}")
+
+        keep_rule = ""
+        if isinstance(max_keep, int) and max_keep > 0:
+            keep_rule = f"\nSelect at most {max_keep} claims."
+
+        self.user_message = (
+            "Select important claims from the list below.\n"
+            "Prioritize key assumptions, major transformations, and final conclusions.\n"
+            "Avoid redundant or purely explanatory claims."
+            f"{keep_rule}\n\n"
+            "Claims:\n"
+            + "\n".join(lines)
+            + "\n\n"
+            "Return strict JSON only."
+        )
+
+    def return_prompt(self) -> dict:
+        sys = self.system_message
+        usr = self.user_message + "\nExample: {\"important_segments\": [{\"id\": 1, \"text\": \"...\"}]}"
+        return {
+            "messages": [
+                {"role": "system", "content": sys},
+                {"role": "user", "content": usr},
+            ]
+        }
+
+    def run(self, claims: list[dict] | list[str], max_keep: int | None = None) -> dict:
+        self.build_user(claims, max_keep=max_keep)
+        prompt = self.return_prompt()
+        out = self.model.generate([prompt], self.output_schema)
+
+        payload = out
+        if isinstance(out, tuple) and len(out) >= 2:
+            payload = out[1]
+        if isinstance(payload, list):
+            payload = payload[0] if payload else "{}"
+        if isinstance(payload, dict):
+            return payload
+        return json.loads(payload)
 
 
 class Progress_Prompt:
@@ -1034,4 +1057,147 @@ class Progress_Prompt:
             "gen": gen,
             "problem": problem,
             "ref": ref,
+        }
+
+
+class Claim_Dependency_Prompt:
+    """
+    仅判断方向 A -> B：Claim A 是否依赖 Claim B。
+    无评分，仅返回结论与简短解释。
+    """
+    def __init__(self, model: VLLMRunner):
+        self.model = model
+        self.user_message = ""
+        self.system_message = (
+            """
+            You are an expert at identifying direct proof dependencies between claims in a mathematical or logical argument.
+
+Task:
+Determine whether Claim A directly depends on Claim B.
+
+Target notion:
+A directly depends on B iff B is one of the minimal, local parent claims needed to interpret or justify A in the proof.
+
+Important:
+You are NOT judging whether B is vaguely relevant, topically related, or part of the same overall proof.
+You are judging whether B is a direct parent of A in the local dependency graph.
+
+Return "yes" only if at least one of the following holds:
+
+1. Direct inferential parent
+   B is an immediately used premise, lemma, or intermediate result from which A is directly concluded.
+
+2. Essential object/construction introduction
+   A uses an object, symbol, line, segment, circle, ratio, or construction whose mathematical role is first established in B,
+   and without B, A would be incomplete, referentially unclear, or not well-formed in the local proof context.
+
+3. Essential semantic prerequisite
+   Even if A does not literally repeat B's wording, B establishes the exact mathematical entity or property that A directly relies on.
+   Examples:
+   - "H is the incenter of triangle DEF" can directly support claims about the incircle of triangle DEF.
+   - "A is the D-excenter of triangle DEF" can directly support claims about the D-excircle of triangle DEF.
+   Lexical mismatch does NOT rule out dependency if the semantic role is direct and necessary.
+
+4. Direct definition / criterion / theorem trigger
+   B provides the precise definition, criterion, or theorem-instantiating condition that is directly invoked in A.
+
+Return "no" if any of the following holds:
+
+1. B is only broad background, setup, motivation, roadmap, or a goal statement.
+2. B is only globally true in the proof but not directly used for A.
+3. B is only a distant ancestor, while a closer prior claim more directly supports A.
+4. B shares objects, symbols, or topic with A, but is not actually needed to derive or interpret A.
+5. B gives extra positional/detail information about an object already usable in A, but does not establish the role A needs.
+6. B is only explanatory narrative, intuition, commentary, or redundant detail.
+7. A can still be locally justified or understood without B once the more direct prior claims are available.
+
+Priority rule: prefer the closest sufficient parent
+If a later prior claim already directly supports A, do NOT mark an earlier background or ancestor claim as dependency unless A still directly needs both.
+
+Object-introduction rule:
+Do not mark every earlier mention of an object as dependency.
+Mark "yes" only when B is the claim that gives that object the specific role needed by A.
+Example:
+- If A uses "segment EF", then B must do more than merely mention E or F somewhere;
+  B must help establish the relevant construction or role of E/F needed for A.
+
+Semantic-link rule:
+A may depend on B even without shared surface words, if B directly establishes the mathematical notion invoked by A.
+But do NOT use broad world knowledge to invent missing links; the link must be specific and local to the proof context.
+
+Decision procedure:
+Step 1. Ask: what are the most local parent claims actually needed to justify or interpret A?
+Step 2. Check whether B is one of those minimal local parents.
+Step 3. Reject B if it is only background, a distant ancestor, or extra detail.
+Step 4. If a closer prior claim already subsumes B's role for A, prefer "no".
+Step 5. Use "uncertain" only when the wording truly does not allow a reliable decision.
+
+Output strictly in JSON format:
+{
+  "conclusion": "yes" or "no" or "uncertain",
+  "explanation": "Briefly state whether B is a minimal direct parent of A, an essential object/semantic prerequisite, or not a direct dependency."
+}
+            """
+        )
+        self.prompt = ""
+        self.output_schema = {
+            "type": "object",
+            "properties": {
+                "conclusion": {
+                    "type": "string",
+                    "enum": ["yes", "no", "uncertain"],
+                    "description": "whether Claim A depends on Claim B under directional judgment A->B"
+                },
+                "explanation": {
+                    "type": "string",
+                    "minLength": 1,
+                    "description": "brief rationale indicating whether B is necessary premise/condition/definition/support for A"
+                }
+            },
+            "required": ["conclusion", "explanation"],
+            "additionalProperties": False
+        }
+
+    def build_user(self, claim_a: str, claim_b: str) -> None:
+        self.user_message = (
+            "Input:\n"
+            "Claim A: "
+            f"{claim_a}\n\n"
+            "Claim B: "
+            f"{claim_b}\n\n"
+            "Only assess direction A -> B.\n"
+            "Return strict JSON only with keys: conclusion, explanation."
+        )
+
+    def return_prompt(self) -> str:
+        sys = self.system_message
+        usr = self.user_message
+        return {
+            "messages": [
+                {"role": "system", "content": sys},
+                {"role": "user", "content": usr},
+            ]
+        }
+
+    def run(self, claim_a: str, claim_b: str) -> dict:
+        self.build_user(claim_a, claim_b)
+        prompt = self.return_prompt()
+        out = self.model.generate(prompt, self.output_schema)
+
+        parsed = safe_json_loads(out[0]) if isinstance(out, list) and out else safe_json_loads(out)
+        if isinstance(parsed, dict):
+            return {
+                "conclusion": str(parsed.get("conclusion", "uncertain")),
+                "explanation": str(parsed.get("explanation", "")),
+                "raw_output": out,
+                "claim_a": claim_a,
+                "claim_b": claim_b,
+            }
+
+        return {
+            "conclusion": "uncertain",
+            "explanation": "Unable to parse model output into required JSON schema.",
+            "raw_output": out,
+            "claim_a": claim_a,
+            "claim_b": claim_b,
         }

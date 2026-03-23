@@ -4,27 +4,24 @@ from __future__ import annotations
 import os, json, time, argparse, logging, math
 from typing import Dict, Any, List, Tuple
 from config import Config
-from runner import VLLMRunner
+from runner import VLLMRunner, DEEPSEEK_API_runner, DOUBAO_deepseek_API_runner
 from data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
 from prompt import Judge_Prompt, Pairwise_Prompt, Holistic_Prompt, SelfJudge_Prompt
 import numpy as np
+from openai import OpenAI
+
+
 logger = logging.getLogger(__name__)
 
 # === 与 main.py 保持同逻辑的全局组件 ===
 processor = Processor()
 
 def build_judge_model():
-    judge_model = VLLMRunner(
-        Config["judge_model"],
-        vllm_config=Config["judge_model_params"],
-        sampling_config=Config["judge_sampling_params"],
-        gpus=Config["judge_model_gpus"],
-    )
+    judge_model = DEEPSEEK_API_runner()
     # 三路 evaluator
     pairwise = Pairwise_Prompt(judge_model)
     holistic = Holistic_Prompt(judge_model)
-    selfjudge = SelfJudge_Prompt(judge_model)
-    return pairwise, holistic, selfjudge
+    return pairwise, holistic
 
 
 # ---- 聚合器实现：可用 Config 选择 ----
@@ -97,12 +94,21 @@ def _evaluate_step_multiroute(
     对单步进行三路打分并聚合。
     返回: (agg_score, per_route_scores, is_hallu)
     """
-    # --- Holistic
     prior_ref = "\n".join(ref_steps[: idx + 1]) if ref_steps else ""
+    # --- Holistic
+    time_hol = time.time()
     hol_res = builders["holistic"].run(gen_step, prior_ref)
-
+    time_hol_fin = time.time() - time_hol
+    #print(f"[DEBUG] Holistic result: {hol_res}")
     # --- Pairwise
+    time_pair = time.time()
     pairs_res = builders["pairwise"].run(gen_step, ref_steps[: idx + 1], prior_ref)
+    time_pair_fin = time.time() - time_pair
+    #print(f"[DEBUG] Pairwise result: {pairs_res}")
+    
+    
+
+    
         
     # --- Self-judge
     # self_res = builders["selfjudge"].run(gen_step)
@@ -117,6 +123,8 @@ def _evaluate_step_multiroute(
     detail = {
         "pairwise": pairs_res,
         "holistic": hol_res,
+        "time_holistic": time_hol_fin,
+        "time_pairwise": time_pair_fin,
         # "selfjudge": self_res,
     }
     return float(agg), per_route, detail
@@ -125,7 +133,7 @@ def _evaluate_step_multiroute(
 def score_case(rec: Dict[str, Any], builders: Dict[str, Any]) -> Dict[str, Any]:
     """对 (gen_output[i], ref_steps[:i+1]) 逐步多路打分并聚合。"""
     ref_steps: List[str] = rec["ref_steps"]
-    gen_output: List[str] = rec["gen_output"]
+    gen_prefix: List[str] = rec["gen_prefix"]
     N = len(ref_steps)
 
     # 读取聚合配置（若 Config 中无，则使用默认）
@@ -138,15 +146,10 @@ def score_case(rec: Dict[str, Any], builders: Dict[str, Any]) -> Dict[str, Any]:
 
     i = 1
     # 与原逻辑一致的遍历
-    for idx in range(len(gen_output) - 1):
+    for idx in range(len(gen_prefix) - 2):        
+        prefix = gen_prefix[idx]
         
-        current_output = _normalize_generation_input(gen_output[idx])
-        gen_sents_all = processor.sentence_split_en(current_output)
-        K = max(1, min(Config["max prefix_num"], len(gen_sents_all)))
-        gen_sents = gen_sents_all[:K]
-        gen_prefix = " ".join(gen_sents)
-        
-        if not gen_prefix.strip():
+        if not prefix.strip():
             step_score = 0.0
             step_contrib = 0.0
             steps_log.append({
@@ -159,17 +162,18 @@ def score_case(rec: Dict[str, Any], builders: Dict[str, Any]) -> Dict[str, Any]:
             continue
         
         agg_score, per_route, detail = _evaluate_step_multiroute(
-            gen_step=gen_prefix,
+            gen_step=prefix,
             ref_steps=ref_steps,
             idx=idx,
             builders=builders,
         )
 
         step_score = float(agg_score)                 # 0..5
-        step_contrib = step_score / max(1, N) * 20.0  
+        step_contrib = step_score / max(1, N - 1) * 20.0  
         total_score += step_contrib
 
         print(f"[DEBUG] Step {i}: pair={per_route['pairwise']:.2f}, hol={per_route['holistic']:.2f} -> agg={step_score:.2f}, contrib={step_contrib:.4f}")
+        print(f"[DEBUG] Step {i} detail: {detail['time_holistic']:.2f}s hol, {detail['time_pairwise']:.2f}s pair")
 
         steps_log.append({
             "index": i,
@@ -205,11 +209,10 @@ def main():
     out_cases = os.path.join(run_dir, "case_results.jsonl")
     out_cases_pretty = os.path.join(run_dir, "case_results_pretty.json")
     
-    pairwise, holistic, selfjudge = build_judge_model()
+    pairwise, holistic = build_judge_model()
     builders = {
         "pairwise": pairwise,
         "holistic": holistic,
-        "selfjudge": selfjudge,
     }
     scores: List[float] = []
     num = 0
@@ -218,6 +221,7 @@ def main():
          open(out_cases_pretty, "w", encoding="utf-8", buffering=1) as fout_cases_pretty:
         total_time = 0.0
         for line in fin:
+            
             if num > 50:
                 break
             t0 = time.time()
@@ -226,7 +230,6 @@ def main():
                 continue
             rec = json.loads(line)
             num += 1
-
             eval_res = score_case(rec, builders)
             score = float(eval_res["total_score"])
             scores.append(score)

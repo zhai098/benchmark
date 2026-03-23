@@ -1,0 +1,214 @@
+{
+  "id": 42,
+  "difficulty": 8.0,
+  "problem": "For any $h = 2^{r}$ ($r$ is a non-negative integer), find all $k \\in \\mathbb{N}$ which satisfy the following condition: There exists an odd natural number $m > 1$ and $n \\in \\mathbb{N}$, such that $k \\mid m^{h} - 1, m \\mid n^{\\frac{m^{h}-1}{k}} + 1$.",
+  "answer": "2^{r+1}",
+  "step_field": "ref_steps",
+  "num_steps": 14,
+  "steps": [
+    {
+      "step_index": 1,
+      "step_text": "For any \\( h = 2^{r} \\) (where \\( r \\) is a non-negative integer), we need to find all \\( k \\in \\mathbb{N} \\)which satisfy the following condition: There exists an odd natural number \\( m > 1 \\)and\\( n \\in \\mathbb{N} \\), such that \\( k \\mid m^{h} - 1 \\)and \\( m \\mid n^{\\frac{m^{h}-1}{k}} + 1 \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "h = 2^r"
+        },
+        {
+          "id": 1,
+          "text": "r is a non-negative integer"
+        },
+        {
+          "id": 2,
+          "text": "We need to find all k in ℕ"
+        },
+        {
+          "id": 3,
+          "text": "There exists an odd natural number m"
+        },
+        {
+          "id": 4,
+          "text": "m > 1"
+        },
+        {
+          "id": 5,
+          "text": "There exists a natural number n"
+        },
+        {
+          "id": 6,
+          "text": "k divides m^h - 1"
+        },
+        {
+          "id": 7,
+          "text": "m divides n^{((m^h - 1)/k)} + 1"
+        }
+      ]
+    },
+    {
+      "step_index": 2,
+      "step_text": "We claim that \\( k \\) works if and only if \\( 2^{r+1} \\mid k \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "We claim"
+        },
+        {
+          "id": 1,
+          "text": "\\( k \\) works if and only if \\( 2^{r+1} \\mid k \\)"
+        }
+      ]
+    },
+    {
+      "step_index": 3,
+      "step_text": "### Necessity:\nLet \\( A = \\frac{m^{2^r} - 1}{k} \\). We need to show that \\( \\nu_2(p-1) \\geq \\nu_2(A) + 1 \\) for any prime divisor \\( p \\) of \\( m \\).",
+      "claims": [],
+      "error": "Invalid \\escape: line 4 column 28 (char 82)"
+    },
+    {
+      "step_index": 4,
+      "step_text": "**Proof:** Let \\( u = \\mathrm{ord}_p(n) \\). Then \\( u \\mid 2A \\) but \\( u \\nmid A \\) (since \\( m \\) is odd).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Let u = ord_p(n)."
+        },
+        {
+          "id": 1,
+          "text": "u divides 2A."
+        },
+        {
+          "id": 2,
+          "text": "u does not divide A, since m is odd."
+        }
+      ]
+    },
+    {
+      "step_index": 5,
+      "step_text": "Therefore, \\( \\nu_2(u) = \\nu_2(A) + 1 \\). Since \\( u \\mid p-1 \\), we have \\( \\nu_2(p-1) \\geq \\nu_2(A) + 1 \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "\\( \\nu_2(u) = \\nu_2(A) + 1 \\)"
+        },
+        {
+          "id": 1,
+          "text": "\\( u \\mid p-1 \\)"
+        },
+        {
+          "id": 2,
+          "text": "\\( \\nu_2(p-1) \\geq \\nu_2(A) + 1 \\)"
+        }
+      ]
+    },
+    {
+      "step_index": 6,
+      "step_text": "Let \\( t = \\nu_2(A) \\). The claim implies \\( m \\equiv 1 \\pmod{2^{t+1}} \\). Using the Lifting The Exponent (LTE) lemma, we get:$$\nt = \\nu_2(m^{2^r} - 1) - \\nu_2(k) = \\nu_2(m-1) + \\nu_2(m+1) + r - 1 - \\nu_2(k).\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Let t = ν₂(A)."
+        },
+        {
+          "id": 1,
+          "text": "The claim implies m ≡ 1 (mod 2^(t+1))."
+        },
+        {
+          "id": 2,
+          "text": "Using the Lifting The Exponent (LTE) lemma."
+        },
+        {
+          "id": 3,
+          "text": "We get t = ν₂(m^{2^r} - 1) - ν₂(k)."
+        },
+        {
+          "id": 4,
+          "text": "This equals ν₂(m-1) + ν₂(m+1) + r - 1 - ν₂(k)."
+        }
+      ]
+    },
+    {
+      "step_index": 7,
+      "step_text": "Since \\( \\nu_2(m-1) \\geq t + 1 \\) and \\( \\nu_2(m+1) \\geq 1 \\), we have:$$\nt \\geq (t + 1) + 1 + r - 1 - \\nu_2(k),\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "\\( \\nu_2(m-1) \\geq t + 1 \\)"
+        },
+        {
+          "id": 1,
+          "text": "\\( \\nu_2(m+1) \\geq 1 \\)"
+        },
+        {
+          "id": 2,
+          "text": "$$ t \\geq (t + 1) + 1 + r - 1 - \\nu_2(k), $$"
+        }
+      ]
+    },
+    {
+      "step_index": 8,
+      "step_text": "which simplifies to \\( \\nu_2(k) \\geq r + 1 \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "which simplifies to \\( \\nu_2(k) \\geq r + 1 \\)."
+        }
+      ]
+    },
+    {
+      "step_index": 9,
+      "step_text": "### Sufficiency:\nBy Dirichlet's theorem, take a prime \\( p \\equiv 1 \\pmod{4k} \\) and let \\( m = p \\).",
+      "claims": [],
+      "error": "Invalid \\escape: line 4 column 88 (char 144)"
+    },
+    {
+      "step_index": 10,
+      "step_text": "The first divisibility condition \\( k \\mid p^{2^r} - 1 \\) is clearly satisfied.",
+      "claims": [],
+      "error": "Invalid \\escape: line 5 column 49 (char 87)"
+    },
+    {
+      "step_index": 11,
+      "step_text": "Let \\( t = \\nu_2\\left(\\frac{p^{2^r} - 1}{k}\\right) \\). Since \\( p + 1 \\equiv 2 \\pmod{4} \\), we have:$$\nt = \\nu_2(p-1) + \\nu_2(p+1) + r - 1 - \\nu_2(k) = \\nu_2(p-1) + (r - \\nu_2(k)).\n$$",
+      "claims": [],
+      "error": "Invalid \\escape: line 3 column 28 (char 45)"
+    },
+    {
+      "step_index": 12,
+      "step_text": "Thus, \\( t + 1 \\leq \\nu_2(p-1) \\). Since the groups \\( \\mathbb{Z}_p^{\\times} \\) and \\( \\mathbb{Z}_{p-1} \\) are isomorphic, there exists an element \\( n \\) of \\( \\mathbb{Z}_p^{\\times} \\) that has order \\( 2^{t+1} \\). This means:$$\nn^{2^t} \\equiv -1 \\pmod{p} \\implies n^{\\frac{p^{2^r} - 1}{k}} = n^{2^t \\cdot \\text{odd}} \\equiv -1 \\pmod{p},\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "t + 1 ≤ ν₂(p-1)."
+        },
+        {
+          "id": 1,
+          "text": "The groups \\(ℤ_p^{×}\\) and \\(ℤ_{p-1}\\) are isomorphic."
+        },
+        {
+          "id": 2,
+          "text": "There exists an element \\(n\\) of \\(ℤ_p^{×}\\) that has order \\(2^{t+1}\\)."
+        },
+        {
+          "id": 3,
+          "text": "\\(n^{2^t} ≡ -1 \\pmod{p}\\) implies \\(n^{\\frac{p^{2^r} - 1}{k}} = n^{2^t \\cdot \\text{odd}} ≡ -1 \\pmod{p}\\)."
+        }
+      ]
+    },
+    {
+      "step_index": 13,
+      "step_text": "so this \\( m \\) and \\( n \\) work.",
+      "claims": [],
+      "error": "Invalid \\escape: line 5 column 24 (char 62)"
+    },
+    {
+      "step_index": 14,
+      "step_text": "The answer is: \\boxed{2^{r+1}}.",
+      "claims": [
+        {
+          "id": 0,
+          "text": "The answer is: \\boxed{2^{r+1}}."
+        }
+      ]
+    }
+  ]
+}

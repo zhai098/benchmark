@@ -1,40 +1,41 @@
 
 Config = {
-    "tag" : "12_03_0",
-    "reasoning_model" : "Qwen/Qwen3-8B",
+    "tag" : "1_29_0",
+    "reasoning_model" : "Deepseek-v3.2",
     "reasoning_model_params": {
         "tensor_parallel_size": 4,          
         "dtype": "bfloat16",
-        "max_num_seqs": 64,
-        "gpu_memory_utilization": 0.80,    
+        "max_num_seqs": 16,
+        "gpu_memory_utilization": 0.75,    
         "max_model_len": 12288,             
-        "max_num_batched_tokens": 4096,     
+        "max_num_batched_tokens": 1024,     
         "enable_prefix_caching": False,
     },
     "reasoning_sampling_params": {
-        "temperature": 0.4,                 
+        "temperature": 0.6,                 
         "top_p": 0.95,
         "max_tokens": 8192,
-        "repetition_penalty": 1.0,          
-        "presence_penalty": 0.0,           
+        "repetition_penalty": 1.05,
+        "presence_penalty": 0.3,
+        "frequency_penalty": 0.3,
         "stop": ["<<<END>>>", "<|endoftext|>", "</s>", "<|im_end|>", "<|eot_id|>"]
     },
     "reasoning_model_gpus" : "0,1,2,3",
-    "judge_model_gpus" : "0,1,2,3,4,5,6,7",
-    "judge_model" : "openai/gpt-oss-20b",
+    "judge_model_gpus" : "0,1,2,3",
+    "judge_model" : "Qwen/Qwen3-32B",
     "judge_model_params" : {
-        "tensor_parallel_size": 8,
+        "tensor_parallel_size": 4,
         "dtype": "bfloat16",
-        "max_num_seqs": 32,            
-        "gpu_memory_utilization": 0.80
+        "max_num_seqs": 16,            
+        "gpu_memory_utilization": 0.70
     },
     "judge_sampling_params" : {
-        "temperature": 0.3,
+        "temperature": 0,
         "top_p": 0.95,
         "max_tokens": 8192,
     }
     , 
-    "Input_path" : "Omni_MATH/Omni_MATH_Human_Segmented.jsonl",
+    "Input_path" : "Omni_MATH/Omni_MATH_Human_Segmented_100_1.jsonl",
     "beta" : 1,
     "alpha" : 1,
     "lambda_h": 1,

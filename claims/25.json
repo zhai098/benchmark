@@ -1,0 +1,290 @@
+{
+  "id": 25,
+  "difficulty": 8.0,
+  "problem": "Let $a_i,b_i,i=1,\\cdots,n$ are nonnegitive numbers,and $n\\ge 4$,such that $a_1+a_2+\\cdots+a_n=b_1+b_2+\\cdots+b_n>0$.\n\nFind the maximum of $\\frac{\\sum_{i=1}^n a_i(a_i+b_i)}{\\sum_{i=1}^n b_i(a_i+b_i)}$",
+  "answer": "n - 1",
+  "step_field": "ref_steps",
+  "num_steps": 20,
+  "steps": [
+    {
+      "step_index": 1,
+      "step_text": "Let \\( a_i, b_i \\) for \\( i = 1, \\ldots, n \\) be nonnegative numbers, and let \\( n \\geq 4 \\) such that \\( \\sum_{i=1}^n a_i = \\sum_{i=1}^n b_i > 0 \\).",
+      "claims": [],
+      "error": "Invalid \\escape: line 3 column 28 (char 45)"
+    },
+    {
+      "step_index": 2,
+      "step_text": "We aim to find the maximum value of the expression:$$\n\\frac{\\sum_{i=1}^n a_i(a_i + b_i)}{\\sum_{i=1}^n b_i(a_i + b_i)}.\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "We aim to find the maximum value of the expression:"
+        },
+        {
+          "id": 1,
+          "text": "$$ \\frac{\\sum_{i=1}^n a_i(a_i + b_i)}{\\sum_{i=1}^n b_i(a_i + b_i)}. $$"
+        }
+      ]
+    },
+    {
+      "step_index": 3,
+      "step_text": "We will prove that for \\( n \\geq 4 \\), the maximum value is \\( n - 1 \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "We will prove that"
+        },
+        {
+          "id": 1,
+          "text": "for \\( n \\geq 4 \\)"
+        },
+        {
+          "id": 2,
+          "text": "the maximum value is \\( n - 1 \\)"
+        }
+      ]
+    },
+    {
+      "step_index": 4,
+      "step_text": "Without loss of generality, we can assume \\( a_1 \\geq a_2 \\geq \\cdots \\geq a_n \\) and \\( \\sum_{i=1}^n a_i = \\sum_{i=1}^n b_i = 1 \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Without loss of generality, we can assume a1 ≥ a2 ≥ ... ≥ an."
+        },
+        {
+          "id": 1,
+          "text": "Without loss of generality, we can assume ∑ a_i = 1."
+        },
+        {
+          "id": 2,
+          "text": "Without loss of generality, we can assume ∑ b_i = 1."
+        }
+      ]
+    },
+    {
+      "step_index": 5,
+      "step_text": "Let \\( A = \\sum_{i=1}^n a_i^2 \\), \\( B = \\sum_{i=1}^n b_i^2 \\), and \\( X = \\sum_{i=1}^n a_i b_i \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Let \\( A = \\sum_{i=1}^n a_i^2 \\)"
+        },
+        {
+          "id": 1,
+          "text": "\\( B = \\sum_{i=1}^n b_i^2 \\)"
+        },
+        {
+          "id": 2,
+          "text": "\\( X = \\sum_{i=1}^n a_i b_i \\)"
+        }
+      ]
+    },
+    {
+      "step_index": 6,
+      "step_text": "We define the function:$$\nf(X) = \\frac{A + X}{B + X}.\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "We define the function:"
+        },
+        {
+          "id": 1,
+          "text": "$$ f(X) = \\frac{A + X}{B + X}. $$"
+        }
+      ]
+    },
+    {
+      "step_index": 7,
+      "step_text": "The derivative of \\( f(X) \\) is:$$\nf'(X) = \\frac{B - A}{(B + X)^2}.\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "The derivative of f(X) is f'(X)."
+        },
+        {
+          "id": 1,
+          "text": "f'(X) = (B - A) / (B + X)^2."
+        }
+      ]
+    },
+    {
+      "step_index": 8,
+      "step_text": "Since \\( f'(X) < 0 \\) when \\( A > B \\), we want to minimize \\( X \\) to maximize the fraction.",
+      "claims": [
+        {
+          "id": 0,
+          "text": "f'(X) < 0 when A > B."
+        },
+        {
+          "id": 1,
+          "text": "We want to minimize X to maximize the fraction."
+        }
+      ]
+    },
+    {
+      "step_index": 9,
+      "step_text": "By the rearrangement inequality, \\( X \\) is minimized when \\( b_1 \\leq b_2 \\leq \\cdots \\leq b_n \\).",
+      "claims": [],
+      "error": "Invalid \\escape: line 4 column 44 (char 128)"
+    },
+    {
+      "step_index": 10,
+      "step_text": "Next, we fix \\( b_1, \\ldots, b_n \\) and define:$$\nF(a_1, \\ldots, a_n) = \\frac{A + X}{B + X}.\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Next, we fix \\( b_1, \\ldots, b_n \\)"
+        },
+        {
+          "id": 1,
+          "text": "We define \\( F(a_1, \\ldots, a_n) = \\frac{A + X}{B + X} \\)"
+        }
+      ]
+    },
+    {
+      "step_index": 11,
+      "step_text": "We will show that:$$\nF(a_1, a_2, \\ldots, a_n) \\leq F(a_1 + a_2, 0, \\ldots, a_n).\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "We will show that:"
+        },
+        {
+          "id": 1,
+          "text": "$$ F(a_1, a_2, \\ldots, a_n) \\leq F(a_1 + a_2, 0, \\ldots, a_n). $$"
+        }
+      ]
+    },
+    {
+      "step_index": 12,
+      "step_text": "This is true because \\( a_1^2 + a_2^2 \\leq (a_1 + a_2)^2 \\) and \\( a_1 b_1 + a_2 b_2 \\geq (a_1 + a_2) b_1 \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "This is true."
+        },
+        {
+          "id": 1,
+          "text": "\\( a_1^2 + a_2^2 \\leq (a_1 + a_2)^2 \\)"
+        },
+        {
+          "id": 2,
+          "text": "\\( a_1 b_1 + a_2 b_2 \\geq (a_1 + a_2) b_1 \\)"
+        }
+      ]
+    },
+    {
+      "step_index": 13,
+      "step_text": "By repeating this step \\( n - 1 \\) times, we conclude:$$\nF(a_1, \\ldots, a_n) \\leq F(1, 0, \\ldots, 0).\n$$",
+      "claims": [],
+      "error": "Invalid \\escape: line 3 column 46 (char 63)"
+    },
+    {
+      "step_index": 14,
+      "step_text": "It remains to prove:$$\nF(1, 0, \\ldots, 0) = \\frac{1 + b_1}{\\sum_{i=1}^n b_i^2 + b_1} \\leq n - 1.\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "It remains to prove:"
+        },
+        {
+          "id": 1,
+          "text": "F(1, 0, \\ldots, 0) = \\frac{1 + b_1}{\\sum_{i=1}^n b_i^2 + b_1}"
+        },
+        {
+          "id": 2,
+          "text": "\\frac{1 + b_1}{\\sum_{i=1}^n b_i^2 + b_1} \\leq n - 1."
+        }
+      ]
+    },
+    {
+      "step_index": 15,
+      "step_text": "Using the Cauchy-Schwarz inequality, we get:$$\n\\frac{1 + b_1}{\\sum_{i=1}^n b_i^2 + b_1} \\leq \\frac{1 + b_1}{b_1^2 + \\frac{(1 - b_1)^2}{n - 1} + b_1}.\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Using the Cauchy-Schwarz inequality, we get:"
+        },
+        {
+          "id": 1,
+          "text": "$$ \\frac{1 + b_1}{\\sum_{i=1}^n b_i^2 + b_1} \\leq \\frac{1 + b_1}{b_1^2 + \\frac{(1 - b_1)^2}{n - 1} + b_1}. $$"
+        }
+      ]
+    },
+    {
+      "step_index": 16,
+      "step_text": "Finally, we need to show:$$\n\\frac{1 + b_1}{b_1^2 + \\frac{(1 - b_1)^2}{n - 1} + b_1} \\leq n - 1 \\quad \\Leftrightarrow \\quad b_1 (n b_1 + n - 4) \\geq 0.\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Finally, we need to show the following."
+        },
+        {
+          "id": 1,
+          "text": "\\frac{1 + b_1}{b_1^2 + \\frac{(1 - b_1)^2}{n - 1} + b_1} \\leq n - 1 \\Leftrightarrow b_1 (n b_1 + n - 4) \\geq 0."
+        }
+      ]
+    },
+    {
+      "step_index": 17,
+      "step_text": "This inequality clearly holds for \\( n \\geq 4 \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "This inequality clearly holds for \\( n \\geq 4 \\)."
+        }
+      ]
+    },
+    {
+      "step_index": 18,
+      "step_text": "Equality holds when \\( a_1 = 1 \\), \\( a_2 = \\cdots = a_n = 0 \\), and \\( b_1 = 0 \\), \\( b_2 = \\cdots = b_n = \\frac{1}{n - 1} \\).",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Equality holds"
+        },
+        {
+          "id": 1,
+          "text": "\\( a_1 = 1 \\)"
+        },
+        {
+          "id": 2,
+          "text": "\\( a_2 = \\cdots = a_n = 0 \\)"
+        },
+        {
+          "id": 3,
+          "text": "\\( b_1 = 0 \\)"
+        },
+        {
+          "id": 4,
+          "text": "\\( b_2 = \\cdots = b_n = \\frac{1}{n - 1} \\)"
+        }
+      ]
+    },
+    {
+      "step_index": 19,
+      "step_text": "Thus, the maximum value of the given expression is:$$\n\\frac{\\sum_{i=1}^n a_i(a_i + b_i)}{\\sum_{i=1}^n b_i(a_i + b_i)} = n - 1.\n$$",
+      "claims": [
+        {
+          "id": 0,
+          "text": "Thus, the maximum value of the expression is n-1."
+        },
+        {
+          "id": 1,
+          "text": "The expression is \\frac{\\sum_{i=1}^n a_i(a_i + b_i)}{\\sum_{i=1}^n b_i(a_i + b_i)}."
+        }
+      ]
+    },
+    {
+      "step_index": 20,
+      "step_text": "The answer is: \\boxed{n - 1}.",
+      "claims": [
+        {
+          "id": 0,
+          "text": "The answer is: \boxed{n - 1}."
+        }
+      ]
+    }
+  ]
+}

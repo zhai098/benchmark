@@ -4,21 +4,25 @@ from __future__ import annotations
 import os, json, time, random, logging
 from typing import Dict, Any, List, Tuple
 from config import Config
-from runner import VLLMRunner
+from runner import VLLMRunner, Kimi_API_runner, DEEPSEEK_API_runner
 from prompt import Generate_Prompt
 from data_process import _write_jsonl_line, _write_pretty_json
+from data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
 
 logger = logging.getLogger(__name__)
+processor = Processor()
 
 def build_reasoning_model():
-    return VLLMRunner(
-        Config["reasoning_model"],
+    """return VLLMRunner(
+        model=Config["reasoning_model"],
         vllm_config=Config["reasoning_model_params"],
         sampling_config=Config["reasoning_sampling_params"],
         gpus=Config["reasoning_model_gpus"],
-    )
+    )"""
+    #return Kimi_API_runner()
+    return DEEPSEEK_API_runner()
 
-def generate_case(obj: Dict[str, Any], reasoning_model: VLLMRunner) -> Dict[str, Any]:
+def generate_case(obj: Dict[str, Any], reasoning_model) -> Dict[str, Any]:
     """复用 main.py 的生成阶段：逐步 add_step -> run()，直到用尽参考步骤。
        逻辑等价于 execute_evaluation() 中生成部分。"""
     problem = obj["problem"]
@@ -35,16 +39,14 @@ def generate_case(obj: Dict[str, Any], reasoning_model: VLLMRunner) -> Dict[str,
     processed: List[str] = []
     processed_types: List[str] = []
     gen_output: List[str] = []
+    gen_prefixes: List[str] = []
     i = 1
     prompt_lists = []
     while unprocessed:
         current_step, current_type = unprocessed.pop(0)
+        #print(f"[DEBUG] Generating step {i}, step={current_step}")
         generate_promptbuilder.add_step(current_step)
-        
-        # Print string for debug
-        print(generate_promptbuilder.return_prompt())
-        print("\n")
-        
+                
         # Use IDs for generation if available
         if hasattr(generate_promptbuilder, "return_prompt_ids"):
             prompt_lists.append(generate_promptbuilder.return_prompt_ids())
@@ -60,15 +62,26 @@ def generate_case(obj: Dict[str, Any], reasoning_model: VLLMRunner) -> Dict[str,
         i += 1
     # 一次性生成所有步骤
     prompts = prompt_lists 
-    generations = reasoning_model.generate(prompts, schema=None)
+    reasonings, generations = reasoning_model.generate(prompts, None)
     gen_output.extend(generations)
+    for gen in generations:
+        current_output = _normalize_generation_input(gen)
+        gen_sents_all = processor.sentence_split_en(current_output)
+        K = max(1, min(Config["max prefix_num"], len(gen_sents_all)))
+        gen_sents = gen_sents_all[:K]
+        gen_prefix = " ".join(gen_sents)
+        gen_prefixes.append(gen_prefix)
+        #print(f"[DEBUG] Final generated prefix: {gen_prefix}\n")
+        #print(f"[DEBUG] Full generated output: {current_output}\n")
+    
     return {
         "problem": problem,
         "answer": answer,
+        "prompts": prompts,       # 复现用
         "ref_steps": processed,     # 评测阶段需要参考步骤（与 processed_thought 等价）
-        "prompts": prompts,
-        "ref_types": processed_types, 
         "gen_output": gen_output,   # 待评测的模型生成
+        "gen_prefix": gen_prefixes,
+        "reasoning": reasonings,
         "difficulty": float(obj.get("difficulty", 0.0)),
     }
 
@@ -77,8 +90,8 @@ def main():
     out_root = os.path.abspath("./gen_output")
     os.makedirs(out_root, exist_ok=True)
 
-    rand_tag = Config["tag"]
-    run_dir_name = f"{Config['reasoning_model']}_{rand_tag}"
+    tag = Config["tag"]
+    run_dir_name = f"{Config['reasoning_model']}_{tag}"
     run_dir = os.path.join(out_root, run_dir_name)
     os.makedirs(run_dir, exist_ok=True)
 
@@ -92,11 +105,11 @@ def main():
     reasoning_model = build_reasoning_model()
     num = 0
     with open(input_path, "r", encoding="utf-8") as fin, \
-         open(gen_only_jsonl, "w", encoding="utf-8", buffering=1) as fgen, \
-         open(gen_only_pretty, "w", encoding="utf-8", buffering=1) as fgen_pretty:
+        open(gen_only_jsonl, "w", encoding="utf-8", buffering=1) as fgen, \
+        open(gen_only_pretty, "w", encoding="utf-8", buffering=1) as fgen_pretty:
 
         for line in fin:
-            if num >= 50:
+            if num >= 100:
                 break
             if num < Config.get("skip_generate_num", 0):
                 num += 1
@@ -123,6 +136,8 @@ def main():
                 "prompts": res["prompts"],        # 复现用
                 "ref_steps": res["ref_steps"],      # 评测要用
                 "gen_output": res["gen_output"],    # 评测要用
+                "gen_prefix": res["gen_prefix"],    # 评测要用
+                "reasoning_content": res["reasoning"],
             }
             _write_jsonl_line(fgen, out_record)
             _write_pretty_json(fgen_pretty, out_record)
