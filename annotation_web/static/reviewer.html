@@ -1,0 +1,32 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>审核端</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+<header>
+  <strong>数据标注审核端（服务器端）</strong>
+  <button class="ghost" onclick="location.href='/'">返回客户端</button>
+</header>
+<main style="grid-template-columns: 320px 1fr;">
+  <section class="panel">
+    <h3>标注者总览</h3>
+    <button id="refreshBtn">刷新汇总</button>
+    <div id="annotatorList"></div>
+  </section>
+  <section class="panel">
+    <h3>审核详情</h3>
+    <div class="review-grid">
+      <div><label>标注者 ID<input id="annotatorInput" /></label></div>
+      <div><label>任务 ID<input id="taskInput" type="number" /></label></div>
+    </div>
+    <button id="loadDetailBtn">加载详情</button>
+    <div id="detail"></div>
+  </section>
+</main>
+<script src="/reviewer.js"></script>
+</body>
+</html>

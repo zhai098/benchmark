@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>标注客户端</title>
+  <link rel="stylesheet" href="/style.css" />
+</head>
+<body>
+  <header>
+    <strong>数据标注客户端（标注者）</strong>
+    <div>
+      <button class="ghost" id="openGuidelineBtn">查看官方标注指南</button>
+      <button class="ghost" onclick="location.href='/review'">前往审核端</button>
+    </div>
+  </header>
+  <main>
+    <section class="panel">
+      <h3>会话初始化</h3>
+      <label>标注者 ID<input id="annotatorInput" placeholder="例如: alice" /></label>
+      <label>JSONL 文件路径<input id="datasetInput" placeholder="例如: /workspace/benchmark/alt_solution_messages.jsonl" /></label>
+      <button id="initBtn">加载任务</button>
+      <hr />
+      <h4>任务列表</h4>
+      <div id="taskList"></div>
+      <button class="secondary" id="manualSaveBtn">手动保存当前进度</button>
+      <small class="muted" id="saveHint">按需手动保存；提交时将自动保存。</small>
+    </section>
+
+    <section class="panel">
+      <div class="tabs">
+        <div class="tab active" data-step="0">1) 多采样验证</div>
+        <div class="tab" data-step="1">2) Step 切分</div>
+        <div class="tab" data-step="2">3-4) Claim 切分校验</div>
+        <div class="tab" data-step="3">5) 依赖关系</div>
+        <div class="tab" data-step="4">6) 提交</div>
+      </div>
+
+      <div id="taskMeta"></div>
+
+      <section id="stage0">
+        <h3>多采样验证</h3>
+        <div id="sampleContainer"></div>
+        <label>主解样本 ID（用于后续步骤）<input id="primarySampleId" type="number" min="1" /></label>
+      </section>
+
+      <section id="stage1" class="hidden">
+        <h3>Step 切分（只切分，不改写）</h3>
+        <button id="autoSplitBtn" class="secondary">按行/句自动切分建议</button>
+        <div id="stepEditor"></div>
+        <button id="addStepBtn" class="ghost">新增一个 step</button>
+      </section>
+
+      <section id="stage2" class="hidden">
+        <h3>Claim 切分校验</h3>
+        <button id="genClaimsBtn" class="secondary">调用 API 生成 claim 初稿</button>
+        <div id="claimEditor"></div>
+      </section>
+
+      <section id="stage3" class="hidden">
+        <h3>依赖关系判定</h3>
+        <p>每个 claim 只能依赖出现在其之前的 claim。</p>
+        <div id="dependencyEditor"></div>
+      </section>
+
+      <section id="stage4" class="hidden">
+        <h3>提交当前问题</h3>
+        <button id="submitBtn">提交当前问题标注结果</button>
+        <p id="submitResult"></p>
+      </section>
+    </section>
+  </main>
+
+  <dialog id="guidelineDialog">
+    <h3>官方标注指南</h3>
+    <pre id="guidelineContent"></pre>
+    <button onclick="document.getElementById('guidelineDialog').close()">关闭</button>
+  </dialog>
+
+  <script src="/client.js"></script>
+</body>
+</html>
