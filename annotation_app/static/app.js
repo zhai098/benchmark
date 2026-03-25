@@ -14,6 +14,7 @@ function getCaseState(caseId) {
       steps: [],
       presegmented_claims: [],
       claims: [],
+      // Step 级校验：{ s1: { status, notes } }
       claim_checks: {},
       dependencies: {},
     };
@@ -27,15 +28,32 @@ function escapeHtml(s) {
 }
 
 function getClaimCheckStats(st) {
-  const total = (st.claims || []).reduce((acc, x) => acc + (x.claims || []).length, 0);
+  const stepCount = (st.claims || []).length;
+  const totalClaims = (st.claims || []).reduce((acc, x) => acc + (x.claims || []).length, 0);
   const checks = st.claim_checks || {};
-  let correct = 0;
-  let incorrect = 0;
-  Object.values(checks).forEach((v) => {
-    if (v === 'correct') correct += 1;
-    else if (v === 'incorrect') incorrect += 1;
+  let checkedSteps = 0;
+  let pass = 0;
+  let hasIssue = 0;
+  let allWrong = 0;
+
+  (st.claims || []).forEach((_, i) => {
+    const key = `s${i + 1}`;
+    const status = checks[key]?.status || 'unchecked';
+    if (status !== 'unchecked') checkedSteps += 1;
+    if (status === 'pass') pass += 1;
+    if (status === 'has_issue') hasIssue += 1;
+    if (status === 'all_wrong') allWrong += 1;
   });
-  return { total, correct, incorrect, checked: correct + incorrect, unchecked: Math.max(0, total - correct - incorrect) };
+
+  return {
+    stepCount,
+    checkedSteps,
+    uncheckedSteps: Math.max(0, stepCount - checkedSteps),
+    pass,
+    hasIssue,
+    allWrong,
+    totalClaims,
+  };
 }
 
 function getCaseCompletion(st) {
@@ -43,7 +61,7 @@ function getCaseCompletion(st) {
   const stepDone = (st.steps || []).length > 0 ? 1 : 0;
   const claimMapped = (st.claims || []).some(x => (x.claims || []).length > 0) ? 1 : 0;
   const check = getClaimCheckStats(st);
-  const claimChecked = check.total > 0 && check.unchecked === 0 ? 1 : 0;
+  const claimChecked = check.stepCount > 0 && check.uncheckedSteps === 0 ? 1 : 0;
   const depDone = Object.keys(st.dependencies || {}).length > 0 ? 1 : 0;
   return Math.round(((sampleDone + stepDone + claimMapped + claimChecked + depDone) / 5) * 100);
 }
@@ -64,6 +82,18 @@ function notify(msg, level = 'info') {
 
 function toggleCasePanel() {
   document.getElementById('casePanel').classList.toggle('collapsed');
+}
+
+function openContextModal() {
+  const modal = document.getElementById('contextModal');
+  if (!modal) return;
+  modal.classList.add('show');
+}
+
+function closeContextModal() {
+  const modal = document.getElementById('contextModal');
+  if (!modal) return;
+  modal.classList.remove('show');
 }
 
 async function loadDataset() {
@@ -132,7 +162,7 @@ function renderCurrentCase() {
   const st = getCaseState(c.id);
   const stats = getClaimCheckStats(st);
   const completion = getCaseCompletion(st);
-  document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${(c.samples || []).length}</span> <span class="pill">steps ${(st.steps || []).length}</span> <span class="pill">claims ${stats.total}</span> <span class="pill">progress ${completion}%</span>`;
+  document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${(c.samples || []).length}</span> <span class="pill">steps ${(st.steps || []).length}</span> <span class="pill">claims ${stats.totalClaims}</span> <span class="pill">progress ${completion}%</span>`;
   document.getElementById('qAndA').textContent = `题目:\n${c.question}\n\n标准答案:\n${c.reference_answer}`;
   document.getElementById('known').textContent = JSON.stringify(c.known_solutions || [], null, 2);
   renderStepContent();
@@ -197,37 +227,6 @@ function extractPresegmentedClaims(sample) {
       return;
     }
     if (item && typeof item === 'object' && Array.isArray(item.claims)) {
-      const parsed = parseInt(String(item.step_id || '').replace(/[^\d]/g, ''), 10) - 1;
-      const step_idx = Number.isInteger(item.step_index) ? item.step_index : parsed;
-      (item.claims || []).forEach((c, ci) => {
-        const text = String(c || '').trim();
-        if (text) out.push({ id: `p${i + 1}_${ci + 1}`, text, step_idx: Number.isFinite(step_idx) ? step_idx : null });
-      });
-      return;
-    }
-    const text = String(item?.text || item?.claim || '').trim();
-    if (!text) return;
-    const parsed = parseInt(String(item.step_id || '').replace(/[^\d]/g, ''), 10) - 1;
-    const step_idx = Number.isInteger(item.step_index) ? item.step_index : parsed;
-    out.push({ id: `p${i + 1}`, text, step_idx: Number.isFinite(step_idx) ? step_idx : null });
-  });
-  return out;
-}
-
-function extractPresegmentedClaims(sample) {
-  const raw = sample?.claims_by_step || sample?.step_claims || sample?.claims || [];
-  if (!Array.isArray(raw)) return [];
-  // 兼容两种输入：
-  // 1) ["claim1", "claim2"]（仅预切分，不含 step）
-  // 2) [{text, step_id/step_index}] / [{step_id, claims:[...]}]
-  const out = [];
-  raw.forEach((item, i) => {
-    if (typeof item === 'string') {
-      const text = item.trim();
-      if (text) out.push({ id: `p${i + 1}`, text, step_idx: null });
-      return;
-    }
-    if (item && typeof item === 'object' && Array.isArray(item.claims)) {
       const step_idx = Number.isInteger(item.step_index)
         ? item.step_index
         : parseInt(String(item.step_id || '').replace(/[^\d]/g, ''), 10) - 1;
@@ -237,7 +236,7 @@ function extractPresegmentedClaims(sample) {
       });
       return;
     }
-    const text = String(item.text || item.claim || '').trim();
+    const text = String(item?.text || item?.claim || '').trim();
     if (!text) return;
     const step_idx = Number.isInteger(item.step_index)
       ? item.step_index
@@ -298,23 +297,37 @@ function organizeClaimsBySteps() {
     claim.step_idx = stepIdx;
     st.claims[stepIdx].claims.push((claim.text || '').trim());
   });
+  // 重建 Step 校验状态
+  const nextChecks = {};
+  (st.claims || []).forEach((_, i) => {
+    const key = `s${i + 1}`;
+    nextChecks[key] = st.claim_checks[key] || { status: 'unchecked', notes: '' };
+  });
+  st.claim_checks = nextChecks;
   renderStepContent();
   renderCaseList();
 }
 
-function updateClaimCheck(claimId, status) {
+function updateStepCheck(stepKey, status) {
   const st = getCaseState(selectedCase().id);
-  st.claim_checks[claimId] = status;
+  st.claim_checks[stepKey] = st.claim_checks[stepKey] || { status: 'unchecked', notes: '' };
+  st.claim_checks[stepKey].status = status;
 }
 
-function claimCheckTag(claimId, current, expected, label) {
-  return `<button class="${current === expected ? 'tag active' : 'tag'}" onclick="updateClaimCheckAndRender('${expected}', '${claimId}')">${label}</button>`;
-}
-
-function updateClaimCheckAndRender(status, claimId) {
-  updateClaimCheck(claimId, status);
+function updateStepCheckAndRender(stepKey, status) {
+  updateStepCheck(stepKey, status);
   renderStepContent();
   renderCaseList();
+}
+
+function setStepCheckNotes(stepKey, v) {
+  const st = getCaseState(selectedCase().id);
+  st.claim_checks[stepKey] = st.claim_checks[stepKey] || { status: 'unchecked', notes: '' };
+  st.claim_checks[stepKey].notes = v;
+}
+
+function stepCheckTag(stepKey, current, expected, label, cls = '') {
+  return `<button class="tag ${cls} ${current === expected ? 'active' : ''}" onclick="updateStepCheckAndRender('${stepKey}', '${expected}')">${label}</button>`;
 }
 
 function editClaim(stepIdx, claimIdx, v) {
@@ -353,7 +366,7 @@ function buildDependencyView() {
   grouped.forEach((currStep, sIdx) => {
     html += `<section class="dep-section"><h4>当前 Step ${sIdx + 1}</h4>`;
     currStep.claims.forEach(curr => {
-      html += `<div class="dep-card"><div class="curr-claim"><b>${curr.id}</b> ${curr.text}</div>`;
+      html += `<div class="dep-card"><div class="curr-claim"><b>${curr.id}</b> ${escapeHtml(curr.text)}</div>`;
       html += '<div class="prev-steps">';
       for (let ps = sIdx; ps >= 0; ps--) {
         const prev = grouped[ps];
@@ -363,7 +376,7 @@ function buildDependencyView() {
         candidates.forEach(cand => {
           const deps = st.dependencies[curr.id] || [];
           const checked = deps.includes(cand.id) ? 'checked' : '';
-          html += `<label class="dep-option"><input type="checkbox" ${checked} onchange="toggleDep('${curr.id}','${cand.id}',this.checked)"> <span>${cand.id}</span> ${cand.text}</label>`;
+          html += `<label class="dep-option"><input type="checkbox" ${checked} onchange="toggleDep('${curr.id}','${cand.id}',this.checked)"> <span>${cand.id}</span> ${escapeHtml(cand.text)}</label>`;
         });
         html += '</details>';
       }
@@ -383,17 +396,26 @@ function buildSummaryView() {
     <p>请检查以下结果无误后提交：</p>
     <div class="kpi-grid">
       <div class="kpi"><small>Step 数</small><b>${(st.steps || []).length}</b></div>
-      <div class="kpi"><small>Claim 总数</small><b>${stats.total}</b></div>
-      <div class="kpi"><small>已检查</small><b>${stats.checked}</b></div>
-      <div class="kpi"><small>未检查</small><b>${stats.unchecked}</b></div>
+      <div class="kpi"><small>Claim 总数</small><b>${stats.totalClaims}</b></div>
+      <div class="kpi"><small>已校验 Step</small><b>${stats.checkedSteps}</b></div>
+      <div class="kpi"><small>未校验 Step</small><b>${stats.uncheckedSteps}</b></div>
     </div>
     <h4>多采样验证</h4><pre>${JSON.stringify(st.sample_validation, null, 2)}</pre>
     <h4>Step切分（来自完整 solution 的切分点）</h4><pre>${JSON.stringify({ solution_index: st.selected_solution_idx, cut_points: st.cut_points, steps: st.steps }, null, 2)}</pre>
     <h4>Claim整理结果（按 step）</h4><pre>${JSON.stringify(st.claims, null, 2)}</pre>
-    <h4>Claim正确性检查</h4><pre>${JSON.stringify(st.claim_checks, null, 2)}</pre>
+    <h4>Claim Step级校验</h4><pre>${JSON.stringify(st.claim_checks, null, 2)}</pre>
     <h4>依赖关系</h4><pre>${JSON.stringify(st.dependencies, null, 2)}</pre>
     <button class="primary" onclick="submitCase()">确认提交当前问题</button>
   `;
+}
+
+function buildStepSplitCompact(st) {
+  return (st.steps || []).map((step, i) => `
+    <details class="step-mini" ${i === 0 ? 'open' : ''}>
+      <summary>Step ${i + 1}</summary>
+      <pre>${escapeHtml(step.text)}</pre>
+    </details>
+  `).join('') || '<p class="muted">尚未生成 Step 切分。</p>';
 }
 
 function renderStepContent() {
@@ -418,17 +440,17 @@ function renderStepContent() {
           <button onclick="translateSample(${i})">翻译</button>
           <button onclick="selectSolution(${i})">设为Step切分对象</button>
         </div>
-        <pre>${s.solution || ''}</pre>
-        ${rec.translation ? `<details open><summary>翻译结果</summary><pre>${rec.translation}</pre></details>` : ''}
+        <pre>${escapeHtml(s.solution || '')}</pre>
+        ${rec.translation ? `<details open><summary>翻译结果</summary><pre>${escapeHtml(rec.translation)}</pre></details>` : ''}
         <div class="row">
           <button class="${clsCorrect}" onclick="chooseSampleStatus(${i}, true)">正确</button>
           <button class="${clsWrong}" onclick="chooseSampleStatus(${i}, false)">错误</button>
           <button class="${clsUnset}" onclick="chooseSampleStatus(${i}, null)">未判定</button>
         </div>
         <div class="row">
-          <label>分类 <input value="${rec.class_name || ''}" oninput="setSampleField(${i}, 'class_name', this.value)"></label>
+          <label>分类 <input value="${escapeHtml(rec.class_name || '')}" oninput="setSampleField(${i}, 'class_name', this.value)"></label>
           <label><input type="checkbox" ${rec.is_new_class ? 'checked' : ''} onchange="setSampleField(${i}, 'is_new_class', this.checked)"> 新分类</label>
-          <label>新方法概述 <input value="${rec.summary || ''}" oninput="setSampleField(${i}, 'summary', this.value)"></label>
+          <label>新方法概述 <input value="${escapeHtml(rec.summary || '')}" oninput="setSampleField(${i}, 'summary', this.value)"></label>
         </div>
       </div>`;
     });
@@ -440,14 +462,14 @@ function renderStepContent() {
     root.innerHTML = `
       <h3>Step 2：Step切分（在完整 solution 上打点）</h3>
       <p>当前切分对象：sample-${(st.selected_solution_idx || 0) + 1}。在下方文本中将光标移动到切分位置后点击“添加切分点”。</p>
-      <textarea id="solutionText" class="full-solution">${st.selected_solution_text || ''}</textarea>
+      <textarea id="solutionText" class="full-solution">${escapeHtml(st.selected_solution_text || '')}</textarea>
       <div class="row">
         <button onclick="addCutPoint()">添加切分点</button>
         <button onclick="updateSplitPreview()">刷新预览</button>
       </div>
       <div id="cutPointList" class="row"></div>
       <h4>切分结果（可回退：删除切分点后刷新）</h4>
-      <pre id="splitPreview">${JSON.stringify(st.steps, null, 2)}</pre>
+      <pre id="splitPreview">${escapeHtml(JSON.stringify(st.steps, null, 2))}</pre>
     `;
     return;
   }
@@ -465,59 +487,77 @@ function renderStepContent() {
       rows += `
         <tr>
           <td>${cl.id}</td>
-          <td>${cl.text}</td>
+          <td>${escapeHtml(cl.text)}</td>
           <td><select id="claimStepSel_${i}" onchange="setClaimStep(${i}, Number(this.value))">${options}</select></td>
         </tr>
       `;
     });
     root.innerHTML = `
       <h3>Step 3：整理每个 Step 对应的 Claim（使用预切分 claim）</h3>
-      <p>当前逻辑不再调用 Claim API。请把已预切分的 claim 分配到对应 step。</p>
-      <div class="kpi-grid">
-        <div class="kpi"><small>Step 数</small><b>${stepCount}</b></div>
-        <div class="kpi"><small>预切分 Claim</small><b>${claims.length}</b></div>
-        <div class="kpi"><small>未分配</small><b>${unassigned}</b></div>
+      <p>请将预切分 claim 归并到 Step 2 的切分结果中，左侧提供切分结果便于对齐比较。</p>
+      <div class="split-compare">
+        <aside class="split-reference">
+          <h4>Step 切分参考</h4>
+          ${buildStepSplitCompact(st)}
+        </aside>
+        <section>
+          <div class="kpi-grid">
+            <div class="kpi"><small>Step 数</small><b>${stepCount}</b></div>
+            <div class="kpi"><small>预切分 Claim</small><b>${claims.length}</b></div>
+            <div class="kpi"><small>未分配</small><b>${unassigned}</b></div>
+          </div>
+          <table>
+            <thead><tr><th>Claim</th><th>文本</th><th>归属 Step</th></tr></thead>
+            <tbody>${rows || '<tr><td colspan="3">当前 solution 未提供预切分 claim</td></tr>'}</tbody>
+          </table>
+          <div class="row">
+            <button class="primary" onclick="organizeClaimsBySteps()">保存并生成 Step-Claim 结构</button>
+          </div>
+          <pre>${escapeHtml(JSON.stringify(st.claims, null, 2))}</pre>
+        </section>
       </div>
-      <table>
-        <thead><tr><th>Claim</th><th>文本</th><th>归属 Step</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="3">当前 solution 未提供预切分 claim</td></tr>'}</tbody>
-      </table>
-      <div class="row">
-        <button class="primary" onclick="organizeClaimsBySteps()">保存并生成 Step-Claim 结构</button>
-      </div>
-      <pre>${JSON.stringify(st.claims, null, 2)}</pre>
     `;
     return;
   }
 
   if (currentStep === 4) {
     const checkStats = getClaimCheckStats(st);
-    let html = '<h3>Step 4：Claim正确性检查与修正</h3>';
+    let html = '<h3>Step 4：Claim按Step集中校验</h3>';
+    html += '<p>以 Step 为单位展开，优先定位该 Step 中有问题的 claim，而非逐条强制打标签。</p>';
     html += `
       <div class="kpi-grid">
-        <div class="kpi"><small>Claim 总数</small><b>${checkStats.total}</b></div>
-        <div class="kpi"><small>正确</small><b>${checkStats.correct}</b></div>
-        <div class="kpi"><small>错误</small><b>${checkStats.incorrect}</b></div>
-        <div class="kpi"><small>未检查</small><b>${checkStats.unchecked}</b></div>
+        <div class="kpi"><small>Step 总数</small><b>${checkStats.stepCount}</b></div>
+        <div class="kpi"><small>已校验 Step</small><b>${checkStats.checkedSteps}</b></div>
+        <div class="kpi"><small>有问题 Step</small><b>${checkStats.hasIssue + checkStats.allWrong}</b></div>
+        <div class="kpi"><small>未校验 Step</small><b>${checkStats.uncheckedSteps}</b></div>
       </div>
     `;
+
     (st.claims || []).forEach((cs, si) => {
-      html += `<h4>Step ${si + 1}</h4>`;
-      (cs.claims || []).forEach((claim, ci) => {
-        const claimId = `s${si + 1}c${ci + 1}`;
-        const current = st.claim_checks[claimId] || 'unchecked';
-        html += `
+      const stepKey = `s${si + 1}`;
+      const rec = st.claim_checks[stepKey] || { status: 'unchecked', notes: '' };
+      const summary = `Step ${si + 1} · ${cs.claims.length} claims · ${rec.status}`;
+      html += `
+        <details class="step-review" ${si === 0 ? 'open' : ''}>
+          <summary>${summary}</summary>
           <div class="card">
-            <div><input class="claim-input" value="${claim}" oninput="editClaim(${si}, ${ci}, this.value)"></div>
             <div class="row">
-              ${claimCheckTag(claimId, current, 'correct', '正确')}
-              ${claimCheckTag(claimId, current, 'incorrect', '错误')}
-              ${claimCheckTag(claimId, current, 'unchecked', '未检查')}
+              ${stepCheckTag(stepKey, rec.status, 'pass', '该Step正确', 'ok')}
+              ${stepCheckTag(stepKey, rec.status, 'has_issue', '部分有误', 'bad')}
+              ${stepCheckTag(stepKey, rec.status, 'all_wrong', '整体有误', 'bad')}
+              ${stepCheckTag(stepKey, rec.status, 'unchecked', '暂不判断')}
             </div>
+            <label>问题备注（可写错误 claim 编号或原因）</label>
+            <textarea rows="2" oninput="setStepCheckNotes('${stepKey}', this.value)">${escapeHtml(rec.notes || '')}</textarea>
           </div>
-        `;
-      });
-      html += `<button onclick="addClaim(${si})">+ 添加 claim</button>`;
+          ${(cs.claims || []).map((claim, ci) => `
+            <div class="card">
+              <div class="claim-row"><span class="claim-id">c${ci + 1}</span><input class="claim-input" value="${escapeHtml(claim)}" oninput="editClaim(${si}, ${ci}, this.value)"></div>
+            </div>
+          `).join('')}
+          <button onclick="addClaim(${si})">+ 添加 claim</button>
+        </details>
+      `;
     });
     root.innerHTML = html;
     return;
@@ -590,3 +630,7 @@ async function openGuide() {
   const data = await res.json();
   document.getElementById('guideText').textContent = data.content || '暂无';
 }
+
+window.addEventListener('keydown', (e) => {
+  if (e.key === 'Escape') closeContextModal();
+});

@@ -31,6 +31,11 @@
     </aside>
 
     <section class="panel">
+      <div class="panel-head">
+        <h2 id="caseTitle">未加载</h2>
+        <button class="secondary" onclick="openContextModal()">查看题目 / 参考答案 / Guide</button>
+      </div>
+
       <div class="step-nav">
         <button class="step-btn" data-step="1" onclick="goStep(1)">1 多采样验证</button>
         <button class="step-btn" data-step="2" onclick="goStep(2)">2 Step切分</button>
@@ -40,28 +45,33 @@
         <button class="step-btn" data-step="6" onclick="goStep(6)">6 结果总览</button>
       </div>
 
-      <article class="context-card">
-        <h2 id="caseTitle">未加载</h2>
-        <div class="context-grid">
-          <details open>
-            <summary>题目与标准答案</summary>
-            <pre id="qAndA"></pre>
-          </details>
-          <details>
-            <summary>已知正确解</summary>
-            <pre id="known"></pre>
-          </details>
-          <details>
-            <summary>官方指南</summary>
-            <pre id="guideText">点击“加载指南”</pre>
-            <button onclick="openGuide()">加载指南</button>
-          </details>
-        </div>
-      </article>
-
       <article id="stepContent"></article>
     </section>
   </main>
+
+  <div id="contextModal" class="modal-backdrop" onclick="if(event.target===this) closeContextModal()">
+    <div class="modal-card">
+      <div class="modal-head">
+        <h3>题目上下文</h3>
+        <button onclick="closeContextModal()">关闭</button>
+      </div>
+      <div class="context-grid">
+        <details open>
+          <summary>题目与标准答案</summary>
+          <pre id="qAndA"></pre>
+        </details>
+        <details>
+          <summary>已知正确解</summary>
+          <pre id="known"></pre>
+        </details>
+        <details>
+          <summary>官方指南</summary>
+          <pre id="guideText">点击“加载指南”</pre>
+          <button onclick="openGuide()">加载指南</button>
+        </details>
+      </div>
+    </div>
+  </div>
 
   <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body>
