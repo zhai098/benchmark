@@ -2,6 +2,7 @@ let dataset = [];
 let currentCaseIndex = -1;
 let currentStep = 1;
 const stateByCase = {};
+let toastTimer = null;
 
 function getCaseState(caseId) {
   if (!stateByCase[caseId]) {
@@ -30,11 +31,35 @@ function getClaimCheckStats(st) {
   const checks = st.claim_checks || {};
   let correct = 0;
   let incorrect = 0;
-  Object.values(checks).forEach(v => {
+  Object.values(checks).forEach((v) => {
     if (v === 'correct') correct += 1;
     else if (v === 'incorrect') incorrect += 1;
   });
   return { total, correct, incorrect, checked: correct + incorrect, unchecked: Math.max(0, total - correct - incorrect) };
+}
+
+function getCaseCompletion(st) {
+  const sampleDone = (st.sample_validation || []).some(x => x && x.is_correct !== null) ? 1 : 0;
+  const stepDone = (st.steps || []).length > 0 ? 1 : 0;
+  const claimMapped = (st.claims || []).some(x => (x.claims || []).length > 0) ? 1 : 0;
+  const check = getClaimCheckStats(st);
+  const claimChecked = check.total > 0 && check.unchecked === 0 ? 1 : 0;
+  const depDone = Object.keys(st.dependencies || {}).length > 0 ? 1 : 0;
+  return Math.round(((sampleDone + stepDone + claimMapped + claimChecked + depDone) / 5) * 100);
+}
+
+function notify(msg, level = 'info') {
+  let box = document.getElementById('toast');
+  if (!box) {
+    box = document.createElement('div');
+    box.id = 'toast';
+    box.className = 'toast';
+    document.body.appendChild(box);
+  }
+  box.className = `toast show ${level}`;
+  box.textContent = msg;
+  if (toastTimer) clearTimeout(toastTimer);
+  toastTimer = setTimeout(() => box.classList.remove('show'), 2200);
 }
 
 function toggleCasePanel() {
@@ -47,19 +72,27 @@ async function loadDataset() {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }),
   });
   const data = await res.json();
-  if (!res.ok) return alert(data.error || '加载失败');
+  if (!res.ok) return notify(data.error || '加载失败', 'error');
   dataset = data.items;
   renderCaseList();
-  if (dataset.length) selectCase(0);
+  if (dataset.length) {
+    selectCase(0);
+    notify(`已加载 ${dataset.length} 条任务`, 'success');
+  } else {
+    notify('数据集为空', 'warn');
+  }
 }
 
 function renderCaseList() {
   const ul = document.getElementById('caseList');
   ul.innerHTML = '';
   dataset.forEach((c, i) => {
+    const st = getCaseState(c.id);
+    const progress = getCaseCompletion(st);
     const li = document.createElement('li');
     const btn = document.createElement('button');
-    btn.textContent = c.id;
+    btn.className = 'case-item';
+    btn.innerHTML = `<span>${escapeHtml(c.id)}</span><span class="case-progress">${progress}%</span>`;
     btn.onclick = () => selectCase(i);
     li.appendChild(btn);
     ul.appendChild(li);
@@ -80,6 +113,15 @@ function selectCase(idx) {
 }
 
 function goStep(s) {
+  const c = selectedCase();
+  if (!c) return notify('请先加载并选择题目', 'warn');
+  const st = getCaseState(c.id);
+  if (s >= 3 && (st.steps || []).length === 0) {
+    notify('请先完成 Step 2 的步骤切分', 'warn');
+    currentStep = 2;
+    renderStepContent();
+    return;
+  }
   currentStep = s;
   renderStepContent();
 }
@@ -89,7 +131,8 @@ function renderCurrentCase() {
   if (!c) return;
   const st = getCaseState(c.id);
   const stats = getClaimCheckStats(st);
-  document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${(c.samples || []).length}</span> <span class="pill">steps ${(st.steps || []).length}</span> <span class="pill">claims ${stats.total}</span>`;
+  const completion = getCaseCompletion(st);
+  document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${(c.samples || []).length}</span> <span class="pill">steps ${(st.steps || []).length}</span> <span class="pill">claims ${stats.total}</span> <span class="pill">progress ${completion}%</span>`;
   document.getElementById('qAndA').textContent = `题目:\n${c.question}\n\n标准答案:\n${c.reference_answer}`;
   document.getElementById('known').textContent = JSON.stringify(c.known_solutions || [], null, 2);
   renderStepContent();
@@ -105,6 +148,7 @@ function chooseSampleStatus(i, status) {
   const rec = sampleRecord(st, i);
   rec.is_correct = rec.is_correct === status ? null : status;
   renderStepContent();
+  renderCaseList();
 }
 
 function setSampleField(i, k, v) {
@@ -121,7 +165,7 @@ async function translateSample(i) {
     body: JSON.stringify({ text, target: 'zh-CN' }),
   });
   const data = await res.json();
-  if (!res.ok) return alert(data.error || '翻译失败');
+  if (!res.ok) return notify(data.error || '翻译失败', 'error');
   sampleRecord(st, i).translation = data.translated;
   renderStepContent();
 }
@@ -135,7 +179,39 @@ function selectSolution(i) {
   st.cut_points = [];
   st.steps = [];
   st.presegmented_claims = extractPresegmentedClaims(sample);
+  st.claims = [];
+  st.claim_checks = {};
+  st.dependencies = {};
   renderStepContent();
+  renderCaseList();
+}
+
+function extractPresegmentedClaims(sample) {
+  const raw = sample?.claims_by_step || sample?.step_claims || sample?.claims || [];
+  if (!Array.isArray(raw)) return [];
+  const out = [];
+  raw.forEach((item, i) => {
+    if (typeof item === 'string') {
+      const text = item.trim();
+      if (text) out.push({ id: `p${i + 1}`, text, step_idx: null });
+      return;
+    }
+    if (item && typeof item === 'object' && Array.isArray(item.claims)) {
+      const parsed = parseInt(String(item.step_id || '').replace(/[^\d]/g, ''), 10) - 1;
+      const step_idx = Number.isInteger(item.step_index) ? item.step_index : parsed;
+      (item.claims || []).forEach((c, ci) => {
+        const text = String(c || '').trim();
+        if (text) out.push({ id: `p${i + 1}_${ci + 1}`, text, step_idx: Number.isFinite(step_idx) ? step_idx : null });
+      });
+      return;
+    }
+    const text = String(item?.text || item?.claim || '').trim();
+    if (!text) return;
+    const parsed = parseInt(String(item.step_id || '').replace(/[^\d]/g, ''), 10) - 1;
+    const step_idx = Number.isInteger(item.step_index) ? item.step_index : parsed;
+    out.push({ id: `p${i + 1}`, text, step_idx: Number.isFinite(step_idx) ? step_idx : null });
+  });
+  return out;
 }
 
 function extractPresegmentedClaims(sample) {
@@ -201,9 +277,15 @@ async function updateSplitPreview() {
   const box = document.getElementById('splitPreview');
   if (box) box.textContent = JSON.stringify(st.steps, null, 2);
   const cp = document.getElementById('cutPointList');
-  if (cp) {
-    cp.innerHTML = st.cut_points.map(x => `<button onclick="removeCutPoint(${x})">位置 ${x} ×</button>`).join(' ');
-  }
+  if (cp) cp.innerHTML = st.cut_points.map(x => `<button onclick="removeCutPoint(${x})">位置 ${x} ×</button>`).join(' ');
+  renderCaseList();
+}
+
+function setClaimStep(claimIdx, stepIdx) {
+  const st = getCaseState(selectedCase().id);
+  const claim = (st.presegmented_claims || [])[claimIdx];
+  if (!claim) return;
+  claim.step_idx = stepIdx >= 0 ? stepIdx : null;
 }
 
 function organizeClaimsBySteps() {
@@ -211,12 +293,13 @@ function organizeClaimsBySteps() {
   const stepCount = (st.steps || []).length;
   st.claims = Array.from({ length: stepCount }, (_, i) => ({ step_id: `s${i + 1}`, claims: [] }));
   (st.presegmented_claims || []).forEach((claim, i) => {
-    let stepIdx = Number(document.getElementById(`claimStepSel_${i}`)?.value ?? -1);
+    const stepIdx = Number(document.getElementById(`claimStepSel_${i}`)?.value ?? -1);
     if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= stepCount) return;
     claim.step_idx = stepIdx;
     st.claims[stepIdx].claims.push((claim.text || '').trim());
   });
   renderStepContent();
+  renderCaseList();
 }
 
 function updateClaimCheck(claimId, status) {
@@ -231,6 +314,7 @@ function claimCheckTag(claimId, current, expected, label) {
 function updateClaimCheckAndRender(status, claimId) {
   updateClaimCheck(claimId, status);
   renderStepContent();
+  renderCaseList();
 }
 
 function editClaim(stepIdx, claimIdx, v) {
@@ -258,6 +342,7 @@ function toggleDep(currId, depId, checked) {
   } else {
     st.dependencies[currId] = st.dependencies[currId].filter(x => x !== depId);
   }
+  renderCaseList();
 }
 
 function buildDependencyView() {
@@ -381,7 +466,7 @@ function renderStepContent() {
         <tr>
           <td>${cl.id}</td>
           <td>${cl.text}</td>
-          <td><select id="claimStepSel_${i}">${options}</select></td>
+          <td><select id="claimStepSel_${i}" onchange="setClaimStep(${i}, Number(this.value))">${options}</select></td>
         </tr>
       `;
     });
@@ -449,7 +534,7 @@ function renderStepContent() {
 }
 
 async function saveProgress() {
-  const c = selectedCase(); if (!c) return alert('先选择问题');
+  const c = selectedCase(); if (!c) return notify('先选择问题', 'warn');
   const annotator = document.getElementById('annotator').value.trim() || 'unknown';
   const st = getCaseState(c.id);
   const payload = {
@@ -469,12 +554,13 @@ async function saveProgress() {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok) return alert(data.error || '保存失败');
-  alert(`已保存: ${data.path}`);
+  if (!res.ok) return notify(data.error || '保存失败', 'error');
+  notify(`已保存: ${data.path}`, 'success');
+  renderCaseList();
 }
 
 async function submitCase() {
-  const c = selectedCase(); if (!c) return alert('先选择问题');
+  const c = selectedCase(); if (!c) return notify('先选择问题', 'warn');
   const annotator = document.getElementById('annotator').value.trim() || 'unknown';
   const st = getCaseState(c.id);
   const payload = {
@@ -494,8 +580,9 @@ async function submitCase() {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok) return alert(data.error || '提交失败');
-  alert(`题目 ${c.id} 标注完成并自动保存`);
+  if (!res.ok) return notify(data.error || '提交失败', 'error');
+  notify(`题目 ${c.id} 标注完成并自动保存`, 'success');
+  renderCaseList();
 }
 
 async function openGuide() {
