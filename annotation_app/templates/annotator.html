@@ -5,6 +5,15 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>标注平台</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  <script>
+    window.MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']],
+        displayMath: [['$$', '$$'], ['\\[', '\\]']]
+      }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -57,11 +66,11 @@
       <div class="context-grid">
         <details open>
           <summary>题目与标准答案</summary>
-          <pre id="qAndA"></pre>
+          <div id="qAndA" class="math-text"></div>
         </details>
         <details>
           <summary>已知正确解</summary>
-          <pre id="known"></pre>
+          <div id="known" class="math-text"></div>
         </details>
         <details>
           <summary>官方指南</summary>

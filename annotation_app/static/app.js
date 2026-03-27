@@ -454,7 +454,7 @@ function renderStepContent() {
           <button onclick="translateSample(${i})">翻译</button>
           <button onclick="selectSolution(${i})">设为Step切分对象</button>
         </div>
-        <pre>${escapeHtml(s.solution || '')}</pre>
+        <div class="math-text">${escapeHtml(s.solution || '')}</div>
         ${rec.translation ? `<details open><summary>翻译结果</summary><pre>${escapeHtml(rec.translation)}</pre></details>` : ''}
         <div class="row">
           <button class="${clsCorrect}" onclick="chooseSampleStatus(${i}, true)">正确</button>
@@ -469,6 +469,7 @@ function renderStepContent() {
       </div>`;
     });
     root.innerHTML = html;
+    typesetMath(root);
     return;
   }
 
@@ -486,6 +487,9 @@ function renderStepContent() {
       <h4>切分结果（可回退：删除切分点后刷新）</h4>
       <pre id="splitPreview">${escapeHtml(JSON.stringify(pipeline.steps, null, 2))}</pre>
     `;
+    document.getElementById('solutionText')?.addEventListener('input', renderSolutionMathPreview);
+    renderSolutionMathPreview();
+    typesetMath(root);
     return;
   }
 
@@ -543,6 +547,7 @@ function renderStepContent() {
         </section>
       </div>
     `;
+    typesetMath(root);
     return;
   }
 
