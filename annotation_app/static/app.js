@@ -31,6 +31,18 @@ function typesetMath(root = document.body) {
   }
 }
 
+function renderSolutionMathPreview() {
+  const c = selectedCase();
+  if (!c) return;
+  const st = getCaseState(c.id);
+  const ta = document.getElementById('solutionText');
+  const preview = document.getElementById('solutionMathPreview');
+  if (!ta || !preview) return;
+  st.selected_solution_text = ta.value;
+  preview.innerHTML = escapeHtml(st.selected_solution_text || '');
+  typesetMath(preview);
+}
+
 function getClaimCheckStats(st) {
   const reviewed = (st.presegmented_claims || []).filter(x => x.review_status && x.review_status !== 'unchecked').length;
   const edited = (st.presegmented_claims || []).filter(x => x.review_status === 'edited').length;
@@ -445,8 +457,17 @@ function renderStepContent() {
   if (currentStep === 2) {
     root.innerHTML = `
       <h3>Step 2：Step切分（在完整 solution 上打点）</h3>
-      <p>当前切分对象：sample-${(st.selected_solution_idx || 0) + 1}。在下方文本中将光标移动到切分位置后点击“添加切分点”。</p>
-      <textarea id="solutionText" class="full-solution">${escapeHtml(st.selected_solution_text || '')}</textarea>
+      <p>当前切分对象：sample-${(st.selected_solution_idx || 0) + 1}。左侧编辑原始文本并打点，右侧实时查看 LaTeX 渲染结果，提升可读性。</p>
+      <div class="solution-edit-grid">
+        <section>
+          <h4>原始文本（用于切分）</h4>
+          <textarea id="solutionText" class="full-solution">${escapeHtml(st.selected_solution_text || '')}</textarea>
+        </section>
+        <section>
+          <h4>数学渲染预览（只读）</h4>
+          <div id="solutionMathPreview" class="math-text full-solution"></div>
+        </section>
+      </div>
       <div class="row">
         <button onclick="addCutPoint()">添加切分点</button>
         <button onclick="updateSplitPreview()">刷新预览</button>
@@ -455,6 +476,8 @@ function renderStepContent() {
       <h4>切分结果（可回退：删除切分点后刷新）</h4>
       <pre id="splitPreview">${escapeHtml(JSON.stringify(st.steps, null, 2))}</pre>
     `;
+    document.getElementById('solutionText')?.addEventListener('input', renderSolutionMathPreview);
+    renderSolutionMathPreview();
     typesetMath(root);
     return;
   }

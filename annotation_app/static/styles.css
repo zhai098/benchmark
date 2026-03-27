@@ -43,6 +43,9 @@ pre { white-space: pre-wrap; background: #f1f5f9; border: 1px solid var(--line);
 .kpi small { color: var(--muted); display: block; margin-bottom: 4px; }
 .kpi b { font-size: 20px; }
 .full-solution { width: 100%; min-height: 260px; }
+.solution-edit-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; }
+.solution-edit-grid section h4 { margin: 0 0 8px; }
+.solution-edit-grid .math-text { overflow: auto; }
 .claim-row { display: flex; gap: 8px; align-items: center; }
 .claim-id { display: inline-block; min-width: 36px; text-align: center; border: 1px solid #c7d2fe; border-radius: 999px; padding: 2px 8px; color: #3730a3; background: #eef2ff; }
 .claim-input { width: 100%; }
@@ -76,6 +79,7 @@ tbody tr:hover { background: #fafcff; }
 @media (max-width: 1200px) {
   .split-compare { grid-template-columns: 1fr; }
   .split-reference { position: static; max-height: none; }
+  .solution-edit-grid { grid-template-columns: 1fr; }
 }
 
 @media (max-width: 960px) {
