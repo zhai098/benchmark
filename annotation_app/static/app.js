@@ -9,12 +9,7 @@ function getCaseState(caseId) {
     stateByCase[caseId] = {
       sample_validation: [],
       selected_solution_idx: 0,
-      selected_solution_text: '',
-      cut_points: [],
-      steps: [],
-      presegmented_claims: [],
-      claims: [],
-      dependencies: {},
+      sample_pipelines: {},
     };
   }
   return stateByCase[caseId];
@@ -25,22 +20,27 @@ function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 
-function typesetMath(root = document.body) {
-  if (window.MathJax?.typesetPromise) {
-    window.MathJax.typesetPromise([root]).catch(() => {});
+function ensureSamplePipeline(st, sampleIdx, sample) {
+  const key = String(sampleIdx);
+  if (!st.sample_pipelines[key]) {
+    st.sample_pipelines[key] = {
+      selected_solution_text: sample?.solution || '',
+      cut_points: [],
+      steps: [],
+      presegmented_claims: extractPresegmentedClaims(sample || {}),
+      claims: [],
+      dependencies: {},
+    };
   }
+  return st.sample_pipelines[key];
 }
 
-function renderSolutionMathPreview() {
+function currentPipeline() {
   const c = selectedCase();
-  if (!c) return;
+  if (!c) return null;
   const st = getCaseState(c.id);
-  const ta = document.getElementById('solutionText');
-  const preview = document.getElementById('solutionMathPreview');
-  if (!ta || !preview) return;
-  st.selected_solution_text = ta.value;
-  preview.innerHTML = escapeHtml(st.selected_solution_text || '');
-  typesetMath(preview);
+  const idx = st.selected_solution_idx || 0;
+  return ensureSamplePipeline(st, idx, (c.samples || [])[idx] || {});
 }
 
 function getClaimCheckStats(st) {
@@ -59,12 +59,14 @@ function getClaimCheckStats(st) {
 }
 
 function getCaseCompletion(st) {
+  const pipelineList = Object.values(st.sample_pipelines || {});
+  const current = pipelineList[st.selected_solution_idx || 0] || pipelineList[0] || {};
   const sampleDone = (st.sample_validation || []).some(x => x && x.is_correct !== null) ? 1 : 0;
-  const stepDone = (st.steps || []).length > 0 ? 1 : 0;
-  const claimMapped = (st.claims || []).some(x => (x.claims || []).length > 0) ? 1 : 0;
-  const check = getClaimCheckStats(st);
+  const stepDone = (current.steps || []).length > 0 ? 1 : 0;
+  const claimMapped = (current.claims || []).some(x => (x.claims || []).length > 0) ? 1 : 0;
+  const check = getClaimCheckStats(current);
   const claimChecked = check.totalClaims > 0 && check.reviewed === check.totalClaims ? 1 : 0;
-  const depDone = Object.keys(st.dependencies || {}).length > 0 ? 1 : 0;
+  const depDone = Object.keys(current.dependencies || {}).length > 0 ? 1 : 0;
   return Math.round(((sampleDone + stepDone + claimMapped + claimChecked + depDone) / 5) * 100);
 }
 
@@ -136,19 +138,16 @@ function selectCase(idx) {
   currentStep = 1;
   const c = selectedCase();
   const st = getCaseState(c.id);
-  if (!st.selected_solution_text && (c.samples || []).length) {
-    st.selected_solution_idx = 0;
-    st.selected_solution_text = c.samples[0].solution || '';
-    st.presegmented_claims = extractPresegmentedClaims(c.samples[0] || {});
-  }
+  if ((c.samples || []).length) st.selected_solution_idx = st.selected_solution_idx || 0;
+  (c.samples || []).forEach((sample, i) => ensureSamplePipeline(st, i, sample));
   renderCurrentCase();
 }
 
 function goStep(s) {
   const c = selectedCase();
   if (!c) return notify('请先加载并选择题目', 'warn');
-  const st = getCaseState(c.id);
-  if (s >= 3 && (st.steps || []).length === 0) {
+  const pipeline = currentPipeline();
+  if (s >= 3 && (pipeline?.steps || []).length === 0) {
     notify('请先完成 Step 2 的步骤切分', 'warn');
     currentStep = 2;
     renderStepContent();
@@ -162,12 +161,12 @@ function renderCurrentCase() {
   const c = selectedCase();
   if (!c) return;
   const st = getCaseState(c.id);
-  const stats = getClaimCheckStats(st);
+  const pipeline = currentPipeline() || {};
+  const stats = getClaimCheckStats(pipeline);
   const completion = getCaseCompletion(st);
-  document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${(c.samples || []).length}</span> <span class="pill">steps ${(st.steps || []).length}</span> <span class="pill">claims ${stats.totalClaims}</span> <span class="pill">progress ${completion}%</span>`;
-  document.getElementById('qAndA').innerHTML = `题目:\n${escapeHtml(c.question)}\n\n标准答案:\n${escapeHtml(c.reference_answer)}`;
-  document.getElementById('known').innerHTML = escapeHtml(JSON.stringify(c.known_solutions || [], null, 2));
-  typesetMath(document.getElementById('contextModal'));
+  document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${(c.samples || []).length}</span> <span class="pill">当前sample ${Number(st.selected_solution_idx || 0) + 1}</span> <span class="pill">steps ${(pipeline.steps || []).length}</span> <span class="pill">claims ${stats.totalClaims}</span> <span class="pill">progress ${completion}%</span>`;
+  document.getElementById('qAndA').textContent = `题目:\n${c.question}\n\n标准答案:\n${c.reference_answer}`;
+  document.getElementById('known').textContent = JSON.stringify(c.known_solutions || [], null, 2);
   renderStepContent();
 }
 
@@ -206,14 +205,8 @@ async function translateSample(i) {
 function selectSolution(i) {
   const c = selectedCase();
   const st = getCaseState(c.id);
-  const sample = (c.samples || [])[i] || {};
   st.selected_solution_idx = i;
-  st.selected_solution_text = sample.solution || '';
-  st.cut_points = [];
-  st.steps = [];
-  st.presegmented_claims = extractPresegmentedClaims(sample);
-  st.claims = [];
-  st.dependencies = {};
+  ensureSamplePipeline(st, i, (c.samples || [])[i] || {});
   renderStepContent();
   renderCaseList();
 }
@@ -249,64 +242,70 @@ function extractPresegmentedClaims(sample) {
 }
 
 function addCutPoint() {
-  const c = selectedCase();
-  const st = getCaseState(c.id);
+  const p = currentPipeline();
+  if (!p) return;
   const ta = document.getElementById('solutionText');
   if (!ta) return;
   const pos = ta.selectionStart;
-  if (pos > 0 && pos < (st.selected_solution_text || '').length && !st.cut_points.includes(pos)) {
-    st.cut_points.push(pos);
-    st.cut_points.sort((a, b) => a - b);
+  p.selected_solution_text = ta.value;
+  if (pos > 0 && pos < (p.selected_solution_text || '').length && !p.cut_points.includes(pos)) {
+    p.cut_points.push(pos);
+    p.cut_points.sort((a, b) => a - b);
     updateSplitPreview();
   }
 }
 
 function removeCutPoint(p) {
-  const st = getCaseState(selectedCase().id);
-  st.cut_points = st.cut_points.filter(x => x !== p);
+  const pipeline = currentPipeline();
+  if (!pipeline) return;
+  pipeline.cut_points = pipeline.cut_points.filter(x => x !== p);
   updateSplitPreview();
 }
 
 async function updateSplitPreview() {
-  const st = getCaseState(selectedCase().id);
+  const pipeline = currentPipeline();
+  if (!pipeline) return;
+  const ta = document.getElementById('solutionText');
+  if (ta) pipeline.selected_solution_text = ta.value;
   const res = await fetch('/api/split_steps', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ solution: st.selected_solution_text, cut_points: st.cut_points }),
+    body: JSON.stringify({ solution: pipeline.selected_solution_text, cut_points: pipeline.cut_points }),
   });
   const data = await res.json();
-  st.steps = (data.steps || []).map((text, i) => ({ id: `s${i + 1}`, text }));
+  pipeline.steps = (data.steps || []).map((text, i) => ({ id: `s${i + 1}`, text }));
   const box = document.getElementById('splitPreview');
-  if (box) box.textContent = JSON.stringify(st.steps, null, 2);
+  if (box) box.textContent = JSON.stringify(pipeline.steps, null, 2);
   const cp = document.getElementById('cutPointList');
-  if (cp) cp.innerHTML = st.cut_points.map(x => `<button onclick="removeCutPoint(${x})">位置 ${x} ×</button>`).join(' ');
+  if (cp) cp.innerHTML = pipeline.cut_points.map(x => `<button onclick="removeCutPoint(${x})">位置 ${x} ×</button>`).join(' ');
   renderCaseList();
 }
 
 function setClaimStep(claimIdx, stepIdx) {
-  const st = getCaseState(selectedCase().id);
-  const claim = (st.presegmented_claims || [])[claimIdx];
+  const pipeline = currentPipeline();
+  const claim = (pipeline?.presegmented_claims || [])[claimIdx];
   if (!claim) return;
   claim.step_idx = stepIdx >= 0 ? stepIdx : null;
 }
 
 function organizeClaimsBySteps() {
-  const st = getCaseState(selectedCase().id);
-  const stepCount = (st.steps || []).length;
-  st.claims = Array.from({ length: stepCount }, (_, i) => ({ step_id: `s${i + 1}`, claims: [] }));
-  (st.presegmented_claims || []).forEach((claim, i) => {
+  const pipeline = currentPipeline();
+  if (!pipeline) return;
+  const stepCount = (pipeline.steps || []).length;
+  pipeline.claims = Array.from({ length: stepCount }, (_, i) => ({ step_id: `s${i + 1}`, claims: [] }));
+  (pipeline.presegmented_claims || []).forEach((claim, i) => {
     const stepIdx = Number(document.getElementById(`claimStepSel_${i}`)?.value ?? -1);
     if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= stepCount) return;
     claim.step_idx = stepIdx;
     const finalText = (claim.review_status === 'edited' ? claim.edited_text : claim.text) || '';
-    st.claims[stepIdx].claims.push(finalText.trim());
+    pipeline.claims[stepIdx].claims.push(finalText.trim());
   });
   renderStepContent();
   renderCaseList();
 }
 
 function setClaimReviewStatus(claimIdx, status) {
-  const st = getCaseState(selectedCase().id);
-  const claim = (st.presegmented_claims || [])[claimIdx];
+  const pipeline = currentPipeline();
+  const claim = (pipeline?.presegmented_claims || [])[claimIdx];
   if (!claim) return;
   claim.review_status = status;
   if (status === 'ok') claim.edited_text = claim.text;
@@ -319,18 +318,22 @@ function setClaimReviewStatusAndRender(claimIdx, status) {
 }
 
 function setClaimEditedText(claimIdx, v) {
-  const st = getCaseState(selectedCase().id);
-  const claim = (st.presegmented_claims || [])[claimIdx];
+  const pipeline = currentPipeline();
+  const claim = (pipeline?.presegmented_claims || [])[claimIdx];
   if (!claim) return;
   claim.edited_text = v;
 }
 
 function editClaim(stepIdx, claimIdx, v) {
-  getCaseState(selectedCase().id).claims[stepIdx].claims[claimIdx] = v;
+  const pipeline = currentPipeline();
+  if (!pipeline?.claims?.[stepIdx]) return;
+  pipeline.claims[stepIdx].claims[claimIdx] = v;
 }
 
 function addClaim(stepIdx) {
-  getCaseState(selectedCase().id).claims[stepIdx].claims.push('');
+  const pipeline = currentPipeline();
+  if (!pipeline?.claims?.[stepIdx]) return;
+  pipeline.claims[stepIdx].claims.push('');
   renderStepContent();
 }
 
@@ -343,19 +346,20 @@ function flattenClaimsByStep(claims) {
 }
 
 function toggleDep(currId, depId, checked) {
-  const st = getCaseState(selectedCase().id);
-  st.dependencies[currId] = st.dependencies[currId] || [];
+  const pipeline = currentPipeline();
+  if (!pipeline) return;
+  pipeline.dependencies[currId] = pipeline.dependencies[currId] || [];
   if (checked) {
-    if (!st.dependencies[currId].includes(depId)) st.dependencies[currId].push(depId);
+    if (!pipeline.dependencies[currId].includes(depId)) pipeline.dependencies[currId].push(depId);
   } else {
-    st.dependencies[currId] = st.dependencies[currId].filter(x => x !== depId);
+    pipeline.dependencies[currId] = pipeline.dependencies[currId].filter(x => x !== depId);
   }
   renderCaseList();
 }
 
 function buildDependencyView() {
-  const st = getCaseState(selectedCase().id);
-  const grouped = flattenClaimsByStep(st.claims);
+  const pipeline = currentPipeline();
+  const grouped = flattenClaimsByStep(pipeline?.claims || []);
   let html = '<h3>Step 4：依赖关系（按当前 Step 逐条标注）</h3>';
 
   grouped.forEach((currStep, sIdx) => {
@@ -369,7 +373,7 @@ function buildDependencyView() {
         if (!candidates.length) continue;
         html += `<details><summary>前序 Step ${ps + 1}（${candidates.length}条）</summary>`;
         candidates.forEach(cand => {
-          const deps = st.dependencies[curr.id] || [];
+          const deps = pipeline.dependencies[curr.id] || [];
           const checked = deps.includes(cand.id) ? 'checked' : '';
           html += `<label class="dep-option"><input type="checkbox" ${checked} onchange="toggleDep('${curr.id}','${cand.id}',this.checked)"> <span>${cand.id}</span> ${escapeHtml(cand.text)}</label>`;
         });
@@ -385,27 +389,30 @@ function buildDependencyView() {
 function buildSummaryView() {
   const c = selectedCase();
   const st = getCaseState(c.id);
-  const stats = getClaimCheckStats(st);
+  const pipeline = currentPipeline() || {};
+  const stats = getClaimCheckStats(pipeline);
   return `
     <h3>Step 5：提交前总览</h3>
     <p>请检查以下结果无误后提交：</p>
     <div class="kpi-grid">
-      <div class="kpi"><small>Step 数</small><b>${(st.steps || []).length}</b></div>
+      <div class="kpi"><small>当前 sample</small><b>${Number(st.selected_solution_idx || 0) + 1}</b></div>
+      <div class="kpi"><small>Step 数</small><b>${(pipeline.steps || []).length}</b></div>
       <div class="kpi"><small>Claim 总数</small><b>${stats.totalClaims}</b></div>
       <div class="kpi"><small>已校验 Claim</small><b>${stats.reviewed}</b></div>
       <div class="kpi"><small>待归属 Claim</small><b>${stats.unmapped}</b></div>
     </div>
     <h4>多采样验证</h4><pre>${JSON.stringify(st.sample_validation, null, 2)}</pre>
-    <h4>Step切分（来自完整 solution 的切分点）</h4><pre>${JSON.stringify({ solution_index: st.selected_solution_idx, cut_points: st.cut_points, steps: st.steps }, null, 2)}</pre>
-    <h4>Claim整理结果（按 step）</h4><pre>${JSON.stringify(st.claims, null, 2)}</pre>
-    <h4>Claim检查（原始/修改）</h4><pre>${JSON.stringify(st.presegmented_claims, null, 2)}</pre>
-    <h4>依赖关系</h4><pre>${JSON.stringify(st.dependencies, null, 2)}</pre>
+    <h4>Step切分（当前 sample）</h4><pre>${JSON.stringify({ solution_index: st.selected_solution_idx, cut_points: pipeline.cut_points, steps: pipeline.steps }, null, 2)}</pre>
+    <h4>Claim整理结果（当前 sample）</h4><pre>${JSON.stringify(pipeline.claims, null, 2)}</pre>
+    <h4>Claim检查（当前 sample）</h4><pre>${JSON.stringify(pipeline.presegmented_claims, null, 2)}</pre>
+    <h4>依赖关系（当前 sample）</h4><pre>${JSON.stringify(pipeline.dependencies, null, 2)}</pre>
+    <h4>全部 sample pipeline</h4><pre>${JSON.stringify(st.sample_pipelines || {}, null, 2)}</pre>
     <button class="primary" onclick="submitCase()">确认提交当前问题</button>
   `;
 }
 
-function buildStepSplitCompact(st) {
-  return (st.steps || []).map((step, i) => `
+function buildStepSplitCompact(pipeline) {
+  return (pipeline.steps || []).map((step, i) => `
     <details class="step-mini" ${i === 0 ? 'open' : ''}>
       <summary>Step ${i + 1}</summary>
       <pre>${escapeHtml(step.text)}</pre>
@@ -417,9 +424,21 @@ function renderStepContent() {
   const c = selectedCase();
   if (!c) return;
   const st = getCaseState(c.id);
+  const pipeline = currentPipeline() || ensureSamplePipeline(st, 0, (c.samples || [])[0] || {});
   const root = document.getElementById('stepContent');
   const navButtons = document.querySelectorAll('.step-btn');
   navButtons.forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.step) === currentStep));
+
+  const sampleSelector = (currentStep >= 2) ? `
+    <div class="row">
+      <label>当前 pipeline sample：
+        <select onchange="selectSolution(Number(this.value))">
+          ${(c.samples || []).map((_, i) => `<option value="${i}" ${Number(st.selected_solution_idx || 0) === i ? 'selected' : ''}>sample-${i + 1}</option>`).join('')}
+        </select>
+      </label>
+      <small class="muted">每个 sample 的 Step/Claim/依赖会独立保存。</small>
+    </div>
+  ` : '';
 
   if (currentStep === 1) {
     let html = '<h3>Step 1：多采样验证（可回退）</h3><p>点击“正确/错误”可切换，再次点击可撤销为未判定。</p>';
@@ -457,24 +476,16 @@ function renderStepContent() {
   if (currentStep === 2) {
     root.innerHTML = `
       <h3>Step 2：Step切分（在完整 solution 上打点）</h3>
-      <p>当前切分对象：sample-${(st.selected_solution_idx || 0) + 1}。左侧编辑原始文本并打点，右侧实时查看 LaTeX 渲染结果，提升可读性。</p>
-      <div class="solution-edit-grid">
-        <section>
-          <h4>原始文本（用于切分）</h4>
-          <textarea id="solutionText" class="full-solution">${escapeHtml(st.selected_solution_text || '')}</textarea>
-        </section>
-        <section>
-          <h4>数学渲染预览（只读）</h4>
-          <div id="solutionMathPreview" class="math-text full-solution"></div>
-        </section>
-      </div>
+      ${sampleSelector}
+      <p>当前切分对象：sample-${(st.selected_solution_idx || 0) + 1}。请基于该 sample 原文进行切分。</p>
+      <textarea id="solutionText" class="full-solution">${escapeHtml(pipeline.selected_solution_text || '')}</textarea>
       <div class="row">
         <button onclick="addCutPoint()">添加切分点</button>
         <button onclick="updateSplitPreview()">刷新预览</button>
       </div>
       <div id="cutPointList" class="row"></div>
       <h4>切分结果（可回退：删除切分点后刷新）</h4>
-      <pre id="splitPreview">${escapeHtml(JSON.stringify(st.steps, null, 2))}</pre>
+      <pre id="splitPreview">${escapeHtml(JSON.stringify(pipeline.steps, null, 2))}</pre>
     `;
     document.getElementById('solutionText')?.addEventListener('input', renderSolutionMathPreview);
     renderSolutionMathPreview();
@@ -483,8 +494,8 @@ function renderStepContent() {
   }
 
   if (currentStep === 3) {
-    const stepCount = (st.steps || []).length;
-    const claims = st.presegmented_claims || [];
+    const stepCount = (pipeline.steps || []).length;
+    const claims = pipeline.presegmented_claims || [];
     const unassigned = claims.filter(x => !Number.isInteger(x.step_idx) || x.step_idx < 0).length;
     const unchecked = claims.filter(x => !x.review_status || x.review_status === 'unchecked').length;
     let rows = '';
@@ -511,11 +522,12 @@ function renderStepContent() {
     });
     root.innerHTML = `
       <h3>Step 3-4：Claim检查与Step归属（合并）</h3>
+      ${sampleSelector}
       <p>先判断 claim 是否正确；如不正确先修改文本，再进行 Step 归属。</p>
       <div class="split-compare">
         <aside class="split-reference">
           <h4>Step 切分参考</h4>
-          ${buildStepSplitCompact(st)}
+          ${buildStepSplitCompact(pipeline)}
         </aside>
         <section>
           <div class="kpi-grid">
@@ -531,7 +543,7 @@ function renderStepContent() {
           <div class="row">
             <button class="primary" onclick="organizeClaimsBySteps()">保存并生成 Step-Claim 结构</button>
           </div>
-          <pre>${escapeHtml(JSON.stringify(st.claims, null, 2))}</pre>
+          <pre>${escapeHtml(JSON.stringify(pipeline.claims, null, 2))}</pre>
         </section>
       </div>
     `;
@@ -540,14 +552,12 @@ function renderStepContent() {
   }
 
   if (currentStep === 4) {
-    root.innerHTML = buildDependencyView();
-    typesetMath(root);
+    root.innerHTML = `${sampleSelector}${buildDependencyView()}`;
     return;
   }
 
   if (currentStep === 5) {
-    root.innerHTML = buildSummaryView();
-    typesetMath(root);
+    root.innerHTML = `${sampleSelector}${buildSummaryView()}`;
   }
 }
 
@@ -560,12 +570,7 @@ async function saveProgress() {
     case_id: c.id,
     sample_validation: st.sample_validation,
     selected_solution_idx: st.selected_solution_idx,
-    selected_solution_text: st.selected_solution_text,
-    cut_points: st.cut_points,
-    steps: st.steps,
-    presegmented_claims: st.presegmented_claims,
-    claims: st.claims,
-    dependencies: st.dependencies,
+    sample_pipelines: st.sample_pipelines,
     status: 'in_progress',
   };
   const res = await fetch('/api/save_record', {
@@ -586,12 +591,7 @@ async function submitCase() {
     case_id: c.id,
     sample_validation: st.sample_validation,
     selected_solution_idx: st.selected_solution_idx,
-    selected_solution_text: st.selected_solution_text,
-    cut_points: st.cut_points,
-    steps: st.steps,
-    presegmented_claims: st.presegmented_claims,
-    claims: st.claims,
-    dependencies: st.dependencies,
+    sample_pipelines: st.sample_pipelines,
     status: 'completed',
   };
   const res = await fetch('/api/save_record', {
