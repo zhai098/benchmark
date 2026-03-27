@@ -25,6 +25,12 @@ function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 
+function typesetMath(root = document.body) {
+  if (window.MathJax?.typesetPromise) {
+    window.MathJax.typesetPromise([root]).catch(() => {});
+  }
+}
+
 function getClaimCheckStats(st) {
   const reviewed = (st.presegmented_claims || []).filter(x => x.review_status && x.review_status !== 'unchecked').length;
   const edited = (st.presegmented_claims || []).filter(x => x.review_status === 'edited').length;
@@ -147,8 +153,9 @@ function renderCurrentCase() {
   const stats = getClaimCheckStats(st);
   const completion = getCaseCompletion(st);
   document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${(c.samples || []).length}</span> <span class="pill">steps ${(st.steps || []).length}</span> <span class="pill">claims ${stats.totalClaims}</span> <span class="pill">progress ${completion}%</span>`;
-  document.getElementById('qAndA').textContent = `题目:\n${c.question}\n\n标准答案:\n${c.reference_answer}`;
-  document.getElementById('known').textContent = JSON.stringify(c.known_solutions || [], null, 2);
+  document.getElementById('qAndA').innerHTML = `题目:\n${escapeHtml(c.question)}\n\n标准答案:\n${escapeHtml(c.reference_answer)}`;
+  document.getElementById('known').innerHTML = escapeHtml(JSON.stringify(c.known_solutions || [], null, 2));
+  typesetMath(document.getElementById('contextModal'));
   renderStepContent();
 }
 
@@ -416,7 +423,7 @@ function renderStepContent() {
           <button onclick="translateSample(${i})">翻译</button>
           <button onclick="selectSolution(${i})">设为Step切分对象</button>
         </div>
-        <pre>${escapeHtml(s.solution || '')}</pre>
+        <div class="math-text">${escapeHtml(s.solution || '')}</div>
         ${rec.translation ? `<details open><summary>翻译结果</summary><pre>${escapeHtml(rec.translation)}</pre></details>` : ''}
         <div class="row">
           <button class="${clsCorrect}" onclick="chooseSampleStatus(${i}, true)">正确</button>
@@ -431,6 +438,7 @@ function renderStepContent() {
       </div>`;
     });
     root.innerHTML = html;
+    typesetMath(root);
     return;
   }
 
@@ -447,6 +455,7 @@ function renderStepContent() {
       <h4>切分结果（可回退：删除切分点后刷新）</h4>
       <pre id="splitPreview">${escapeHtml(JSON.stringify(st.steps, null, 2))}</pre>
     `;
+    typesetMath(root);
     return;
   }
 
@@ -503,16 +512,19 @@ function renderStepContent() {
         </section>
       </div>
     `;
+    typesetMath(root);
     return;
   }
 
   if (currentStep === 4) {
     root.innerHTML = buildDependencyView();
+    typesetMath(root);
     return;
   }
 
   if (currentStep === 5) {
     root.innerHTML = buildSummaryView();
+    typesetMath(root);
   }
 }
 
