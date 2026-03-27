@@ -293,6 +293,12 @@ function setClaimReviewStatus(claimIdx, status) {
   if (status === 'ok') claim.edited_text = claim.text;
 }
 
+function setClaimReviewStatusAndRender(claimIdx, status) {
+  setClaimReviewStatus(claimIdx, status);
+  renderStepContent();
+  renderCaseList();
+}
+
 function setClaimEditedText(claimIdx, v) {
   const st = getCaseState(selectedCase().id);
   const claim = (st.presegmented_claims || [])[claimIdx];
@@ -462,8 +468,8 @@ function renderStepContent() {
           <td>${escapeHtml(cl.text)}</td>
           <td>
             <div class="row">
-              <label><input type="radio" name="claimReview_${i}" value="ok" ${status === 'ok' ? 'checked' : ''} onchange="setClaimReviewStatus(${i}, 'ok')"> 正确</label>
-              <label><input type="radio" name="claimReview_${i}" value="edited" ${status === 'edited' ? 'checked' : ''} onchange="setClaimReviewStatus(${i}, 'edited')"> 需修改</label>
+              <label><input type="radio" name="claimReview_${i}" value="ok" ${status === 'ok' ? 'checked' : ''} onchange="setClaimReviewStatusAndRender(${i}, 'ok')"> 正确</label>
+              <label><input type="radio" name="claimReview_${i}" value="edited" ${status === 'edited' ? 'checked' : ''} onchange="setClaimReviewStatusAndRender(${i}, 'edited')"> 需修改</label>
             </div>
             <input value="${escapeHtml(cl.edited_text || cl.text || '')}" ${status === 'edited' ? '' : 'disabled'} oninput="setClaimEditedText(${i}, this.value)">
           </td>
