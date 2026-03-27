@@ -3,6 +3,7 @@ const state = {
   datasetPath: "",
   taskId: null,
   task: null,
+  activeStage: 0,
   local: {
     sample_reviews: [],
     method_categories: ["与已知解同方法", "等价变体"],
@@ -17,13 +18,17 @@ const $ = (id) => document.getElementById(id);
 const tabs = [...document.querySelectorAll('.tab')];
 
 function switchStep(idx) {
+  state.activeStage = idx;
   tabs.forEach(t => t.classList.toggle('active', Number(t.dataset.step) === idx));
   for (let i = 0; i <= 4; i++) {
     $("stage" + i).classList.toggle('hidden', i !== idx);
   }
 }
 
-tabs.forEach(t => t.addEventListener('click', () => switchStep(Number(t.dataset.step))));
+tabs.forEach(t => t.addEventListener('click', (e) => {
+  e.preventDefault();
+  switchStep(Number(t.dataset.step));
+}));
 
 async function api(path, options = {}) {
   const res = await fetch(path, { headers: { 'Content-Type': 'application/json' }, ...options });
@@ -128,19 +133,76 @@ function renderSteps() {
 function renderClaims() {
   const box = $('claimEditor');
   box.innerHTML = '';
+
+  const steps = state.local.step_segments || [];
+  state.local.claims.forEach((claim) => {
+    if (!claim.review_status) claim.review_status = 'accepted';
+    if (typeof claim.original_text !== 'string') claim.original_text = claim.text || '';
+    if (claim.review_status === 'accepted') claim.text = claim.original_text;
+    if (typeof claim.step_index !== 'number' || claim.step_index < 0 || claim.step_index >= steps.length) {
+      claim.step_index = 0;
+    }
+  });
+
+  const title = document.createElement('p');
+  title.className = 'muted';
+  title.textContent = '请先逐条判断 claim 是否正确；若不正确可修改文本，再确认该 claim 对应的 step。';
+  box.appendChild(title);
+
   state.local.claims.forEach((c, idx) => {
     const div = document.createElement('div');
     div.className = 'claim-row';
-    div.innerHTML = `<small>Claim ${c.claim_id} (Step ${c.step_index + 1})</small><textarea rows="2">${c.text}</textarea><button class="secondary">删除</button>`;
-    div.querySelector('textarea').oninput = (e) => state.local.claims[idx].text = e.target.value;
+    const options = steps.map((step, sidx) => {
+      const stepPreview = step.length > 24 ? `${step.slice(0, 24)}...` : step;
+      return `<option value="${sidx}" ${c.step_index === sidx ? 'selected' : ''}>Step ${sidx + 1} · ${stepPreview}</option>`;
+    }).join('');
+    div.innerHTML = `
+      <small>Claim ${c.claim_id}</small>
+      <pre class="claim-origin">原始: ${c.original_text || ''}</pre>
+      <div class="flex">
+        <label><input type="radio" name="claim_status_${idx}" value="accepted" ${c.review_status === 'accepted' ? 'checked' : ''}/> 正确</label>
+        <label><input type="radio" name="claim_status_${idx}" value="edited" ${c.review_status === 'edited' ? 'checked' : ''}/> 需修改</label>
+      </div>
+      <label>修改后的 claim
+        <textarea rows="2" ${c.review_status === 'edited' ? '' : 'disabled'}>${c.review_status === 'edited' ? (c.text || '') : (c.original_text || '')}</textarea>
+      </label>
+      <label>Step 归属
+        <select ${steps.length === 0 ? 'disabled' : ''}>
+          ${options || '<option value="0">请先完成 Step 切分</option>'}
+        </select>
+      </label>
+      <button type="button" class="secondary">删除</button>
+    `;
+    const statusInputs = div.querySelectorAll(`input[name="claim_status_${idx}"]`);
+    statusInputs.forEach(input => {
+      input.onchange = () => {
+        c.review_status = input.value;
+        if (c.review_status === 'accepted') c.text = c.original_text || c.text;
+        renderClaims();
+        renderDependencies();
+      };
+    });
+    div.querySelector('textarea').oninput = (e) => {
+      if (c.review_status === 'edited') state.local.claims[idx].text = e.target.value;
+    };
+    div.querySelector('select').onchange = (e) => {
+      state.local.claims[idx].step_index = Number(e.target.value) || 0;
+    };
     div.querySelector('button').onclick = () => { state.local.claims.splice(idx, 1); renderClaims(); renderDependencies(); };
     box.appendChild(div);
   });
   const add = document.createElement('button');
+  add.type = 'button';
   add.textContent = '新增 claim';
   add.className = 'ghost';
   add.onclick = () => {
-    state.local.claims.push({ claim_id: `custom-${Date.now()}`, step_index: 0, text: '' });
+    state.local.claims.push({
+      claim_id: `custom-${Date.now()}`,
+      step_index: 0,
+      text: '',
+      original_text: '',
+      review_status: 'edited'
+    });
     renderClaims();
   };
   box.appendChild(add);
@@ -184,6 +246,7 @@ async function loadTask(taskId) {
   renderSteps();
   renderClaims();
   renderDependencies();
+  switchStep(state.activeStage);
 }
 
 $('initBtn').onclick = async () => {
