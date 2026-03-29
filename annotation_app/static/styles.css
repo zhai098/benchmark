@@ -30,6 +30,11 @@ button.secondary { background: var(--primary-soft); color: #1d4ed8; border-color
 .step-nav { position: sticky; top: 10px; z-index: 8; display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; background: rgba(255,255,255,0.9); border: 1px solid var(--line); border-radius: 12px; padding: 8px; backdrop-filter: blur(3px); }
 .step-btn.active { background: var(--primary-soft); border-color: #93c5fd; color: #1d4ed8; font-weight: 600; }
 pre { white-space: pre-wrap; background: #f1f5f9; border: 1px solid var(--line); border-radius: 8px; padding: 10px; }
+.math-text { white-space: pre-wrap; background: linear-gradient(180deg, #ffffff, #f8fbff); border: 1px solid #cfe0ff; border-radius: 10px; padding: 12px; line-height: 1.7; }
+.copy-btn { background: #eef2ff; color: #1d4ed8; border-color: #c7d2fe; }
+.verified-panel { border: 1px solid #bfdbfe; background: #eff6ff; border-radius: 12px; padding: 10px; margin-bottom: 10px; }
+.verified-item { display: flex; justify-content: space-between; align-items: center; padding: 6px 0; border-top: 1px dashed #bfdbfe; }
+.verified-item:first-of-type { border-top: none; }
 .card { border: 1px solid var(--line); border-radius: 10px; padding: 10px; margin-bottom: 10px; background: #fff; }
 .card-head { display: flex; justify-content: space-between; align-items: center; gap: 6px; }
 .row { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; margin-top: 6px; }

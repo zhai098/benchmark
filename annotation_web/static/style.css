@@ -15,6 +15,7 @@ button.ghost { background: transparent; color:#1f4db8; border:1px solid #1f4db8;
 .sample-card { border:1px solid #d9dfec; border-radius:8px; padding:10px; margin-bottom:10px; }
 .flex { display:flex; gap:8px; align-items:center; }
 .claim-row { border:1px dashed #c2cadb; border-radius:8px; padding:8px; margin:8px 0; }
+.claim-origin { margin: 6px 0; }
 small.muted { color:#667085; }
 pre { white-space: pre-wrap; background:#f8f9fc; border-radius:8px; padding:8px; border:1px solid #e3e8f3; }
 .review-grid { display:grid; grid-template-columns: 1fr 1fr; gap:12px; }

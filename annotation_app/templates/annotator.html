@@ -5,6 +5,12 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>标注平台</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+  <script>
+    window.MathJax = {
+      tex: { inlineMath: [['$', '$'], ['\\(', '\\)']], displayMath: [['$$', '$$'], ['\\[', '\\]']] }
+    };
+  </script>
+  <script defer src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-chtml.js"></script>
 </head>
 <body>
   <header class="topbar">
@@ -17,7 +23,7 @@
       <button onclick="loadDataset()">加载数据</button>
       <button onclick="toggleCasePanel()">显示/隐藏任务列表</button>
       <button onclick="saveProgress()">手动保存</button>
-      <button class="primary" onclick="goStep(6)">提交前总览</button>
+      <button class="primary" onclick="goStep(5)">提交前总览</button>
     </div>
   </header>
 
@@ -39,10 +45,9 @@
       <div class="step-nav">
         <button class="step-btn" data-step="1" onclick="goStep(1)">1 多采样验证</button>
         <button class="step-btn" data-step="2" onclick="goStep(2)">2 Step切分</button>
-        <button class="step-btn" data-step="3" onclick="goStep(3)">3 Claim整理</button>
-        <button class="step-btn" data-step="4" onclick="goStep(4)">4 Claim校验</button>
-        <button class="step-btn" data-step="5" onclick="goStep(5)">5 依赖关系</button>
-        <button class="step-btn" data-step="6" onclick="goStep(6)">6 结果总览</button>
+        <button class="step-btn" data-step="3" onclick="goStep(3)">3-4 Claim检查与归属</button>
+        <button class="step-btn" data-step="4" onclick="goStep(4)">4 依赖关系</button>
+        <button class="step-btn" data-step="5" onclick="goStep(5)">5 结果总览</button>
       </div>
 
       <article id="stepContent"></article>
@@ -58,11 +63,11 @@
       <div class="context-grid">
         <details open>
           <summary>题目与标准答案</summary>
-          <pre id="qAndA"></pre>
+          <div id="qAndA" class="math-text"></div>
         </details>
         <details>
           <summary>已知正确解</summary>
-          <pre id="known"></pre>
+          <div id="known" class="math-text"></div>
         </details>
         <details>
           <summary>官方指南</summary>
