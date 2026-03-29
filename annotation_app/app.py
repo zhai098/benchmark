@@ -62,6 +62,11 @@ def split_by_cut_points(text: str, cut_points: list[int]) -> list[str]:
     return out
 
 
+def annotator_record_path(annotator: str) -> Path:
+    safe = "".join(ch if ch.isalnum() or ch in {"_", "-"} else "_" for ch in (annotator or "unknown"))
+    return RECORDS_DIR / f"{safe}.json"
+
+
 @app.get("/")
 def annotator_page():
     return render_template("annotator.html")
@@ -124,15 +129,45 @@ def save_record():
     ensure_dirs()
     payload = request.get_json(force=True)
     annotator = payload.get("annotator", "unknown")
-    case_id = payload.get("case_id", "unknown")
-
+    case_id = str(payload.get("case_id", "unknown"))
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    filename = f"{case_id}__{annotator}__{ts}.json"
-    out_path = RECORDS_DIR / filename
+    out_path = annotator_record_path(annotator)
+
+    store = {"annotator": annotator, "updated_at_utc": ts, "cases": {}}
+    if out_path.exists():
+        try:
+            store = json.loads(out_path.read_text(encoding="utf-8"))
+            if not isinstance(store.get("cases"), dict):
+                store["cases"] = {}
+        except Exception:
+            store = {"annotator": annotator, "updated_at_utc": ts, "cases": {}}
 
     payload["saved_at_utc"] = ts
-    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    return jsonify({"ok": True, "path": str(out_path)})
+    store["annotator"] = annotator
+    store["updated_at_utc"] = ts
+    store["cases"][case_id] = payload
+    out_path.write_text(json.dumps(store, ensure_ascii=False, indent=2), encoding="utf-8")
+    return jsonify({"ok": True, "path": str(out_path), "saved_at_utc": ts})
+
+
+@app.get("/api/load_progress")
+def load_progress():
+    ensure_dirs()
+    annotator = request.args.get("annotator", "").strip()
+    if not annotator:
+        return jsonify({"error": "annotator 不能为空"}), 400
+    out_path = annotator_record_path(annotator)
+    if not out_path.exists():
+        return jsonify({"annotator": annotator, "cases": {}, "updated_at_utc": None})
+    data = json.loads(out_path.read_text(encoding="utf-8"))
+    return jsonify(
+        {
+            "annotator": annotator,
+            "cases": data.get("cases", {}),
+            "updated_at_utc": data.get("updated_at_utc"),
+            "path": str(out_path),
+        }
+    )
 
 
 @app.get("/api/review_records")
@@ -141,23 +176,31 @@ def review_records_api():
     records = []
     for path in sorted(RECORDS_DIR.glob("*.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
-        records.append(
-            {
-                "file": path.name,
-                "annotator": data.get("annotator", ""),
-                "case_id": data.get("case_id", ""),
-                "saved_at_utc": data.get("saved_at_utc", ""),
-                "sample_valid_count": sum(
-                    1
-                    for s in data.get("sample_validation", [])
-                    if s.get("is_correct") is True
-                ),
-                "step_count": len(data.get("steps", [])),
-                "claim_count": sum(len(x.get("claims", [])) for x in data.get("claims", [])),
-                "dependency_count": sum(len(v) for v in data.get("dependencies", {}).values()),
-                "raw": data,
-            }
-        )
+        for case_id, case_data in (data.get("cases") or {}).items():
+            sample_pipelines = case_data.get("sample_pipelines") or {}
+            records.append(
+                {
+                    "file": path.name,
+                    "annotator": data.get("annotator", ""),
+                    "case_id": case_id,
+                    "saved_at_utc": case_data.get("saved_at_utc", ""),
+                    "sample_valid_count": sum(
+                        1
+                        for s in case_data.get("sample_validation", [])
+                        if s.get("is_correct") is True
+                    ),
+                    "step_count": sum(len(v.get("steps", [])) for v in sample_pipelines.values()),
+                    "claim_count": sum(
+                        sum(len(x.get("claims", [])) for x in v.get("claims", []))
+                        for v in sample_pipelines.values()
+                    ),
+                    "dependency_count": sum(
+                        sum(len(v2) for v2 in (v.get("dependencies") or {}).values())
+                        for v in sample_pipelines.values()
+                    ),
+                    "raw": case_data,
+                }
+            )
 
     return jsonify({"records": records})
 

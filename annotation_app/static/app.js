@@ -3,6 +3,7 @@ let currentCaseIndex = -1;
 let currentStep = 1;
 const stateByCase = {};
 let toastTimer = null;
+let autoSaveTimer = null;
 
 function getCaseState(caseId) {
   if (!stateByCase[caseId]) {
@@ -18,6 +19,36 @@ function getCaseState(caseId) {
 function selectedCase() { return dataset[currentCaseIndex]; }
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+function typesetMath(root = document.body) {
+  if (window.MathJax?.typesetPromise) window.MathJax.typesetPromise([root]).catch(() => {});
+}
+
+function copyText(text) {
+  navigator.clipboard.writeText(String(text || '')).then(
+    () => notify('已复制到剪贴板', 'success'),
+    () => notify('复制失败，请手动复制', 'error'),
+  );
+}
+
+function localProgressKey(annotator) {
+  return `annotator_progress_${annotator || 'unknown'}`;
+}
+
+function scheduleAutoSave() {
+  if (autoSaveTimer) clearTimeout(autoSaveTimer);
+  autoSaveTimer = setTimeout(() => {
+    const annotator = document.getElementById('annotator')?.value.trim() || 'unknown';
+    const payload = {
+      datasetPath: document.getElementById('jsonlPath')?.value.trim() || '',
+      currentCaseIndex,
+      currentStep,
+      stateByCase,
+      savedAt: new Date().toISOString(),
+    };
+    localStorage.setItem(localProgressKey(annotator), JSON.stringify(payload));
+  }, 250);
 }
 
 function ensureSamplePipeline(st, sampleIdx, sample) {
@@ -102,15 +133,36 @@ function closeContextModal() {
 
 async function loadDataset() {
   const path = document.getElementById('jsonlPath').value.trim();
+  const annotator = document.getElementById('annotator').value.trim() || 'unknown';
   const res = await fetch('/api/load_jsonl', {
     method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ path }),
   });
   const data = await res.json();
   if (!res.ok) return notify(data.error || '加载失败', 'error');
   dataset = data.items;
+  try {
+    const local = JSON.parse(localStorage.getItem(localProgressKey(annotator)) || '{}');
+    if (local && local.stateByCase) {
+      Object.assign(stateByCase, local.stateByCase);
+      if (typeof local.currentCaseIndex === 'number') currentCaseIndex = local.currentCaseIndex;
+      if (typeof local.currentStep === 'number') currentStep = local.currentStep;
+    }
+  } catch (_) {}
+  try {
+    const remoteRes = await fetch(`/api/load_progress?annotator=${encodeURIComponent(annotator)}`);
+    const remote = await remoteRes.json();
+    if (remoteRes.ok && remote.cases) {
+      Object.entries(remote.cases).forEach(([caseId, caseData]) => {
+        stateByCase[caseId] = {
+          ...(stateByCase[caseId] || {}),
+          ...caseData,
+        };
+      });
+    }
+  } catch (_) {}
   renderCaseList();
   if (dataset.length) {
-    selectCase(0);
+    selectCase(Math.max(0, Math.min(currentCaseIndex, dataset.length - 1)));
     notify(`已加载 ${dataset.length} 条任务`, 'success');
   } else {
     notify('数据集为空', 'warn');
@@ -141,6 +193,7 @@ function selectCase(idx) {
   if ((c.samples || []).length) st.selected_solution_idx = st.selected_solution_idx || 0;
   (c.samples || []).forEach((sample, i) => ensureSamplePipeline(st, i, sample));
   renderCurrentCase();
+  scheduleAutoSave();
 }
 
 function goStep(s) {
@@ -155,6 +208,7 @@ function goStep(s) {
   }
   currentStep = s;
   renderStepContent();
+  scheduleAutoSave();
 }
 
 function renderCurrentCase() {
@@ -165,8 +219,9 @@ function renderCurrentCase() {
   const stats = getClaimCheckStats(pipeline);
   const completion = getCaseCompletion(st);
   document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${(c.samples || []).length}</span> <span class="pill">当前sample ${Number(st.selected_solution_idx || 0) + 1}</span> <span class="pill">steps ${(pipeline.steps || []).length}</span> <span class="pill">claims ${stats.totalClaims}</span> <span class="pill">progress ${completion}%</span>`;
-  document.getElementById('qAndA').textContent = `题目:\n${c.question}\n\n标准答案:\n${c.reference_answer}`;
-  document.getElementById('known').textContent = JSON.stringify(c.known_solutions || [], null, 2);
+  document.getElementById('qAndA').innerHTML = `题目:\n${escapeHtml(c.question)}\n\n标准答案:\n${escapeHtml(c.reference_answer)}`;
+  document.getElementById('known').innerHTML = escapeHtml(JSON.stringify(c.known_solutions || [], null, 2));
+  typesetMath(document.getElementById('contextModal'));
   renderStepContent();
 }
 
@@ -181,11 +236,13 @@ function chooseSampleStatus(i, status) {
   rec.is_correct = rec.is_correct === status ? null : status;
   renderStepContent();
   renderCaseList();
+  scheduleAutoSave();
 }
 
 function setSampleField(i, k, v) {
   const st = getCaseState(selectedCase().id);
   sampleRecord(st, i)[k] = v;
+  scheduleAutoSave();
 }
 
 async function translateSample(i) {
@@ -209,6 +266,7 @@ function selectSolution(i) {
   ensureSamplePipeline(st, i, (c.samples || [])[i] || {});
   renderStepContent();
   renderCaseList();
+  scheduleAutoSave();
 }
 
 function extractPresegmentedClaims(sample) {
@@ -253,6 +311,7 @@ function addCutPoint() {
     p.cut_points.sort((a, b) => a - b);
     updateSplitPreview();
   }
+  scheduleAutoSave();
 }
 
 function removeCutPoint(p) {
@@ -260,6 +319,7 @@ function removeCutPoint(p) {
   if (!pipeline) return;
   pipeline.cut_points = pipeline.cut_points.filter(x => x !== p);
   updateSplitPreview();
+  scheduleAutoSave();
 }
 
 async function updateSplitPreview() {
@@ -278,6 +338,7 @@ async function updateSplitPreview() {
   const cp = document.getElementById('cutPointList');
   if (cp) cp.innerHTML = pipeline.cut_points.map(x => `<button onclick="removeCutPoint(${x})">位置 ${x} ×</button>`).join(' ');
   renderCaseList();
+  scheduleAutoSave();
 }
 
 function setClaimStep(claimIdx, stepIdx) {
@@ -285,6 +346,7 @@ function setClaimStep(claimIdx, stepIdx) {
   const claim = (pipeline?.presegmented_claims || [])[claimIdx];
   if (!claim) return;
   claim.step_idx = stepIdx >= 0 ? stepIdx : null;
+  scheduleAutoSave();
 }
 
 function organizeClaimsBySteps() {
@@ -301,6 +363,7 @@ function organizeClaimsBySteps() {
   });
   renderStepContent();
   renderCaseList();
+  scheduleAutoSave();
 }
 
 function setClaimReviewStatus(claimIdx, status) {
@@ -309,6 +372,7 @@ function setClaimReviewStatus(claimIdx, status) {
   if (!claim) return;
   claim.review_status = status;
   if (status === 'ok') claim.edited_text = claim.text;
+  scheduleAutoSave();
 }
 
 function setClaimReviewStatusAndRender(claimIdx, status) {
@@ -322,6 +386,7 @@ function setClaimEditedText(claimIdx, v) {
   const claim = (pipeline?.presegmented_claims || [])[claimIdx];
   if (!claim) return;
   claim.edited_text = v;
+  scheduleAutoSave();
 }
 
 function editClaim(stepIdx, claimIdx, v) {
@@ -355,6 +420,7 @@ function toggleDep(currId, depId, checked) {
     pipeline.dependencies[currId] = pipeline.dependencies[currId].filter(x => x !== depId);
   }
   renderCaseList();
+  scheduleAutoSave();
 }
 
 function buildDependencyView() {
@@ -439,9 +505,23 @@ function renderStepContent() {
       <small class="muted">每个 sample 的 Step/Claim/依赖会独立保存。</small>
     </div>
   ` : '';
+  const verifiedSamples = (c.samples || [])
+    .map((s, i) => ({ idx: i, solution: s.solution || '', rec: sampleRecord(st, i) }))
+    .filter(x => x.rec?.is_correct === true);
 
   if (currentStep === 1) {
     let html = '<h3>Step 1：多采样验证（可回退）</h3><p>点击“正确/错误”可切换，再次点击可撤销为未判定。</p>';
+    html += `
+      <div class="verified-panel">
+        <h4>已验证为正确的样本（实时）</h4>
+        ${verifiedSamples.length ? verifiedSamples.map(v => `
+          <div class="verified-item">
+            <b>sample-${v.idx + 1}</b>
+            <button class="copy-btn" onclick="copyText(decodeURIComponent('${encodeURIComponent(v.solution)}'))">一键复制</button>
+          </div>
+        `).join('') : '<p class="muted">暂无已验证正确样本</p>'}
+      </div>
+    `;
     (c.samples || []).forEach((s, i) => {
       const rec = sampleRecord(st, i);
       const clsCorrect = rec.is_correct === true ? 'tag active ok' : 'tag';
@@ -453,6 +533,7 @@ function renderStepContent() {
           <h4>sample-${i + 1}</h4>
           <button onclick="translateSample(${i})">翻译</button>
           <button onclick="selectSolution(${i})">设为Step切分对象</button>
+          <button class="copy-btn" onclick="copyText(decodeURIComponent('${encodeURIComponent(s.solution || '')}'))">复制solution</button>
         </div>
         <div class="math-text">${escapeHtml(s.solution || '')}</div>
         ${rec.translation ? `<details open><summary>翻译结果</summary><pre>${escapeHtml(rec.translation)}</pre></details>` : ''}
@@ -478,6 +559,7 @@ function renderStepContent() {
       <h3>Step 2：Step切分（在完整 solution 上打点）</h3>
       ${sampleSelector}
       <p>当前切分对象：sample-${(st.selected_solution_idx || 0) + 1}。请基于该 sample 原文进行切分。</p>
+      <button class="copy-btn" onclick="copyText(decodeURIComponent('${encodeURIComponent(pipeline.selected_solution_text || '')}'))">一键复制当前solution</button>
       <textarea id="solutionText" class="full-solution">${escapeHtml(pipeline.selected_solution_text || '')}</textarea>
       <div class="row">
         <button onclick="addCutPoint()">添加切分点</button>
@@ -487,8 +569,6 @@ function renderStepContent() {
       <h4>切分结果（可回退：删除切分点后刷新）</h4>
       <pre id="splitPreview">${escapeHtml(JSON.stringify(pipeline.steps, null, 2))}</pre>
     `;
-    document.getElementById('solutionText')?.addEventListener('input', renderSolutionMathPreview);
-    renderSolutionMathPreview();
     typesetMath(root);
     return;
   }
@@ -553,11 +633,13 @@ function renderStepContent() {
 
   if (currentStep === 4) {
     root.innerHTML = `${sampleSelector}${buildDependencyView()}`;
+    typesetMath(root);
     return;
   }
 
   if (currentStep === 5) {
     root.innerHTML = `${sampleSelector}${buildSummaryView()}`;
+    typesetMath(root);
   }
 }
 
@@ -608,6 +690,18 @@ async function openGuide() {
   const data = await res.json();
   document.getElementById('guideText').textContent = data.content || '暂无';
 }
+
+window.addEventListener('beforeunload', () => {
+  const annotator = document.getElementById('annotator')?.value.trim() || 'unknown';
+  const payload = {
+    datasetPath: document.getElementById('jsonlPath')?.value.trim() || '',
+    currentCaseIndex,
+    currentStep,
+    stateByCase,
+    savedAt: new Date().toISOString(),
+  };
+  localStorage.setItem(localProgressKey(annotator), JSON.stringify(payload));
+});
 
 window.addEventListener('keydown', (e) => {
   if (e.key === 'Escape') closeContextModal();
