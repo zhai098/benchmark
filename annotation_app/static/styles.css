@@ -67,3 +67,7 @@ tbody tr:hover { background: #fafcff; }
 .solution-render-card .rendered-math { max-height: 280px; overflow: auto; padding: 8px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
 .card-actions { justify-content: space-between; }
 .copy-status { color: #166534; font-size: 12px; }
+.sample-focus { border: 1px solid #c7d2fe; background: #f8faff; }
+.topbar { position: sticky; top: 0; z-index: 20; }
+#stepContent { margin-top: 14px; }
+.toolbar { align-items: center; }

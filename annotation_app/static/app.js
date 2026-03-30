@@ -5,6 +5,10 @@ const stateByCase = {};
 let deviceId = '';
 let autosaveTimer = null;
 let saveBadgeTimer = null;
+let saveRequestSeq = 0;
+let lastAppliedSaveSeq = 0;
+let lastSavedHash = '';
+let lastSavedFingerprint = '';
 
 function initDeviceId() {
   const key = 'annotation_device_id';
@@ -50,6 +54,7 @@ function getCaseState(caseId) {
     stateByCase[caseId] = {
       current_step: 1,
       active_sample_idx: null,
+      sample_cursor: 0,
       sample_validation: [],
       sample_annotations: {},
       correct_solutions: [],
@@ -162,12 +167,7 @@ async function selectCase(idx) {
   const st = getCaseState(c.id);
   st.current_step = currentStep;
   await restoreProgress(c.id);
-  if (st.active_sample_idx === null && (c.samples || []).length) {
-    st.active_sample_idx = 0;
-    if (!st.sample_annotations[0]) {
-      st.sample_annotations[0] = getDefaultWorkingAnnotation(c.samples[0]);
-    }
-  }
+  if (!Number.isInteger(st.sample_cursor)) st.sample_cursor = 0;
   renderCurrentCase();
 }
 
@@ -188,15 +188,60 @@ function renderCurrentCase() {
   const wa = getWorkingAnnotation(st);
   const stats = getClaimCheckStats(st);
   const activeSample = st.active_sample_idx === null ? '-' : `sample-${st.active_sample_idx + 1}`;
-  document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${(c.samples || []).length}</span> <span class="pill">active ${activeSample}</span> <span class="pill">steps ${(wa.steps || []).length}</span> <span class="pill">claims ${stats.total}</span>`;
+  const totalSamples = (c.samples || []).length;
+  const completed = st.sample_validation.filter(x => x?.pipeline_status === 'completed' || x?.pipeline_status === 'discarded').length;
+  document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${totalSamples}</span> <span class="pill">progress ${completed}/${totalSamples}</span> <span class="pill">active ${activeSample}</span> <span class="pill">steps ${(wa.steps || []).length}</span> <span class="pill">claims ${stats.total}</span>`;
   document.getElementById('qAndA').textContent = `题目:\n${c.question}\n\n标准答案:\n${c.reference_answer}`;
   document.getElementById('known').textContent = JSON.stringify([...(c.known_solutions || []), ...(st.correct_solutions || [])], null, 2);
   renderStepContent();
 }
 
 function sampleRecord(st, i) {
-  st.sample_validation[i] = st.sample_validation[i] || { is_correct: null, class_name: '', is_new_class: false, summary: '', translation: '' };
+  st.sample_validation[i] = st.sample_validation[i] || {
+    is_correct: null,
+    class_name: '',
+    is_new_class: false,
+    summary: '',
+    translation: '',
+    pipeline_status: 'not_started',
+  };
   return st.sample_validation[i];
+}
+
+function formatUtcToLocal(iso) {
+  if (!iso) return '未保存';
+  const d = new Date(iso);
+  return `${d.toLocaleTimeString()}.${String(d.getMilliseconds()).padStart(3, '0')}`;
+}
+
+function findNextSampleCursor(st, start) {
+  const c = selectedCase();
+  const total = (c?.samples || []).length;
+  for (let i = start; i < total; i += 1) {
+    const rec = sampleRecord(st, i);
+    if (rec.pipeline_status !== 'completed' && rec.pipeline_status !== 'discarded') return i;
+  }
+  return Math.max(0, total - 1);
+}
+
+function setActiveSampleFromCursor() {
+  const c = selectedCase();
+  const st = getCaseState(c.id);
+  const idx = st.sample_cursor || 0;
+  const rec = sampleRecord(st, idx);
+  if (rec.is_correct !== true) {
+    alert('当前样本尚未判定为正确，不能进入主工作流。');
+    return;
+  }
+  st.active_sample_idx = idx;
+  rec.pipeline_status = 'in_progress';
+  if (!st.sample_annotations[idx]) {
+    st.sample_annotations[idx] = getDefaultWorkingAnnotation((c.samples || [])[idx] || {});
+  }
+  currentStep = 2;
+  st.current_step = currentStep;
+  scheduleAutosave();
+  renderCurrentCase();
 }
 
 function chooseSampleStatus(i, status) {
@@ -205,16 +250,22 @@ function chooseSampleStatus(i, status) {
   rec.is_correct = status;
 
   if (status === false) {
+    rec.pipeline_status = 'discarded';
     delete st.sample_annotations[i];
     st.correct_solutions = (st.correct_solutions || []).filter(x => x.sample_idx !== i);
     if (st.active_sample_idx === i) {
       st.active_sample_idx = null;
     }
+    if (st.sample_cursor === i) {
+      st.sample_cursor = findNextSampleCursor(st, i + 1);
+    }
   }
 
   if (status === true && !st.sample_annotations[i]) {
+    rec.pipeline_status = rec.pipeline_status === 'completed' ? 'completed' : 'ready';
     st.sample_annotations[i] = getDefaultWorkingAnnotation((selectedCase().samples || [])[i] || {});
   }
+  if (status === null) rec.pipeline_status = 'not_started';
 
   scheduleAutosave();
   renderStepContent();
@@ -242,19 +293,9 @@ async function translateSample(i) {
 }
 
 function selectSolution(i) {
-  const c = selectedCase();
-  const st = getCaseState(c.id);
-  const rec = sampleRecord(st, i);
-  if (rec.is_correct !== true) {
-    alert('仅可选择“判定为正确”的 sample 进入完整工作流');
-    return;
-  }
-  st.active_sample_idx = i;
-  if (!st.sample_annotations[i]) {
-    st.sample_annotations[i] = getDefaultWorkingAnnotation((c.samples || [])[i] || {});
-  }
-  scheduleAutosave();
-  renderStepContent();
+  const st = getCaseState(selectedCase().id);
+  st.sample_cursor = i;
+  setActiveSampleFromCursor();
 }
 
 function extractPresegmentedClaims(sample) {
@@ -449,7 +490,7 @@ function buildSummaryView() {
     <h4>Claim正确性检查</h4><pre>${JSON.stringify(wa.claim_checks, null, 2)}</pre>
     <h4>依赖关系</h4><pre>${JSON.stringify(wa.dependencies, null, 2)}</pre>
     <h4>已完成正确解参考</h4><pre>${JSON.stringify(st.correct_solutions, null, 2)}</pre>
-    <button class="primary" onclick="submitCase()">确认提交当前问题</button>
+    <button class="primary" onclick="submitCase()">完成当前样本并保存</button>
   `;
 }
 
@@ -463,19 +504,22 @@ function renderStepContent() {
   navButtons.forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.step) === currentStep));
 
   if (currentStep === 1) {
-    let html = '<h3>Step 1：多采样验证（可回退）</h3><p>点击“正确/错误”后将触发自动保存；错误样本会立即从当前工作流中丢弃。</p>';
-    (c.samples || []).forEach((s, i) => {
-      const rec = sampleRecord(st, i);
-      const clsCorrect = rec.is_correct === true ? 'tag active ok' : 'tag';
-      const clsWrong = rec.is_correct === false ? 'tag active bad' : 'tag';
-      const clsUnset = rec.is_correct === null ? 'tag active' : 'tag';
-      html += `
-      <div class="card">
+    const sampleCount = (c.samples || []).length;
+    const i = Math.min(st.sample_cursor || 0, Math.max(0, sampleCount - 1));
+    st.sample_cursor = i;
+    const s = (c.samples || [])[i] || {};
+    const rec = sampleRecord(st, i);
+    const clsCorrect = rec.is_correct === true ? 'tag active ok' : 'tag';
+    const clsWrong = rec.is_correct === false ? 'tag active bad' : 'tag';
+    const clsUnset = rec.is_correct === null ? 'tag active' : 'tag';
+    let html = '<h3>Step 1：单样本验证入口（严格串行）</h3><p>一次只处理一个样本：判定后进入完整流程，完成后再转到下一样本。</p>';
+    html += `
+      <div class="card sample-focus">
         <div class="card-head">
-          <h4>sample-${i + 1}</h4>
+          <h4>sample-${i + 1} / ${sampleCount}</h4>
           <div class="row">
+            <span class="pill">状态 ${rec.pipeline_status || 'not_started'}</span>
             <button onclick="translateSample(${i})">翻译</button>
-            <button onclick="selectSolution(${i})">设为当前工作样本</button>
           </div>
         </div>
         ${renderSolutionCard(s.solution || '', i)}
@@ -490,8 +534,13 @@ function renderStepContent() {
           <label><input type="checkbox" ${rec.is_new_class ? 'checked' : ''} onchange="setSampleField(${i}, 'is_new_class', this.checked)"> 新分类</label>
           <label>新方法概述 <input value="${rec.summary || ''}" oninput="setSampleField(${i}, 'summary', this.value)"></label>
         </div>
-      </div>`;
-    });
+        <div class="row">
+          <button class="primary" onclick="setActiveSampleFromCursor()">开始当前样本流程</button>
+          <button onclick="moveSampleCursor(-1)">上一样本</button>
+          <button onclick="moveSampleCursor(1)">下一样本</button>
+        </div>
+      </div>
+    `;
     root.innerHTML = html;
     return;
   }
@@ -605,6 +654,21 @@ function updateWorkingSolution(value) {
   scheduleAutosave();
 }
 
+function moveSampleCursor(delta) {
+  const c = selectedCase();
+  const st = getCaseState(c.id);
+  if (st.active_sample_idx !== null) {
+    alert('当前样本流程尚未完成，请先完成或丢弃当前样本。');
+    return;
+  }
+  const total = (c.samples || []).length;
+  const next = Math.max(0, Math.min(total - 1, (st.sample_cursor || 0) + delta));
+  st.sample_cursor = next;
+  st.current_step = 1;
+  currentStep = 1;
+  renderStepContent();
+}
+
 function buildProgressPayload(status = 'in_progress') {
   const c = selectedCase();
   if (!c) return null;
@@ -618,6 +682,7 @@ function buildProgressPayload(status = 'in_progress') {
     current_step: st.current_step || currentStep,
     current_workflow_state: {
       active_sample_idx: st.active_sample_idx,
+      sample_cursor: st.sample_cursor || 0,
       workflow_state: wa.workflow_state || 'sample_selected',
     },
     current_annotations: {
@@ -635,20 +700,49 @@ function buildProgressPayload(status = 'in_progress') {
   };
 }
 
+function payloadFingerprint(payload) {
+  return JSON.stringify({
+    annotator_id: payload.annotator_id,
+    device_id: payload.device_id,
+    case_id: payload.case_id,
+    status: payload.status,
+    current_step: payload.current_step,
+    current_workflow_state: payload.current_workflow_state,
+    current_annotations: payload.current_annotations,
+    sample_decisions: payload.sample_decisions,
+    correct_solutions: payload.correct_solutions,
+  });
+}
+
 async function persistProgress(status = 'in_progress', silent = true) {
   const payload = buildProgressPayload(status);
   if (!payload) return;
+  const fingerprint = payloadFingerprint(payload);
+  if (fingerprint === lastSavedFingerprint && status !== 'completed') {
+    setSaveState('无变更', 'saved');
+    return;
+  }
+  const requestSeq = ++saveRequestSeq;
   setSaveState('保存中…', 'saving');
   const res = await fetch('/api/save_progress', {
     method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   });
   const data = await res.json();
+  if (requestSeq < lastAppliedSaveSeq) return;
+  lastAppliedSaveSeq = requestSeq;
   if (!res.ok) {
     setSaveState('保存失败', 'error');
     if (!silent) alert(data.error || '保存失败');
     return;
   }
-  setSaveState(`已保存 ${new Date().toLocaleTimeString()}`, 'saved');
+  lastSavedHash = data.content_hash || lastSavedHash;
+  lastSavedFingerprint = fingerprint;
+  const ts = formatUtcToLocal(data.updated_at_utc);
+  if (data.unchanged) {
+    setSaveState(`无变更 ${ts}`, 'saved');
+  } else {
+    setSaveState(`已保存 ${ts}`, 'saved');
+  }
 }
 
 function scheduleAutosave() {
@@ -675,6 +769,7 @@ async function restoreProgress(caseId) {
   const res = await fetch(`/api/load_progress?${params.toString()}`);
   const data = await res.json();
   if (!res.ok || !data.found) {
+    st.sample_cursor = 0;
     setSaveState('未发现历史进度', 'pending');
     return;
   }
@@ -698,7 +793,10 @@ async function restoreProgress(caseId) {
       workflow_state: progress.current_workflow_state?.workflow_state || 'sample_selected',
     };
   }
-  setSaveState('已恢复历史进度', 'saved');
+  st.sample_cursor = Number.isInteger(progress.current_workflow_state?.sample_cursor)
+    ? progress.current_workflow_state.sample_cursor
+    : (st.sample_cursor || 0);
+  setSaveState(`已恢复 ${formatUtcToLocal(progress.updated_at_utc)}`, 'saved');
 }
 
 async function saveProgress() {
@@ -710,20 +808,31 @@ async function submitCase() {
   const c = selectedCase(); if (!c) return alert('先选择问题');
   const st = getCaseState(c.id);
   if (st.active_sample_idx !== null) {
-    const sample = (c.samples || [])[st.active_sample_idx] || {};
+    const activeIdx = st.active_sample_idx;
+    const sample = (c.samples || [])[activeIdx] || {};
     const wa = getWorkingAnnotation(st);
-    const existing = (st.correct_solutions || []).some(x => x.sample_idx === st.active_sample_idx);
+    const existing = (st.correct_solutions || []).some(x => x.sample_idx === activeIdx);
     if (!existing) {
       st.correct_solutions.push({
-        sample_idx: st.active_sample_idx,
+        sample_idx: activeIdx,
         solution: sample.solution || wa.selected_solution_text || '',
         completed_at: new Date().toISOString(),
       });
     }
+    sampleRecord(st, activeIdx).pipeline_status = 'completed';
     wa.workflow_state = 'completed';
+    st.active_sample_idx = null;
+    st.sample_cursor = findNextSampleCursor(st, activeIdx + 1);
   }
-  await persistProgress('completed', false);
-  alert(`题目 ${c.id} 标注完成并保存`);
+  const allDone = (c.samples || []).every((_, idx) => {
+    const status = sampleRecord(st, idx).pipeline_status;
+    return status === 'completed' || status === 'discarded';
+  });
+  await persistProgress(allDone ? 'completed' : 'in_progress', false);
+  currentStep = 1;
+  st.current_step = 1;
+  renderCurrentCase();
+  alert(allDone ? `题目 ${c.id} 所有样本已完成` : `sample-${st.sample_cursor + 1} 已切换到下一样本`);
 }
 
 async function copySolutionRaw(sampleIdx) {
@@ -753,7 +862,8 @@ async function openGuide() {
 window.addEventListener('beforeunload', () => {
   const payload = buildProgressPayload('in_progress');
   if (!payload) return;
-  navigator.sendBeacon('/api/save_progress', JSON.stringify(payload));
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  navigator.sendBeacon('/api/save_progress', blob);
 });
 
 document.getElementById('annotator').addEventListener('change', async () => {

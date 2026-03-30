@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import re
+import hashlib
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -36,6 +37,67 @@ def ensure_dirs() -> None:
 
 def now_utc_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
+
+
+def parse_request_json() -> dict[str, Any]:
+    payload = request.get_json(silent=True)
+    if payload is None:
+        raw = request.get_data(cache=False, as_text=True)
+        if not raw:
+            return {}
+        try:
+            payload = json.loads(raw)
+        except json.JSONDecodeError:
+            payload = {}
+    if not isinstance(payload, dict):
+        return {}
+    return payload
+
+
+def persist_progress_payload(payload: dict[str, Any], default_status: str = "in_progress") -> dict[str, Any]:
+    annotator_id = str(payload.get("annotator_id") or payload.get("annotator") or "unknown")
+    device_id = str(payload.get("device_id") or "device")
+    case_id = str(payload.get("case_id") or "unknown")
+
+    path = progress_path(annotator_id, device_id, case_id)
+    now = now_utc_iso()
+    content = {
+        "annotator_id": annotator_id,
+        "device_id": device_id,
+        "case_id": case_id,
+        "status": payload.get("status", default_status),
+        "current_step": payload.get("current_step", 1),
+        "current_workflow_state": payload.get("current_workflow_state", {}),
+        "current_annotations": payload.get("current_annotations", {}),
+        "sample_decisions": payload.get("sample_decisions", []),
+        "correct_solutions": payload.get("correct_solutions", []),
+    }
+    content_hash = hashlib.sha256(
+        json.dumps(content, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    ).hexdigest()
+
+    if path.exists():
+        existing = json.loads(path.read_text(encoding="utf-8"))
+        if existing.get("content_hash") == content_hash:
+            return {
+                "ok": True,
+                "path": str(path),
+                "updated_at_utc": existing.get("updated_at_utc"),
+                "unchanged": True,
+                "content_hash": content_hash,
+            }
+        created_at = existing.get("created_at_utc", now)
+    else:
+        created_at = now
+
+    to_store = {
+        **content,
+        "updated_at_utc": now,
+        "created_at_utc": created_at,
+        "content_hash": content_hash,
+    }
+    path.write_text(json.dumps(to_store, ensure_ascii=False, indent=2), encoding="utf-8")
+    return {"ok": True, "path": str(path), "updated_at_utc": now, "unchanged": False, "content_hash": content_hash}
 
 
 def safe_name(value: str, default: str) -> str:
@@ -121,7 +183,7 @@ def load_jsonl():
 
 @app.post("/api/translate")
 def translate_api():
-    payload = request.get_json(force=True)
+    payload = parse_request_json()
     text = (payload.get("text") or "").strip()
     target = (payload.get("target") or "zh-CN").strip()
     if not text:
@@ -143,35 +205,9 @@ def translate_api():
 @app.route("/api/save_progress", methods=["PUT", "POST"])
 def save_progress():
     ensure_dirs()
-    payload = request.get_json(force=True)
-
-    annotator_id = str(payload.get("annotator_id") or payload.get("annotator") or "unknown")
-    device_id = str(payload.get("device_id") or "device")
-    case_id = str(payload.get("case_id") or "unknown")
-
-    path = progress_path(annotator_id, device_id, case_id)
-    now = now_utc_iso()
-
-    to_store = {
-        "annotator_id": annotator_id,
-        "device_id": device_id,
-        "case_id": case_id,
-        "status": payload.get("status", "in_progress"),
-        "current_step": payload.get("current_step", 1),
-        "current_workflow_state": payload.get("current_workflow_state", {}),
-        "current_annotations": payload.get("current_annotations", {}),
-        "sample_decisions": payload.get("sample_decisions", []),
-        "correct_solutions": payload.get("correct_solutions", []),
-        "updated_at_utc": now,
-        "created_at_utc": now,
-    }
-
-    if path.exists():
-        existing = json.loads(path.read_text(encoding="utf-8"))
-        to_store["created_at_utc"] = existing.get("created_at_utc", now)
-
-    path.write_text(json.dumps(to_store, ensure_ascii=False, indent=2), encoding="utf-8")
-    return jsonify({"ok": True, "path": str(path), "updated_at_utc": now})
+    payload = parse_request_json()
+    result = persist_progress_payload(payload, default_status="in_progress")
+    return jsonify(result)
 
 
 @app.get("/api/load_progress")
@@ -192,9 +228,10 @@ def load_progress():
 @app.post("/api/save_record")
 def save_record():
     # backward-compatible alias for explicit final save
-    payload = request.get_json(force=True)
+    payload = parse_request_json()
     payload.setdefault("status", "completed")
-    return save_progress()
+    result = persist_progress_payload(payload, default_status="completed")
+    return jsonify(result)
 
 
 @app.get("/api/review_records")
@@ -245,7 +282,7 @@ def review_records_api():
 
 @app.post("/api/split_steps")
 def split_steps_api():
-    payload = request.get_json(force=True)
+    payload = parse_request_json()
     solution = payload.get("solution", "")
     cut_points = payload.get("cut_points", [])
     return jsonify({"steps": split_by_cut_points(solution, cut_points)})
