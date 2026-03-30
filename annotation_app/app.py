@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -12,6 +13,7 @@ from flask import Flask, jsonify, render_template, request
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 RECORDS_DIR = DATA_DIR / "records"
+ANNOTATIONS_DIR = DATA_DIR / "annotations"
 GUIDE_PATH = DATA_DIR / "guideline.md"
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
@@ -20,6 +22,7 @@ app = Flask(__name__, template_folder="templates", static_folder="static")
 def ensure_dirs() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     RECORDS_DIR.mkdir(parents=True, exist_ok=True)
+    ANNOTATIONS_DIR.mkdir(parents=True, exist_ok=True)
     if not GUIDE_PATH.exists():
         GUIDE_PATH.write_text(
             "# 标注指南\n\n"
@@ -29,6 +32,24 @@ def ensure_dirs() -> None:
             "4. 每个问题完成后再提交。\n",
             encoding="utf-8",
         )
+
+
+def now_utc_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def safe_name(value: str, default: str) -> str:
+    sanitized = re.sub(r"[^a-zA-Z0-9_.-]", "_", (value or "").strip())
+    return sanitized or default
+
+
+def progress_path(annotator_id: str, device_id: str, case_id: str) -> Path:
+    annotator_safe = safe_name(annotator_id, "unknown")
+    device_safe = safe_name(device_id, "device")
+    case_safe = safe_name(case_id, "case")
+    dir_path = ANNOTATIONS_DIR / annotator_safe / device_safe
+    dir_path.mkdir(parents=True, exist_ok=True)
+    return dir_path / f"{case_safe}.json"
 
 
 def parse_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -119,31 +140,91 @@ def translate_api():
         return jsonify({"error": f"翻译服务暂不可用: {exc}"}), 502
 
 
-@app.post("/api/save_record")
-def save_record():
+@app.route("/api/save_progress", methods=["PUT", "POST"])
+def save_progress():
     ensure_dirs()
     payload = request.get_json(force=True)
-    annotator = payload.get("annotator", "unknown")
-    case_id = payload.get("case_id", "unknown")
 
-    ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
-    filename = f"{case_id}__{annotator}__{ts}.json"
-    out_path = RECORDS_DIR / filename
+    annotator_id = str(payload.get("annotator_id") or payload.get("annotator") or "unknown")
+    device_id = str(payload.get("device_id") or "device")
+    case_id = str(payload.get("case_id") or "unknown")
 
-    payload["saved_at_utc"] = ts
-    out_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
-    return jsonify({"ok": True, "path": str(out_path)})
+    path = progress_path(annotator_id, device_id, case_id)
+    now = now_utc_iso()
+
+    to_store = {
+        "annotator_id": annotator_id,
+        "device_id": device_id,
+        "case_id": case_id,
+        "status": payload.get("status", "in_progress"),
+        "current_step": payload.get("current_step", 1),
+        "current_workflow_state": payload.get("current_workflow_state", {}),
+        "current_annotations": payload.get("current_annotations", {}),
+        "sample_decisions": payload.get("sample_decisions", []),
+        "correct_solutions": payload.get("correct_solutions", []),
+        "updated_at_utc": now,
+        "created_at_utc": now,
+    }
+
+    if path.exists():
+        existing = json.loads(path.read_text(encoding="utf-8"))
+        to_store["created_at_utc"] = existing.get("created_at_utc", now)
+
+    path.write_text(json.dumps(to_store, ensure_ascii=False, indent=2), encoding="utf-8")
+    return jsonify({"ok": True, "path": str(path), "updated_at_utc": now})
+
+
+@app.get("/api/load_progress")
+def load_progress():
+    ensure_dirs()
+    annotator_id = request.args.get("annotator_id", "unknown")
+    device_id = request.args.get("device_id", "device")
+    case_id = request.args.get("case_id", "unknown")
+
+    path = progress_path(annotator_id, device_id, case_id)
+    if not path.exists():
+        return jsonify({"found": False})
+
+    data = json.loads(path.read_text(encoding="utf-8"))
+    return jsonify({"found": True, "progress": data, "path": str(path)})
+
+
+@app.post("/api/save_record")
+def save_record():
+    # backward-compatible alias for explicit final save
+    payload = request.get_json(force=True)
+    payload.setdefault("status", "completed")
+    return save_progress()
 
 
 @app.get("/api/review_records")
 def review_records_api():
     ensure_dirs()
     records = []
+
+    for path in sorted(ANNOTATIONS_DIR.glob("*/*/*.json")):
+        data = json.loads(path.read_text(encoding="utf-8"))
+        current_annotations = data.get("current_annotations", {})
+        sample_decisions = data.get("sample_decisions", [])
+        records.append(
+            {
+                "file": str(path.relative_to(ANNOTATIONS_DIR)),
+                "annotator": data.get("annotator_id", ""),
+                "case_id": data.get("case_id", ""),
+                "saved_at_utc": data.get("updated_at_utc", ""),
+                "sample_valid_count": sum(1 for s in sample_decisions if s.get("is_correct") is True),
+                "step_count": len(current_annotations.get("steps", [])),
+                "claim_count": sum(len(x.get("claims", [])) for x in current_annotations.get("claims", [])),
+                "dependency_count": sum(len(v) for v in current_annotations.get("dependencies", {}).values()),
+                "raw": data,
+            }
+        )
+
     for path in sorted(RECORDS_DIR.glob("*.json")):
         data = json.loads(path.read_text(encoding="utf-8"))
         records.append(
             {
-                "file": path.name,
+                "file": f"legacy/{path.name}",
                 "annotator": data.get("annotator", ""),
                 "case_id": data.get("case_id", ""),
                 "saved_at_utc": data.get("saved_at_utc", ""),
