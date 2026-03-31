@@ -3,17 +3,18 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>标注客户端</title>
+  <title>标注工作区</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
   <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css" />
 </head>
 <body>
   <header class="topbar">
     <div>
-      <h1>数据标注客户端</h1>
-      <p class="sub">核心流程：登录 → 标注 → 自动保存</p>
+      <h1>标注工作区</h1>
+      <p class="sub">只保留标注必需操作：加载、标注、自动保存、提交。</p>
     </div>
     <div class="toolbar">
+      <button onclick="location.href='/'">首页</button>
       <input id="annotator" placeholder="标注者 ID" />
       <input id="jsonlPath" placeholder="JSONL 文件绝对路径" />
       <button onclick="loadDataset()">加载数据</button>
@@ -29,7 +30,7 @@
       <ul id="caseList"></ul>
     </aside>
 
-    <section class="panel">
+    <section class="panel workspace-main">
       <div class="step-nav">
         <button class="step-btn" data-step="1" onclick="goStep(1)">1 多采样验证</button>
         <button class="step-btn" data-step="2" onclick="goStep(2)">2 Step切分</button>

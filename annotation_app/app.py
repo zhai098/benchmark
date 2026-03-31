@@ -9,7 +9,7 @@ from typing import Any
 from urllib.parse import quote
 from urllib.request import urlopen
 
-from flask import Flask, abort, jsonify, render_template, request, send_file
+from flask import Flask, abort, jsonify, render_template, request, send_file, session
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -19,7 +19,19 @@ GUIDE_PATH = DATA_DIR / "guideline.md"
 FRONTEND_OUT_DIR = BASE_DIR.parent / "frontend" / "out"
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
+app.secret_key = "annotation-app-dev-secret"
 
+
+
+
+def current_role() -> str:
+    role = str(session.get("role") or "annotator")
+    return role if role in {"annotator", "reviewer"} else "annotator"
+
+
+def require_reviewer() -> None:
+    if current_role() != "reviewer":
+        abort(403, description="reviewer access required")
 
 def ensure_dirs() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
@@ -148,16 +160,19 @@ def split_by_cut_points(text: str, cut_points: list[int]) -> list[str]:
 
 @app.get("/")
 def landing_page():
-    return render_template("annotator.html")
+    return render_template("home.html", role=current_role())
 
 
 @app.get("/annotator")
 def annotator_page():
+    if current_role() != "annotator":
+        session["role"] = "annotator"
     return render_template("annotator.html")
 
 
 @app.get("/review")
 def review_page():
+    require_reviewer()
     return render_template("review.html")
 
 
@@ -184,6 +199,39 @@ def frontend_asset(asset_path: str):
 def get_guideline():
     ensure_dirs()
     return jsonify({"content": GUIDE_PATH.read_text(encoding="utf-8")})
+
+
+@app.put("/api/guideline")
+def update_guideline():
+    require_reviewer()
+    ensure_dirs()
+    payload = parse_request_json()
+    content = str(payload.get("content") or "").strip()
+    if not content:
+        return jsonify({"error": "内容不能为空"}), 400
+    GUIDE_PATH.write_text(content + "\n", encoding="utf-8")
+    return jsonify({"ok": True, "updated_at_utc": now_utc_iso()})
+
+
+@app.post("/api/session/role")
+def set_role():
+    payload = parse_request_json()
+    role = str(payload.get("role") or "annotator")
+    if role not in {"annotator", "reviewer"}:
+        return jsonify({"error": "invalid role"}), 400
+
+    if role == "reviewer":
+        access_key = str(payload.get("access_key") or "")
+        expected = str((DATA_DIR / ".review_key").read_text(encoding="utf-8").strip()) if (DATA_DIR / ".review_key").exists() else "reviewer"
+        if access_key != expected:
+            return jsonify({"error": "reviewer key 无效"}), 403
+    session["role"] = role
+    return jsonify({"ok": True, "role": role})
+
+
+@app.get("/api/session")
+def get_session():
+    return jsonify({"role": current_role()})
 
 
 @app.post("/api/load_jsonl")
@@ -261,6 +309,7 @@ def save_record():
 
 @app.get("/api/review_records")
 def review_records_api():
+    require_reviewer()
     ensure_dirs()
     records = []
 

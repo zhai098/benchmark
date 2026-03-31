@@ -1,0 +1,60 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>标注入口</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <main class="home-shell">
+    <section class="home-card">
+      <h1>标注入口</h1>
+      <p class="sub">开始前请阅读下方说明，然后进入标注工作区。</p>
+      <div class="row">
+        <button class="primary" onclick="enterAnnotator()">进入标注工作区</button>
+      </div>
+      <h2>标注说明</h2>
+      <article id="guidelineContent" class="guideline-render">加载中…</article>
+      <details>
+        <summary>Reviewer 登录</summary>
+        <div class="row">
+          <input id="reviewKey" type="password" placeholder="reviewer key" />
+          <button onclick="enterReviewer()">进入 Reviewer 区</button>
+        </div>
+      </details>
+    </section>
+  </main>
+  <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+  <script>
+    async function fetchGuideline() {
+      const res = await fetch('/api/guideline');
+      const data = await res.json();
+      const root = document.getElementById('guidelineContent');
+      root.innerHTML = marked.parse(data.content || '暂无说明');
+    }
+
+    async function enterAnnotator() {
+      await fetch('/api/session/role', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'annotator' })
+      });
+      location.href = '/annotator';
+    }
+
+    async function enterReviewer() {
+      const access_key = document.getElementById('reviewKey').value.trim();
+      const res = await fetch('/api/session/role', {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ role: 'reviewer', access_key })
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        alert(data.error || '登录失败');
+        return;
+      }
+      location.href = '/review';
+    }
+
+    fetchGuideline();
+  </script>
+</body>
+</html>
