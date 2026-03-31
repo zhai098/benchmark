@@ -9,13 +9,14 @@ from typing import Any
 from urllib.parse import quote
 from urllib.request import urlopen
 
-from flask import Flask, jsonify, render_template, request
+from flask import Flask, abort, jsonify, render_template, request, send_file
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
 RECORDS_DIR = DATA_DIR / "records"
 ANNOTATIONS_DIR = DATA_DIR / "annotations"
 GUIDE_PATH = DATA_DIR / "guideline.md"
+FRONTEND_OUT_DIR = BASE_DIR.parent / "frontend" / "out"
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 
@@ -158,6 +159,25 @@ def annotator_page():
 @app.get("/review")
 def review_page():
     return render_template("review.html")
+
+
+@app.get("/<path:asset_path>")
+def frontend_asset(asset_path: str):
+    if asset_path.startswith(("api/", "review", "annotator", "static/")):
+        abort(404)
+    resolved = (FRONTEND_OUT_DIR / asset_path).resolve()
+    try:
+        resolved.relative_to(FRONTEND_OUT_DIR.resolve())
+    except ValueError:
+        abort(404)
+
+    if resolved.is_dir():
+        candidate = resolved / "index.html"
+    else:
+        candidate = resolved
+    if candidate.exists() and candidate.is_file():
+        return send_file(candidate)
+    abort(404)
 
 
 @app.get("/api/guideline")

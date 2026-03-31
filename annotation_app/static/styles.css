@@ -149,3 +149,17 @@ tbody tr:hover { background: rgba(30, 41, 59, .4); }
   .topbar { grid-template-columns: 1fr; }
   .dep-card { grid-template-columns: 1fr; }
 }
+
+.save-state { padding: 6px 10px; border-radius: 999px; font-size: 12px; border: 1px solid #bfdbfe; background: #eff6ff; color: #1d4ed8; }
+.save-state.saving { background: #fef9c3; border-color: #fde68a; color: #a16207; }
+.save-state.saved { background: #dcfce7; border-color: #86efac; color: #166534; }
+.save-state.error { background: #fee2e2; border-color: #fca5a5; color: #991b1b; }
+.save-state.pending { background: #eff6ff; border-color: #bfdbfe; color: #1d4ed8; }
+.solution-render-card { border: 1px solid var(--line); border-radius: 10px; padding: 8px; background: #fbfdff; }
+.solution-render-card .rendered-math { max-height: 280px; overflow: auto; padding: 8px; background: #fff; border: 1px solid var(--line); border-radius: 8px; }
+.card-actions { justify-content: space-between; }
+.copy-status { color: #166534; font-size: 12px; }
+.sample-focus { border: 1px solid #c7d2fe; background: #f8faff; }
+.topbar { position: sticky; top: 0; z-index: 20; }
+#stepContent { margin-top: 14px; }
+.toolbar { align-items: center; }
