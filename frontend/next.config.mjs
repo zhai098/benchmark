@@ -8,6 +8,7 @@ const nextConfig = {
     return [
       { source: '/annotator', destination: `${backend}/annotator` },
       { source: '/review', destination: `${backend}/review` },
+      { source: '/static/:path*', destination: `${backend}/static/:path*` },
       { source: '/api/:path*', destination: `${backend}/api/:path*` }
     ];
   }
