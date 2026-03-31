@@ -2,22 +2,76 @@ let dataset = [];
 let currentCaseIndex = -1;
 let currentStep = 1;
 const stateByCase = {};
+let deviceId = '';
+let autosaveTimer = null;
+let saveBadgeTimer = null;
+let saveRequestSeq = 0;
+let lastAppliedSaveSeq = 0;
+let lastSavedHash = '';
+let lastSavedFingerprint = '';
+
+function initDeviceId() {
+  const key = 'annotation_device_id';
+  const existing = localStorage.getItem(key);
+  if (existing) {
+    deviceId = existing;
+    return;
+  }
+  deviceId = `dev-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  localStorage.setItem(key, deviceId);
+}
+
+function annotatorId() {
+  return document.getElementById('annotator').value.trim() || 'unknown';
+}
+
+function getSaveBadge() {
+  return document.getElementById('saveState');
+}
+
+function setSaveState(text, cls = '') {
+  const badge = getSaveBadge();
+  if (!badge) return;
+  badge.textContent = text;
+  badge.className = `save-state ${cls}`.trim();
+}
+
+function getDefaultWorkingAnnotation(sample = {}) {
+  return {
+    selected_solution_text: sample.solution || '',
+    cut_points: [],
+    steps: [],
+    presegmented_claims: extractPresegmentedClaims(sample),
+    claims: [],
+    claim_checks: {},
+    dependencies: {},
+    workflow_state: 'sample_selected',
+  };
+}
 
 function getCaseState(caseId) {
   if (!stateByCase[caseId]) {
     stateByCase[caseId] = {
+      current_step: 1,
+      active_sample_idx: null,
+      sample_cursor: 0,
       sample_validation: [],
-      selected_solution_idx: 0,
-      selected_solution_text: '',
-      cut_points: [],
-      steps: [],
-      presegmented_claims: [],
-      claims: [],
-      claim_checks: {},
-      dependencies: {},
+      sample_annotations: {},
+      correct_solutions: [],
     };
   }
   return stateByCase[caseId];
+}
+
+function getWorkingAnnotation(st) {
+  if (st.active_sample_idx === null || st.active_sample_idx === undefined) {
+    return getDefaultWorkingAnnotation();
+  }
+  if (!st.sample_annotations[st.active_sample_idx]) {
+    const sample = (selectedCase()?.samples || [])[st.active_sample_idx] || {};
+    st.sample_annotations[st.active_sample_idx] = getDefaultWorkingAnnotation(sample);
+  }
+  return st.sample_annotations[st.active_sample_idx];
 }
 
 function selectedCase() { return dataset[currentCaseIndex]; }
@@ -25,9 +79,47 @@ function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
 
+function renderLatexWithFallback(rawText) {
+  const htmlSafe = escapeHtml(rawText || '');
+  if (!window.renderMathInElement || !window.katex) {
+    return `<pre>${htmlSafe}</pre>`;
+  }
+  const temp = document.createElement('div');
+  temp.innerHTML = `<div class="math-content">${htmlSafe}</div>`;
+  try {
+    renderMathInElement(temp, {
+      delimiters: [
+        { left: '$$', right: '$$', display: true },
+        { left: '\\[', right: '\\]', display: true },
+        { left: '$', right: '$', display: false },
+        { left: '\\(', right: '\\)', display: false },
+      ],
+      throwOnError: false,
+      strict: 'ignore',
+    });
+    return temp.innerHTML;
+  } catch (e) {
+    return `<pre>${htmlSafe}</pre>`;
+  }
+}
+
+function renderSolutionCard(solution, sampleIdx = null) {
+  const copyArg = sampleIdx === null ? 'null' : sampleIdx;
+  return `
+    <div class="solution-render-card" data-raw-solution="${escapeHtml(solution || '')}">
+      <div class="row card-actions">
+        <button onclick="copySolutionRaw(${copyArg})">复制原始解答</button>
+        <span id="copyStatus_${sampleIdx === null ? 'active' : sampleIdx}" class="copy-status"></span>
+      </div>
+      <div class="rendered-math">${renderLatexWithFallback(solution || '')}</div>
+    </div>
+  `;
+}
+
 function getClaimCheckStats(st) {
-  const total = (st.claims || []).reduce((acc, x) => acc + (x.claims || []).length, 0);
-  const checks = st.claim_checks || {};
+  const wa = getWorkingAnnotation(st);
+  const total = (wa.claims || []).reduce((acc, x) => acc + (x.claims || []).length, 0);
+  const checks = wa.claim_checks || {};
   let correct = 0;
   let incorrect = 0;
   Object.values(checks).forEach(v => {
@@ -35,10 +127,6 @@ function getClaimCheckStats(st) {
     else if (v === 'incorrect') incorrect += 1;
   });
   return { total, correct, incorrect, checked: correct + incorrect, unchecked: Math.max(0, total - correct - incorrect) };
-}
-
-function toggleCasePanel() {
-  document.getElementById('casePanel').classList.toggle('collapsed');
 }
 
 async function loadDataset() {
@@ -66,21 +154,26 @@ function renderCaseList() {
   });
 }
 
-function selectCase(idx) {
+async function selectCase(idx) {
+  if (idx === currentCaseIndex) return;
+  await flushAutosave();
   currentCaseIndex = idx;
   currentStep = 1;
   const c = selectedCase();
   const st = getCaseState(c.id);
-  if (!st.selected_solution_text && (c.samples || []).length) {
-    st.selected_solution_idx = 0;
-    st.selected_solution_text = c.samples[0].solution || '';
-    st.presegmented_claims = extractPresegmentedClaims(c.samples[0] || {});
-  }
+  st.current_step = currentStep;
+  await restoreProgress(c.id);
+  if (!Number.isInteger(st.sample_cursor)) st.sample_cursor = 0;
   renderCurrentCase();
 }
 
 function goStep(s) {
   currentStep = s;
+  const c = selectedCase();
+  if (c) {
+    getCaseState(c.id).current_step = s;
+    scheduleAutosave();
+  }
   renderStepContent();
 }
 
@@ -88,62 +181,105 @@ function renderCurrentCase() {
   const c = selectedCase();
   if (!c) return;
   const st = getCaseState(c.id);
+  const wa = getWorkingAnnotation(st);
   const stats = getClaimCheckStats(st);
-  document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${(c.samples || []).length}</span> <span class="pill">steps ${(st.steps || []).length}</span> <span class="pill">claims ${stats.total}</span>`;
+  const activeSample = st.active_sample_idx === null ? '-' : `sample-${st.active_sample_idx + 1}`;
+  const totalSamples = (c.samples || []).length;
+  const completed = st.sample_validation.filter(x => x?.pipeline_status === 'completed' || x?.pipeline_status === 'discarded').length;
+  document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${totalSamples}</span> <span class="pill">progress ${completed}/${totalSamples}</span> <span class="pill">active ${activeSample}</span> <span class="pill">steps ${(wa.steps || []).length}</span> <span class="pill">claims ${stats.total}</span>`;
   document.getElementById('qAndA').textContent = `题目:\n${c.question}\n\n标准答案:\n${c.reference_answer}`;
-  document.getElementById('known').textContent = JSON.stringify(c.known_solutions || [], null, 2);
   renderStepContent();
 }
 
 function sampleRecord(st, i) {
-  st.sample_validation[i] = st.sample_validation[i] || { is_correct: null, class_name: '', is_new_class: false, summary: '', translation: '' };
+  st.sample_validation[i] = st.sample_validation[i] || {
+    is_correct: null,
+    class_name: '',
+    is_new_class: false,
+    summary: '',
+    pipeline_status: 'not_started',
+  };
   return st.sample_validation[i];
+}
+
+function formatUtcToLocal(iso) {
+  if (!iso) return '未保存';
+  const d = new Date(iso);
+  return `${d.toLocaleTimeString()}.${String(d.getMilliseconds()).padStart(3, '0')}`;
+}
+
+function findNextSampleCursor(st, start) {
+  const c = selectedCase();
+  const total = (c?.samples || []).length;
+  for (let i = start; i < total; i += 1) {
+    const rec = sampleRecord(st, i);
+    if (rec.pipeline_status !== 'completed' && rec.pipeline_status !== 'discarded') return i;
+  }
+  return Math.max(0, total - 1);
+}
+
+function setActiveSampleFromCursor() {
+  const c = selectedCase();
+  const st = getCaseState(c.id);
+  const idx = st.sample_cursor || 0;
+  const rec = sampleRecord(st, idx);
+  if (rec.is_correct !== true) {
+    alert('当前样本尚未判定为正确，不能进入主工作流。');
+    return;
+  }
+  st.active_sample_idx = idx;
+  rec.pipeline_status = 'in_progress';
+  if (!st.sample_annotations[idx]) {
+    st.sample_annotations[idx] = getDefaultWorkingAnnotation((c.samples || [])[idx] || {});
+  }
+  currentStep = 2;
+  st.current_step = currentStep;
+  scheduleAutosave();
+  renderCurrentCase();
 }
 
 function chooseSampleStatus(i, status) {
   const st = getCaseState(selectedCase().id);
   const rec = sampleRecord(st, i);
-  rec.is_correct = rec.is_correct === status ? null : status;
+  rec.is_correct = status;
+
+  if (status === false) {
+    rec.pipeline_status = 'discarded';
+    delete st.sample_annotations[i];
+    st.correct_solutions = (st.correct_solutions || []).filter(x => x.sample_idx !== i);
+    if (st.active_sample_idx === i) {
+      st.active_sample_idx = null;
+    }
+    if (st.sample_cursor === i) {
+      st.sample_cursor = findNextSampleCursor(st, i + 1);
+    }
+  }
+
+  if (status === true && !st.sample_annotations[i]) {
+    rec.pipeline_status = rec.pipeline_status === 'completed' ? 'completed' : 'ready';
+    st.sample_annotations[i] = getDefaultWorkingAnnotation((selectedCase().samples || [])[i] || {});
+  }
+  if (status === null) rec.pipeline_status = 'not_started';
+
+  scheduleAutosave();
   renderStepContent();
 }
 
 function setSampleField(i, k, v) {
   const st = getCaseState(selectedCase().id);
   sampleRecord(st, i)[k] = v;
-}
-
-async function translateSample(i) {
-  const c = selectedCase();
-  const st = getCaseState(c.id);
-  const text = ((c.samples || [])[i] || {}).solution || '';
-  const res = await fetch('/api/translate', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, target: 'zh-CN' }),
-  });
-  const data = await res.json();
-  if (!res.ok) return alert(data.error || '翻译失败');
-  sampleRecord(st, i).translation = data.translated;
-  renderStepContent();
+  scheduleAutosave();
 }
 
 function selectSolution(i) {
-  const c = selectedCase();
-  const st = getCaseState(c.id);
-  const sample = (c.samples || [])[i] || {};
-  st.selected_solution_idx = i;
-  st.selected_solution_text = sample.solution || '';
-  st.cut_points = [];
-  st.steps = [];
-  st.presegmented_claims = extractPresegmentedClaims(sample);
-  renderStepContent();
+  const st = getCaseState(selectedCase().id);
+  st.sample_cursor = i;
+  setActiveSampleFromCursor();
 }
 
 function extractPresegmentedClaims(sample) {
   const raw = sample?.claims_by_step || sample?.step_claims || sample?.claims || [];
   if (!Array.isArray(raw)) return [];
-  // 兼容两种输入：
-  // 1) ["claim1", "claim2"]（仅预切分，不含 step）
-  // 2) [{text, step_id/step_index}] / [{step_id, claims:[...]}]
   const out = [];
   raw.forEach((item, i) => {
     if (typeof item === 'string') {
@@ -174,54 +310,67 @@ function extractPresegmentedClaims(sample) {
 function addCutPoint() {
   const c = selectedCase();
   const st = getCaseState(c.id);
+  const wa = getWorkingAnnotation(st);
   const ta = document.getElementById('solutionText');
   if (!ta) return;
   const pos = ta.selectionStart;
-  if (pos > 0 && pos < (st.selected_solution_text || '').length && !st.cut_points.includes(pos)) {
-    st.cut_points.push(pos);
-    st.cut_points.sort((a, b) => a - b);
+  if (pos > 0 && pos < (wa.selected_solution_text || '').length && !wa.cut_points.includes(pos)) {
+    wa.cut_points.push(pos);
+    wa.cut_points.sort((a, b) => a - b);
+    scheduleAutosave();
     updateSplitPreview();
   }
 }
 
 function removeCutPoint(p) {
   const st = getCaseState(selectedCase().id);
-  st.cut_points = st.cut_points.filter(x => x !== p);
+  const wa = getWorkingAnnotation(st);
+  wa.cut_points = wa.cut_points.filter(x => x !== p);
+  scheduleAutosave();
   updateSplitPreview();
 }
 
 async function updateSplitPreview() {
   const st = getCaseState(selectedCase().id);
+  const wa = getWorkingAnnotation(st);
   const res = await fetch('/api/split_steps', {
     method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ solution: st.selected_solution_text, cut_points: st.cut_points }),
+    body: JSON.stringify({ solution: wa.selected_solution_text, cut_points: wa.cut_points }),
   });
   const data = await res.json();
-  st.steps = (data.steps || []).map((text, i) => ({ id: `s${i + 1}`, text }));
+  wa.steps = (data.steps || []).map((text, i) => ({ id: `s${i + 1}`, text }));
+  wa.workflow_state = 'steps_segmented';
   const box = document.getElementById('splitPreview');
-  if (box) box.textContent = JSON.stringify(st.steps, null, 2);
+  if (box) box.textContent = JSON.stringify(wa.steps, null, 2);
   const cp = document.getElementById('cutPointList');
   if (cp) {
-    cp.innerHTML = st.cut_points.map(x => `<button onclick="removeCutPoint(${x})">位置 ${x} ×</button>`).join(' ');
+    cp.innerHTML = wa.cut_points.map(x => `<button onclick="removeCutPoint(${x})">位置 ${x} ×</button>`).join(' ');
   }
+  scheduleAutosave();
 }
 
 function organizeClaimsBySteps() {
   const st = getCaseState(selectedCase().id);
-  const stepCount = (st.steps || []).length;
-  st.claims = Array.from({ length: stepCount }, (_, i) => ({ step_id: `s${i + 1}`, claims: [] }));
-  (st.presegmented_claims || []).forEach((claim, i) => {
+  const wa = getWorkingAnnotation(st);
+  const stepCount = (wa.steps || []).length;
+  wa.claims = Array.from({ length: stepCount }, (_, i) => ({ step_id: `s${i + 1}`, claims: [] }));
+  (wa.presegmented_claims || []).forEach((claim, i) => {
     let stepIdx = Number(document.getElementById(`claimStepSel_${i}`)?.value ?? -1);
     if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= stepCount) return;
     claim.step_idx = stepIdx;
-    st.claims[stepIdx].claims.push((claim.text || '').trim());
+    wa.claims[stepIdx].claims.push((claim.text || '').trim());
   });
+  wa.workflow_state = 'claims_assigned';
+  scheduleAutosave();
   renderStepContent();
 }
 
 function updateClaimCheck(claimId, status) {
   const st = getCaseState(selectedCase().id);
-  st.claim_checks[claimId] = status;
+  const wa = getWorkingAnnotation(st);
+  wa.claim_checks[claimId] = status;
+  wa.workflow_state = 'claims_checked';
+  scheduleAutosave();
 }
 
 function claimCheckTag(claimId, current, expected, label) {
@@ -234,11 +383,17 @@ function updateClaimCheckAndRender(status, claimId) {
 }
 
 function editClaim(stepIdx, claimIdx, v) {
-  getCaseState(selectedCase().id).claims[stepIdx].claims[claimIdx] = v;
+  const st = getCaseState(selectedCase().id);
+  const wa = getWorkingAnnotation(st);
+  wa.claims[stepIdx].claims[claimIdx] = v;
+  scheduleAutosave();
 }
 
 function addClaim(stepIdx) {
-  getCaseState(selectedCase().id).claims[stepIdx].claims.push('');
+  const st = getCaseState(selectedCase().id);
+  const wa = getWorkingAnnotation(st);
+  wa.claims[stepIdx].claims.push('');
+  scheduleAutosave();
   renderStepContent();
 }
 
@@ -252,17 +407,21 @@ function flattenClaimsByStep(claims) {
 
 function toggleDep(currId, depId, checked) {
   const st = getCaseState(selectedCase().id);
-  st.dependencies[currId] = st.dependencies[currId] || [];
+  const wa = getWorkingAnnotation(st);
+  wa.dependencies[currId] = wa.dependencies[currId] || [];
   if (checked) {
-    if (!st.dependencies[currId].includes(depId)) st.dependencies[currId].push(depId);
+    if (!wa.dependencies[currId].includes(depId)) wa.dependencies[currId].push(depId);
   } else {
-    st.dependencies[currId] = st.dependencies[currId].filter(x => x !== depId);
+    wa.dependencies[currId] = wa.dependencies[currId].filter(x => x !== depId);
   }
+  wa.workflow_state = 'dependencies_labeled';
+  scheduleAutosave();
 }
 
 function buildDependencyView() {
   const st = getCaseState(selectedCase().id);
-  const grouped = flattenClaimsByStep(st.claims);
+  const wa = getWorkingAnnotation(st);
+  const grouped = flattenClaimsByStep(wa.claims);
   let html = '<h3>Step 5：依赖关系（按当前 Step 逐条标注）</h3>';
 
   grouped.forEach((currStep, sIdx) => {
@@ -276,7 +435,7 @@ function buildDependencyView() {
         if (!candidates.length) continue;
         html += `<details><summary>前序 Step ${ps + 1}（${candidates.length}条）</summary>`;
         candidates.forEach(cand => {
-          const deps = st.dependencies[curr.id] || [];
+          const deps = wa.dependencies[curr.id] || [];
           const checked = deps.includes(cand.id) ? 'checked' : '';
           html += `<label class="dep-option"><input type="checkbox" ${checked} onchange="toggleDep('${curr.id}','${cand.id}',this.checked)"> <span>${cand.id}</span> ${cand.text}</label>`;
         });
@@ -292,22 +451,25 @@ function buildDependencyView() {
 function buildSummaryView() {
   const c = selectedCase();
   const st = getCaseState(c.id);
+  const wa = getWorkingAnnotation(st);
   const stats = getClaimCheckStats(st);
   return `
     <h3>Step 6：提交前总览</h3>
     <p>请检查以下结果无误后提交：</p>
     <div class="kpi-grid">
-      <div class="kpi"><small>Step 数</small><b>${(st.steps || []).length}</b></div>
+      <div class="kpi"><small>Step 数</small><b>${(wa.steps || []).length}</b></div>
       <div class="kpi"><small>Claim 总数</small><b>${stats.total}</b></div>
       <div class="kpi"><small>已检查</small><b>${stats.checked}</b></div>
       <div class="kpi"><small>未检查</small><b>${stats.unchecked}</b></div>
     </div>
     <h4>多采样验证</h4><pre>${JSON.stringify(st.sample_validation, null, 2)}</pre>
-    <h4>Step切分（来自完整 solution 的切分点）</h4><pre>${JSON.stringify({ solution_index: st.selected_solution_idx, cut_points: st.cut_points, steps: st.steps }, null, 2)}</pre>
-    <h4>Claim整理结果（按 step）</h4><pre>${JSON.stringify(st.claims, null, 2)}</pre>
-    <h4>Claim正确性检查</h4><pre>${JSON.stringify(st.claim_checks, null, 2)}</pre>
-    <h4>依赖关系</h4><pre>${JSON.stringify(st.dependencies, null, 2)}</pre>
-    <button class="primary" onclick="submitCase()">确认提交当前问题</button>
+    <h4>当前工作流状态</h4><pre>${JSON.stringify(wa.workflow_state || '', null, 2)}</pre>
+    <h4>Step切分（当前样本）</h4><pre>${JSON.stringify({ active_sample_idx: st.active_sample_idx, cut_points: wa.cut_points, steps: wa.steps }, null, 2)}</pre>
+    <h4>Claim整理结果（按 step）</h4><pre>${JSON.stringify(wa.claims, null, 2)}</pre>
+    <h4>Claim正确性检查</h4><pre>${JSON.stringify(wa.claim_checks, null, 2)}</pre>
+    <h4>依赖关系</h4><pre>${JSON.stringify(wa.dependencies, null, 2)}</pre>
+    <h4>已完成正确解参考</h4><pre>${JSON.stringify(st.correct_solutions, null, 2)}</pre>
+    <button class="primary" onclick="submitCase()">完成当前样本并保存</button>
   `;
 }
 
@@ -315,26 +477,30 @@ function renderStepContent() {
   const c = selectedCase();
   if (!c) return;
   const st = getCaseState(c.id);
+  const wa = getWorkingAnnotation(st);
   const root = document.getElementById('stepContent');
   const navButtons = document.querySelectorAll('.step-btn');
   navButtons.forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.step) === currentStep));
 
   if (currentStep === 1) {
-    let html = '<h3>Step 1：多采样验证（可回退）</h3><p>点击“正确/错误”可切换，再次点击可撤销为未判定。</p>';
-    (c.samples || []).forEach((s, i) => {
-      const rec = sampleRecord(st, i);
-      const clsCorrect = rec.is_correct === true ? 'tag active ok' : 'tag';
-      const clsWrong = rec.is_correct === false ? 'tag active bad' : 'tag';
-      const clsUnset = rec.is_correct === null ? 'tag active' : 'tag';
-      html += `
-      <div class="card">
+    const sampleCount = (c.samples || []).length;
+    const i = Math.min(st.sample_cursor || 0, Math.max(0, sampleCount - 1));
+    st.sample_cursor = i;
+    const s = (c.samples || [])[i] || {};
+    const rec = sampleRecord(st, i);
+    const clsCorrect = rec.is_correct === true ? 'tag active ok' : 'tag';
+    const clsWrong = rec.is_correct === false ? 'tag active bad' : 'tag';
+    const clsUnset = rec.is_correct === null ? 'tag active' : 'tag';
+    let html = '<h3>Step 1：单样本验证入口（严格串行）</h3><p>一次只处理一个样本：判定后进入完整流程，完成后再转到下一样本。</p>';
+    html += `
+      <div class="card sample-focus">
         <div class="card-head">
-          <h4>sample-${i + 1}</h4>
-          <button onclick="translateSample(${i})">翻译</button>
-          <button onclick="selectSolution(${i})">设为Step切分对象</button>
+          <h4>sample-${i + 1} / ${sampleCount}</h4>
+          <div class="row">
+            <span class="pill">状态 ${rec.pipeline_status || 'not_started'}</span>
+          </div>
         </div>
-        <pre>${s.solution || ''}</pre>
-        ${rec.translation ? `<details open><summary>翻译结果</summary><pre>${rec.translation}</pre></details>` : ''}
+        ${renderSolutionCard(s.solution || '', i)}
         <div class="row">
           <button class="${clsCorrect}" onclick="chooseSampleStatus(${i}, true)">正确</button>
           <button class="${clsWrong}" onclick="chooseSampleStatus(${i}, false)">错误</button>
@@ -345,31 +511,42 @@ function renderStepContent() {
           <label><input type="checkbox" ${rec.is_new_class ? 'checked' : ''} onchange="setSampleField(${i}, 'is_new_class', this.checked)"> 新分类</label>
           <label>新方法概述 <input value="${rec.summary || ''}" oninput="setSampleField(${i}, 'summary', this.value)"></label>
         </div>
-      </div>`;
-    });
+        <div class="row">
+          <button class="primary" onclick="setActiveSampleFromCursor()">开始当前样本流程</button>
+          <button onclick="moveSampleCursor(-1)">上一样本</button>
+          <button onclick="moveSampleCursor(1)">下一样本</button>
+        </div>
+      </div>
+    `;
     root.innerHTML = html;
+    return;
+  }
+
+  if (st.active_sample_idx === null) {
+    root.innerHTML = '<div class="card"><h3>请先在 Step 1 中选择一个判定为“正确”的 sample 作为当前工作样本。</h3></div>';
     return;
   }
 
   if (currentStep === 2) {
     root.innerHTML = `
       <h3>Step 2：Step切分（在完整 solution 上打点）</h3>
-      <p>当前切分对象：sample-${(st.selected_solution_idx || 0) + 1}。在下方文本中将光标移动到切分位置后点击“添加切分点”。</p>
-      <textarea id="solutionText" class="full-solution">${st.selected_solution_text || ''}</textarea>
+      <p>当前切分对象：sample-${st.active_sample_idx + 1}</p>
+      ${renderSolutionCard(wa.selected_solution_text || '', null)}
+      <textarea id="solutionText" class="full-solution" oninput="updateWorkingSolution(this.value)">${escapeHtml(wa.selected_solution_text || '')}</textarea>
       <div class="row">
         <button onclick="addCutPoint()">添加切分点</button>
         <button onclick="updateSplitPreview()">刷新预览</button>
       </div>
       <div id="cutPointList" class="row"></div>
       <h4>切分结果（可回退：删除切分点后刷新）</h4>
-      <pre id="splitPreview">${JSON.stringify(st.steps, null, 2)}</pre>
+      <pre id="splitPreview">${JSON.stringify(wa.steps, null, 2)}</pre>
     `;
     return;
   }
 
   if (currentStep === 3) {
-    const stepCount = (st.steps || []).length;
-    const claims = st.presegmented_claims || [];
+    const stepCount = (wa.steps || []).length;
+    const claims = wa.presegmented_claims || [];
     const unassigned = claims.filter(x => !Number.isInteger(x.step_idx) || x.step_idx < 0).length;
     let rows = '';
     claims.forEach((cl, i) => {
@@ -380,14 +557,13 @@ function renderStepContent() {
       rows += `
         <tr>
           <td>${cl.id}</td>
-          <td>${cl.text}</td>
+          <td>${escapeHtml(cl.text)}</td>
           <td><select id="claimStepSel_${i}">${options}</select></td>
         </tr>
       `;
     });
     root.innerHTML = `
       <h3>Step 3：整理每个 Step 对应的 Claim（使用预切分 claim）</h3>
-      <p>当前逻辑不再调用 Claim API。请把已预切分的 claim 分配到对应 step。</p>
       <div class="kpi-grid">
         <div class="kpi"><small>Step 数</small><b>${stepCount}</b></div>
         <div class="kpi"><small>预切分 Claim</small><b>${claims.length}</b></div>
@@ -400,7 +576,7 @@ function renderStepContent() {
       <div class="row">
         <button class="primary" onclick="organizeClaimsBySteps()">保存并生成 Step-Claim 结构</button>
       </div>
-      <pre>${JSON.stringify(st.claims, null, 2)}</pre>
+      <pre>${JSON.stringify(wa.claims, null, 2)}</pre>
     `;
     return;
   }
@@ -416,14 +592,14 @@ function renderStepContent() {
         <div class="kpi"><small>未检查</small><b>${checkStats.unchecked}</b></div>
       </div>
     `;
-    (st.claims || []).forEach((cs, si) => {
+    (wa.claims || []).forEach((cs, si) => {
       html += `<h4>Step ${si + 1}</h4>`;
       (cs.claims || []).forEach((claim, ci) => {
         const claimId = `s${si + 1}c${ci + 1}`;
-        const current = st.claim_checks[claimId] || 'unchecked';
+        const current = wa.claim_checks[claimId] || 'unchecked';
         html += `
           <div class="card">
-            <div><input class="claim-input" value="${claim}" oninput="editClaim(${si}, ${ci}, this.value)"></div>
+            <div><input class="claim-input" value="${escapeHtml(claim)}" oninput="editClaim(${si}, ${ci}, this.value)"></div>
             <div class="row">
               ${claimCheckTag(claimId, current, 'correct', '正确')}
               ${claimCheckTag(claimId, current, 'incorrect', '错误')}
@@ -448,58 +624,226 @@ function renderStepContent() {
   }
 }
 
-async function saveProgress() {
-  const c = selectedCase(); if (!c) return alert('先选择问题');
-  const annotator = document.getElementById('annotator').value.trim() || 'unknown';
+function updateWorkingSolution(value) {
+  const st = getCaseState(selectedCase().id);
+  const wa = getWorkingAnnotation(st);
+  wa.selected_solution_text = value;
+  scheduleAutosave();
+}
+
+function moveSampleCursor(delta) {
+  const c = selectedCase();
   const st = getCaseState(c.id);
-  const payload = {
-    annotator,
+  if (st.active_sample_idx !== null) {
+    alert('当前样本流程尚未完成，请先完成或丢弃当前样本。');
+    return;
+  }
+  const total = (c.samples || []).length;
+  const next = Math.max(0, Math.min(total - 1, (st.sample_cursor || 0) + delta));
+  st.sample_cursor = next;
+  st.current_step = 1;
+  currentStep = 1;
+  renderStepContent();
+}
+
+function buildProgressPayload(status = 'in_progress') {
+  const c = selectedCase();
+  if (!c) return null;
+  const st = getCaseState(c.id);
+  const wa = getWorkingAnnotation(st);
+  return {
+    annotator_id: annotatorId(),
+    device_id: deviceId,
     case_id: c.id,
-    sample_validation: st.sample_validation,
-    selected_solution_idx: st.selected_solution_idx,
-    selected_solution_text: st.selected_solution_text,
-    cut_points: st.cut_points,
-    steps: st.steps,
-    claims: st.claims,
-    claim_checks: st.claim_checks,
-    dependencies: st.dependencies,
-    status: 'in_progress',
+    status,
+    current_step: st.current_step || currentStep,
+    current_workflow_state: {
+      active_sample_idx: st.active_sample_idx,
+      sample_cursor: st.sample_cursor || 0,
+      workflow_state: wa.workflow_state || 'sample_selected',
+    },
+    current_annotations: {
+      selected_solution_text: wa.selected_solution_text,
+      cut_points: wa.cut_points,
+      steps: wa.steps,
+      presegmented_claims: wa.presegmented_claims,
+      claims: wa.claims,
+      claim_checks: wa.claim_checks,
+      dependencies: wa.dependencies,
+      sample_annotations: st.sample_annotations,
+    },
+    sample_decisions: st.sample_validation,
+    correct_solutions: st.correct_solutions || [],
   };
-  const res = await fetch('/api/save_record', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+}
+
+function payloadFingerprint(payload) {
+  return JSON.stringify({
+    annotator_id: payload.annotator_id,
+    device_id: payload.device_id,
+    case_id: payload.case_id,
+    status: payload.status,
+    current_step: payload.current_step,
+    current_workflow_state: payload.current_workflow_state,
+    current_annotations: payload.current_annotations,
+    sample_decisions: payload.sample_decisions,
+    correct_solutions: payload.correct_solutions,
+  });
+}
+
+async function persistProgress(status = 'in_progress', silent = true) {
+  const payload = buildProgressPayload(status);
+  if (!payload) return;
+  const fingerprint = payloadFingerprint(payload);
+  if (fingerprint === lastSavedFingerprint && status !== 'completed') {
+    setSaveState('无变更', 'saved');
+    return;
+  }
+  const requestSeq = ++saveRequestSeq;
+  setSaveState('保存中…', 'saving');
+  const res = await fetch('/api/save_progress', {
+    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
   });
   const data = await res.json();
-  if (!res.ok) return alert(data.error || '保存失败');
-  alert(`已保存: ${data.path}`);
+  if (requestSeq < lastAppliedSaveSeq) return;
+  lastAppliedSaveSeq = requestSeq;
+  if (!res.ok) {
+    setSaveState('保存失败', 'error');
+    if (!silent) alert(data.error || '保存失败');
+    return;
+  }
+  lastSavedHash = data.content_hash || lastSavedHash;
+  lastSavedFingerprint = fingerprint;
+  const ts = formatUtcToLocal(data.updated_at_utc);
+  if (data.unchanged) {
+    setSaveState(`无变更 ${ts}`, 'saved');
+  } else {
+    setSaveState(`已保存 ${ts}`, 'saved');
+  }
+}
+
+function scheduleAutosave() {
+  setSaveState('待保存', 'pending');
+  clearTimeout(autosaveTimer);
+  autosaveTimer = setTimeout(() => {
+    persistProgress('in_progress', true);
+  }, 900);
+}
+
+async function flushAutosave() {
+  clearTimeout(autosaveTimer);
+  await persistProgress('in_progress', true);
+}
+
+async function restoreProgress(caseId) {
+  if (!caseId) return;
+  const st = getCaseState(caseId);
+  const params = new URLSearchParams({
+    annotator_id: annotatorId(),
+    device_id: deviceId,
+    case_id: caseId,
+  });
+  const res = await fetch(`/api/load_progress?${params.toString()}`);
+  const data = await res.json();
+  if (!res.ok || !data.found) {
+    st.sample_cursor = 0;
+    setSaveState('未发现历史进度', 'pending');
+    return;
+  }
+  const progress = data.progress || {};
+  st.current_step = progress.current_step || 1;
+  currentStep = st.current_step;
+  st.sample_validation = progress.sample_decisions || [];
+  st.correct_solutions = progress.correct_solutions || [];
+  st.active_sample_idx = progress.current_workflow_state?.active_sample_idx ?? null;
+  const savedAnnotations = progress.current_annotations || {};
+  st.sample_annotations = savedAnnotations.sample_annotations || st.sample_annotations || {};
+  if (st.active_sample_idx !== null && !st.sample_annotations[st.active_sample_idx]) {
+    st.sample_annotations[st.active_sample_idx] = {
+      selected_solution_text: savedAnnotations.selected_solution_text || '',
+      cut_points: savedAnnotations.cut_points || [],
+      steps: savedAnnotations.steps || [],
+      presegmented_claims: savedAnnotations.presegmented_claims || [],
+      claims: savedAnnotations.claims || [],
+      claim_checks: savedAnnotations.claim_checks || {},
+      dependencies: savedAnnotations.dependencies || {},
+      workflow_state: progress.current_workflow_state?.workflow_state || 'sample_selected',
+    };
+  }
+  st.sample_cursor = Number.isInteger(progress.current_workflow_state?.sample_cursor)
+    ? progress.current_workflow_state.sample_cursor
+    : (st.sample_cursor || 0);
+  setSaveState(`已恢复 ${formatUtcToLocal(progress.updated_at_utc)}`, 'saved');
+}
+
+async function saveProgress() {
+  await flushAutosave();
+  alert('已保存当前进度');
 }
 
 async function submitCase() {
   const c = selectedCase(); if (!c) return alert('先选择问题');
-  const annotator = document.getElementById('annotator').value.trim() || 'unknown';
   const st = getCaseState(c.id);
-  const payload = {
-    annotator,
-    case_id: c.id,
-    sample_validation: st.sample_validation,
-    selected_solution_idx: st.selected_solution_idx,
-    selected_solution_text: st.selected_solution_text,
-    cut_points: st.cut_points,
-    steps: st.steps,
-    claims: st.claims,
-    claim_checks: st.claim_checks,
-    dependencies: st.dependencies,
-    status: 'completed',
-  };
-  const res = await fetch('/api/save_record', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+  if (st.active_sample_idx !== null) {
+    const activeIdx = st.active_sample_idx;
+    const sample = (c.samples || [])[activeIdx] || {};
+    const wa = getWorkingAnnotation(st);
+    const existing = (st.correct_solutions || []).some(x => x.sample_idx === activeIdx);
+    if (!existing) {
+      st.correct_solutions.push({
+        sample_idx: activeIdx,
+        solution: sample.solution || wa.selected_solution_text || '',
+        completed_at: new Date().toISOString(),
+      });
+    }
+    sampleRecord(st, activeIdx).pipeline_status = 'completed';
+    wa.workflow_state = 'completed';
+    st.active_sample_idx = null;
+    st.sample_cursor = findNextSampleCursor(st, activeIdx + 1);
+  }
+  const allDone = (c.samples || []).every((_, idx) => {
+    const status = sampleRecord(st, idx).pipeline_status;
+    return status === 'completed' || status === 'discarded';
   });
-  const data = await res.json();
-  if (!res.ok) return alert(data.error || '提交失败');
-  alert(`题目 ${c.id} 标注完成并自动保存`);
+  await persistProgress(allDone ? 'completed' : 'in_progress', false);
+  currentStep = 1;
+  st.current_step = 1;
+  renderCurrentCase();
+  alert(allDone ? `题目 ${c.id} 所有样本已完成` : `sample-${st.sample_cursor + 1} 已切换到下一样本`);
 }
 
-async function openGuide() {
-  const res = await fetch('/api/guideline');
-  const data = await res.json();
-  document.getElementById('guideText').textContent = data.content || '暂无';
+async function copySolutionRaw(sampleIdx) {
+  const c = selectedCase();
+  const st = getCaseState(c.id);
+  const wa = getWorkingAnnotation(st);
+  const raw = sampleIdx === null
+    ? (wa.selected_solution_text || '')
+    : (((c.samples || [])[sampleIdx] || {}).solution || '');
+  await navigator.clipboard.writeText(raw);
+  const nodeId = sampleIdx === null ? 'copyStatus_active' : `copyStatus_${sampleIdx}`;
+  const statusNode = document.getElementById(nodeId);
+  if (!statusNode) return;
+  statusNode.textContent = 'Copied';
+  clearTimeout(saveBadgeTimer);
+  saveBadgeTimer = setTimeout(() => {
+    statusNode.textContent = '';
+  }, 1200);
 }
+
+window.addEventListener('beforeunload', () => {
+  const payload = buildProgressPayload('in_progress');
+  if (!payload) return;
+  const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
+  navigator.sendBeacon('/api/save_progress', blob);
+});
+
+document.getElementById('annotator').addEventListener('change', async () => {
+  const c = selectedCase();
+  if (c) {
+    await restoreProgress(c.id);
+    renderCurrentCase();
+  }
+});
+
+initDeviceId();
+setSaveState('未保存', 'pending');
