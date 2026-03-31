@@ -1,13 +1,23 @@
 # 标注应用（annotation_app）
 
 ## 启动
+首次构建 unified 前端（仅需在前端变更后重新构建）：
+```bash
+cd frontend
+npm install
+npm run build
+cd ..
+```
+
+单应用启动（Flask 同时承载 landing + annotation + review）：
 ```bash
 pip install flask
 python annotation_app/app.py
 ```
 
 打开：
-- http://127.0.0.1:5000/
+- http://127.0.0.1:5000/ （landing，来自 `frontend/out`）
+- http://127.0.0.1:5000/annotator （标注工作台）
 - http://127.0.0.1:5000/review
 
 ## 当前核心能力
