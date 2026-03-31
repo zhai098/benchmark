@@ -122,23 +122,11 @@ def test_review_records_reads_new_layout(tmp_path, monkeypatch):
     assert any(r['file'] == 'u1/d1/c1.json' for r in rows)
 
 
-def test_root_route_falls_back_to_annotator_when_no_frontend_build(tmp_path, monkeypatch):
-    monkeypatch.setattr('annotation_app.app.FRONTEND_OUT_DIR', tmp_path / 'frontend_out')
+def test_root_route_uses_annotator_workspace():
     client = app.test_client()
     res = client.get('/')
     assert res.status_code == 200
     assert '数据标注客户端' in res.get_data(as_text=True)
-
-
-def test_root_route_serves_frontend_export_when_present(tmp_path, monkeypatch):
-    out_dir = tmp_path / 'frontend_out'
-    out_dir.mkdir(parents=True)
-    (out_dir / 'index.html').write_text('<html><body>landing</body></html>', encoding='utf-8')
-    monkeypatch.setattr('annotation_app.app.FRONTEND_OUT_DIR', out_dir)
-    client = app.test_client()
-    res = client.get('/')
-    assert res.status_code == 200
-    assert 'landing' in res.get_data(as_text=True)
 
 
 def test_frontend_has_katex_and_copy_ui():

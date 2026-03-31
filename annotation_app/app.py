@@ -148,9 +148,6 @@ def split_by_cut_points(text: str, cut_points: list[int]) -> list[str]:
 
 @app.get("/")
 def landing_page():
-    index_path = FRONTEND_OUT_DIR / "index.html"
-    if index_path.exists():
-        return send_file(index_path)
     return render_template("annotator.html")
 
 

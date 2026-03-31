@@ -129,10 +129,6 @@ function getClaimCheckStats(st) {
   return { total, correct, incorrect, checked: correct + incorrect, unchecked: Math.max(0, total - correct - incorrect) };
 }
 
-function toggleCasePanel() {
-  document.getElementById('casePanel').classList.toggle('collapsed');
-}
-
 async function loadDataset() {
   const path = document.getElementById('jsonlPath').value.trim();
   const res = await fetch('/api/load_jsonl', {
@@ -192,7 +188,6 @@ function renderCurrentCase() {
   const completed = st.sample_validation.filter(x => x?.pipeline_status === 'completed' || x?.pipeline_status === 'discarded').length;
   document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${totalSamples}</span> <span class="pill">progress ${completed}/${totalSamples}</span> <span class="pill">active ${activeSample}</span> <span class="pill">steps ${(wa.steps || []).length}</span> <span class="pill">claims ${stats.total}</span>`;
   document.getElementById('qAndA').textContent = `题目:\n${c.question}\n\n标准答案:\n${c.reference_answer}`;
-  document.getElementById('known').textContent = JSON.stringify([...(c.known_solutions || []), ...(st.correct_solutions || [])], null, 2);
   renderStepContent();
 }
 
@@ -202,7 +197,6 @@ function sampleRecord(st, i) {
     class_name: '',
     is_new_class: false,
     summary: '',
-    translation: '',
     pipeline_status: 'not_started',
   };
   return st.sample_validation[i];
@@ -275,21 +269,6 @@ function setSampleField(i, k, v) {
   const st = getCaseState(selectedCase().id);
   sampleRecord(st, i)[k] = v;
   scheduleAutosave();
-}
-
-async function translateSample(i) {
-  const c = selectedCase();
-  const st = getCaseState(c.id);
-  const text = ((c.samples || [])[i] || {}).solution || '';
-  const res = await fetch('/api/translate', {
-    method: 'POST', headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ text, target: 'zh-CN' }),
-  });
-  const data = await res.json();
-  if (!res.ok) return alert(data.error || '翻译失败');
-  sampleRecord(st, i).translation = data.translated;
-  scheduleAutosave();
-  renderStepContent();
 }
 
 function selectSolution(i) {
@@ -519,11 +498,9 @@ function renderStepContent() {
           <h4>sample-${i + 1} / ${sampleCount}</h4>
           <div class="row">
             <span class="pill">状态 ${rec.pipeline_status || 'not_started'}</span>
-            <button onclick="translateSample(${i})">翻译</button>
           </div>
         </div>
         ${renderSolutionCard(s.solution || '', i)}
-        ${rec.translation ? `<details open><summary>翻译结果</summary><pre>${escapeHtml(rec.translation)}</pre></details>` : ''}
         <div class="row">
           <button class="${clsCorrect}" onclick="chooseSampleStatus(${i}, true)">正确</button>
           <button class="${clsWrong}" onclick="chooseSampleStatus(${i}, false)">错误</button>
@@ -851,12 +828,6 @@ async function copySolutionRaw(sampleIdx) {
   saveBadgeTimer = setTimeout(() => {
     statusNode.textContent = '';
   }, 1200);
-}
-
-async function openGuide() {
-  const res = await fetch('/api/guideline');
-  const data = await res.json();
-  document.getElementById('guideText').textContent = data.content || '暂无';
 }
 
 window.addEventListener('beforeunload', () => {

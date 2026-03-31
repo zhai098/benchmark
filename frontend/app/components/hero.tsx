@@ -2,6 +2,7 @@
 
 import { motion } from 'framer-motion';
 import Image from 'next/image';
+import Link from 'next/link';
 
 export function Hero() {
   return (
@@ -24,12 +25,18 @@ export function Hero() {
             workspace designed for product organizations that ship at enterprise velocity.
           </p>
           <div className="flex flex-wrap items-center gap-4">
-            <button className="rounded-xl bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:translate-y-[-1px] hover:bg-indigo-50">
+            <Link
+              href="/annotator"
+              className="rounded-xl bg-white px-6 py-3 text-sm font-semibold text-slate-900 transition hover:translate-y-[-1px] hover:bg-indigo-50"
+            >
               Start free trial
-            </button>
-            <button className="rounded-xl border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/40 hover:bg-white/5">
-              Book a demo
-            </button>
+            </Link>
+            <Link
+              href="/review"
+              className="rounded-xl border border-white/20 px-6 py-3 text-sm font-semibold text-white transition hover:border-white/40 hover:bg-white/5"
+            >
+              Open review panel
+            </Link>
           </div>
         </div>
 

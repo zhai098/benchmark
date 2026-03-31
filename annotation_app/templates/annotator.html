@@ -11,13 +11,12 @@
   <header class="topbar">
     <div>
       <h1>数据标注客户端</h1>
-      <p class="sub">更高效的多阶段标注工作台</p>
+      <p class="sub">核心流程：登录 → 标注 → 自动保存</p>
     </div>
     <div class="toolbar">
       <input id="annotator" placeholder="标注者 ID" />
       <input id="jsonlPath" placeholder="JSONL 文件绝对路径" />
       <button onclick="loadDataset()">加载数据</button>
-      <button onclick="toggleCasePanel()">显示/隐藏任务列表</button>
       <button onclick="saveProgress()">手动保存</button>
       <button class="primary" onclick="goStep(6)">提交前总览</button>
       <span id="saveState" class="save-state">未保存</span>
@@ -25,11 +24,8 @@
   </header>
 
   <main class="layout">
-    <aside id="casePanel" class="case-panel collapsed">
-      <div class="aside-head">
-        <h3>任务列表</h3>
-        <button onclick="toggleCasePanel()">收起</button>
-      </div>
+    <aside id="casePanel" class="case-panel">
+      <div class="aside-head"><h3>任务列表</h3></div>
       <ul id="caseList"></ul>
     </aside>
 
@@ -45,21 +41,7 @@
 
       <article class="context-card">
         <h2 id="caseTitle">未加载</h2>
-        <div class="context-grid">
-          <details open>
-            <summary>题目与标准答案</summary>
-            <pre id="qAndA"></pre>
-          </details>
-          <details>
-            <summary>已知正确解</summary>
-            <pre id="known"></pre>
-          </details>
-          <details>
-            <summary>官方指南</summary>
-            <pre id="guideText">点击“加载指南”</pre>
-            <button onclick="openGuide()">加载指南</button>
-          </details>
-        </div>
+        <pre id="qAndA"></pre>
       </article>
 
       <article id="stepContent"></article>

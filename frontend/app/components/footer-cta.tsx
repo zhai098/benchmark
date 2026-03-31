@@ -1,6 +1,7 @@
 'use client';
 
 import { motion } from 'framer-motion';
+import Link from 'next/link';
 
 export function FooterCta() {
   return (
@@ -16,9 +17,12 @@ export function FooterCta() {
           <h3 className="text-2xl font-semibold text-white">Ready to modernize product operations?</h3>
           <p className="mt-2 text-sm leading-7 text-slate-300">Deploy in days, not quarters, with a stack built for performance and governance.</p>
         </div>
-        <button className="rounded-xl bg-indigo-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400">
+        <Link
+          href="/annotator"
+          className="rounded-xl bg-indigo-500 px-6 py-3 text-sm font-semibold text-white transition hover:bg-indigo-400"
+        >
           Request access
-        </button>
+        </Link>
       </motion.div>
     </section>
   );
