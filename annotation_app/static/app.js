@@ -88,6 +88,7 @@ function getDefaultWorkingAnnotation(sample = {}) {
     claims: [],
     claim_checks: {},
     dependencies: {},
+    step_dependencies: {},
     workflow_state: 'sample_selected',
   };
 }
@@ -101,6 +102,13 @@ function getCaseState(caseId) {
       sample_validation: [],
       sample_annotations: {},
       correct_solutions: [],
+      ui: {
+        showRawText: false,
+        pinRawText: false,
+        rawPanelWidth: 360,
+        stepContextWidth: 360,
+        depStepIdx: 0,
+      },
     };
   }
   return stateByCase[caseId];
@@ -471,30 +479,41 @@ function buildDependencyView() {
   const st = getCaseState(selectedCase().id);
   const wa = getWorkingAnnotation(st);
   const grouped = flattenClaimsByStep(wa.claims);
-  let html = '<h3>Step 5：依赖关系（按当前 Step 逐条标注）</h3>';
-
-  grouped.forEach((currStep, sIdx) => {
-    html += `<section class="dep-section"><h4>当前 Step ${sIdx + 1}</h4>`;
-    currStep.claims.forEach(curr => {
-      html += `<div class="dep-card"><div class="curr-claim"><b>${curr.id}</b> ${curr.text}</div>`;
-      html += '<div class="prev-steps">';
-      for (let ps = sIdx; ps >= 0; ps--) {
-        const prev = grouped[ps];
-        const candidates = prev.claims.filter(c => (c.stepIdx < curr.stepIdx) || (c.stepIdx === curr.stepIdx && c.claimIdx < curr.claimIdx));
-        if (!candidates.length) continue;
-        html += `<details><summary>前序 Step ${ps + 1}（${candidates.length}条）</summary>`;
-        candidates.forEach(cand => {
-          const deps = wa.dependencies[curr.id] || [];
-          const checked = deps.includes(cand.id) ? 'checked' : '';
-          html += `<label class="dep-option"><input type="checkbox" ${checked} onchange="toggleDep('${curr.id}','${cand.id}',this.checked)"> <span>${cand.id}</span> ${cand.text}</label>`;
-        });
-        html += '</details>';
-      }
-      html += '</div></div>';
+  if (!grouped.length) return '<div class="card"><h3>请先在 Step 3 完成 claim 整理。</h3></div>';
+  st.ui.depStepIdx = Math.max(0, Math.min(grouped.length - 1, st.ui.depStepIdx || 0));
+  const target = grouped[st.ui.depStepIdx];
+  const targetKey = `s${st.ui.depStepIdx + 1}`;
+  wa.step_dependencies = wa.step_dependencies || {};
+  const selectedDeps = wa.step_dependencies[targetKey] || [];
+  const options = grouped.map((step, i) => `<option value="${i}" ${i === st.ui.depStepIdx ? 'selected' : ''}>Step ${i + 1}</option>`).join('');
+  let candidateHtml = '';
+  for (let si = 0; si < st.ui.depStepIdx; si += 1) {
+    const step = grouped[si];
+    if (!step.claims.length) continue;
+    candidateHtml += `<details open><summary>Step ${si + 1}</summary>`;
+    step.claims.forEach((cand) => {
+      const checked = selectedDeps.includes(cand.id) ? 'checked' : '';
+      candidateHtml += `<label class="dep-option"><input type="checkbox" ${checked} onchange="updateStepDependency(${st.ui.depStepIdx}, '${cand.id}', this.checked)"> <span>${cand.id}</span> ${escapeHtml(cand.text)}</label>`;
     });
-    html += '</section>';
-  });
-  return html;
+    candidateHtml += '</details>';
+  }
+  return `
+    <h3>Step 5：依赖关系（按 Step 标注）</h3>
+    <div class="card">
+      <div class="row">
+        <label>当前目标 Step
+          <select onchange="setDependencyTargetStep(this.value)">${options}</select>
+        </label>
+        <span class="pill">已选依赖 ${selectedDeps.length}</span>
+      </div>
+      <h4>当前 Step 内容</h4>
+      ${target.claims.map((x) => `<div class="curr-claim"><b>${x.id}</b> ${escapeHtml(x.text)}</div>`).join('') || '<p class="muted-note">当前 Step 无 claim</p>'}
+    </div>
+    <div class="dep-section">
+      <h4>可选前序 claims（仅来自之前的 Step）</h4>
+      ${candidateHtml || '<p class="muted-note">当前为第 1 个 Step，没有前序 claims。</p>'}
+    </div>
+  `;
 }
 
 function buildSummaryView() {
@@ -517,6 +536,7 @@ function buildSummaryView() {
     <h4>Claim整理结果（按 step）</h4><pre>${JSON.stringify(wa.claims, null, 2)}</pre>
     <h4>Claim正确性检查</h4><pre>${JSON.stringify(wa.claim_checks, null, 2)}</pre>
     <h4>依赖关系</h4><pre>${JSON.stringify(wa.dependencies, null, 2)}</pre>
+    <h4>Step 依赖关系（简化标注）</h4><pre>${JSON.stringify(wa.step_dependencies || {}, null, 2)}</pre>
     <h4>已完成正确解参考</h4><pre>${JSON.stringify(st.correct_solutions, null, 2)}</pre>
     <button class="primary" onclick="submitCase()">完成当前样本并保存</button>
   `;
@@ -542,6 +562,122 @@ function buildWorkspaceHeader(c, st) {
   `;
 }
 
+function getRawTextForSample(c, idx) {
+  const sample = (c.samples || [])[idx] || {};
+  return String(sample.raw_text || sample.input || sample.problem || c.question || '').trim();
+}
+
+function toggleRawTextPanel() {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  st.ui.showRawText = !st.ui.showRawText;
+  renderStepContent();
+}
+
+function togglePinRawText() {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  st.ui.pinRawText = !st.ui.pinRawText;
+  if (st.ui.pinRawText) st.ui.showRawText = true;
+  renderStepContent();
+}
+
+async function copyCurrentRawText() {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  const raw = getRawTextForSample(c, st.sample_cursor || 0);
+  try {
+    await copyTextRobust(raw);
+    showToast('已复制原始文本', 'success');
+  } catch (err) {
+    showToast(`复制失败：${err.message}`, 'error');
+  }
+}
+
+function setDependencyTargetStep(v) {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  st.ui.depStepIdx = Math.max(0, Number(v) || 0);
+  renderStepContent();
+}
+
+function updateStepDependency(stepIdx, depId, checked) {
+  const st = getCaseState(selectedCase().id);
+  const wa = getWorkingAnnotation(st);
+  const key = `s${stepIdx + 1}`;
+  wa.step_dependencies = wa.step_dependencies || {};
+  wa.step_dependencies[key] = wa.step_dependencies[key] || [];
+  if (checked) {
+    if (!wa.step_dependencies[key].includes(depId)) wa.step_dependencies[key].push(depId);
+  } else {
+    wa.step_dependencies[key] = wa.step_dependencies[key].filter((x) => x !== depId);
+  }
+  wa.workflow_state = 'dependencies_labeled';
+  scheduleAutosave();
+}
+
+function buildStepContextPanel(steps = []) {
+  const cards = (steps || []).map((step, i) => `
+    <article class="step-context-card">
+      <header>Step ${i + 1}</header>
+      <div>${escapeHtml(step.text || '')}</div>
+    </article>
+  `).join('') || '<p class="muted-note">尚未生成 Step 内容。</p>';
+  return `
+    <aside class="context-panel-body">
+      <div class="context-panel-head">
+        <h4>Step 上下文</h4>
+        <span class="pill">共 ${(steps || []).length} 条</span>
+      </div>
+      <div class="context-panel-scroll">${cards}</div>
+    </aside>
+  `;
+}
+
+function withContextSplit(mainHtml, contextHtml, panelType = 'step') {
+  const c = selectedCase(); if (!c) return mainHtml;
+  const st = getCaseState(c.id);
+  const width = panelType === 'raw'
+    ? Math.max(300, Math.min(680, st.ui.rawPanelWidth || 360))
+    : Math.max(300, Math.min(620, st.ui.stepContextWidth || 360));
+  const splitId = panelType === 'raw' ? 'rawSplit' : 'stepSplit';
+  const handleId = panelType === 'raw' ? 'rawSplitHandle' : 'stepSplitHandle';
+  return `
+    <div id="${splitId}" class="context-split">
+      <section class="context-main">${mainHtml}</section>
+      <div id="${handleId}" class="inline-resize-handle" aria-hidden="true"></div>
+      <section class="context-side" style="width:${width}px">${contextHtml}</section>
+    </div>
+  `;
+}
+
+function initInlineResizer(panelType = 'step') {
+  const handleId = panelType === 'raw' ? 'rawSplitHandle' : 'stepSplitHandle';
+  const splitId = panelType === 'raw' ? 'rawSplit' : 'stepSplit';
+  const handle = document.getElementById(handleId);
+  const split = document.getElementById(splitId);
+  if (!handle || !split) return;
+  handle.onmousedown = (event) => {
+    event.preventDefault();
+    const onMove = (e) => {
+      const rect = split.getBoundingClientRect();
+      const nextWidth = rect.right - e.clientX;
+      const c = selectedCase(); if (!c) return;
+      const st = getCaseState(c.id);
+      if (panelType === 'raw') st.ui.rawPanelWidth = Math.max(300, Math.min(680, nextWidth));
+      else st.ui.stepContextWidth = Math.max(300, Math.min(620, nextWidth));
+      const side = split.querySelector('.context-side');
+      if (side) side.style.width = `${panelType === 'raw' ? st.ui.rawPanelWidth : st.ui.stepContextWidth}px`;
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
+}
+
 function renderStepContent() {
   const c = selectedCase();
   if (!c) return;
@@ -562,12 +698,16 @@ function renderStepContent() {
     const clsWrong = rec.is_correct === false ? 'tag active bad' : 'tag';
     const clsUnset = rec.is_correct === null ? 'tag active' : 'tag';
     let html = `${header}<h3>Step 1：单样本验证入口（严格串行）</h3><p>一次只处理一个样本：判定后进入完整流程，完成后再转到下一样本。</p>`;
+    const rawText = getRawTextForSample(c, i);
+    const rawVisible = st.ui.showRawText || st.ui.pinRawText;
     html += `
       <div class="card sample-focus">
         <div class="card-head">
           <h4>sample-${i + 1} / ${sampleCount}</h4>
           <div class="row">
             <span class="pill">状态 ${rec.pipeline_status || 'not_started'}</span>
+            <button class="ghost" onclick="toggleRawTextPanel()">${rawVisible ? '隐藏原始文本' : '查看原始文本'}</button>
+            <button class="ghost" onclick="togglePinRawText()">${st.ui.pinRawText ? '取消置顶' : '置顶原始文本'}</button>
           </div>
         </div>
         ${renderSolutionCard(s.solution || '', i)}
@@ -588,6 +728,17 @@ function renderStepContent() {
         </div>
       </div>
     `;
+    if (rawVisible) {
+      const rawPanel = `
+        <aside class="context-panel-body">
+          <div class="context-panel-head"><h4>原始文本</h4><button class="ghost" onclick="copyCurrentRawText()">复制</button></div>
+          <div class="context-panel-scroll"><pre>${escapeHtml(rawText || '当前样本未提供 raw_text，已回退显示题目。')}</pre></div>
+        </aside>
+      `;
+      root.innerHTML = withContextSplit(html, rawPanel, 'raw');
+      initInlineResizer('raw');
+      return;
+    }
     root.innerHTML = html;
     return;
   }
@@ -632,7 +783,8 @@ function renderStepContent() {
         </tr>
       `;
     });
-    root.innerHTML = `${header}
+    const mainHtml = `
+      ${header}
       <h3>Step 3：整理每个 Step 对应的 Claim（使用预切分 claim）</h3>
       <div class="kpi-grid">
         <div class="kpi"><small>Step 数</small><b>${stepCount}</b></div>
@@ -648,6 +800,8 @@ function renderStepContent() {
       </div>
       <pre>${JSON.stringify(wa.claims, null, 2)}</pre>
     `;
+    root.innerHTML = withContextSplit(mainHtml, buildStepContextPanel(wa.steps || []), 'step');
+    initInlineResizer('step');
     return;
   }
 
@@ -680,7 +834,8 @@ function renderStepContent() {
       });
       html += `<button onclick="addClaim(${si})">+ 添加 claim</button>`;
     });
-    root.innerHTML = html;
+    root.innerHTML = withContextSplit(html, buildStepContextPanel(wa.steps || []), 'step');
+    initInlineResizer('step');
     return;
   }
 
@@ -740,6 +895,7 @@ function buildProgressPayload(status = 'in_progress') {
       claims: wa.claims,
       claim_checks: wa.claim_checks,
       dependencies: wa.dependencies,
+      step_dependencies: wa.step_dependencies,
       sample_annotations: st.sample_annotations,
     },
     sample_decisions: st.sample_validation,
@@ -837,6 +993,7 @@ async function restoreProgress(caseId) {
       claims: savedAnnotations.claims || [],
       claim_checks: savedAnnotations.claim_checks || {},
       dependencies: savedAnnotations.dependencies || {},
+      step_dependencies: savedAnnotations.step_dependencies || {},
       workflow_state: progress.current_workflow_state?.workflow_state || 'sample_selected',
     };
   }
@@ -998,8 +1155,8 @@ function bindResize(handleId, side) {
     handle.classList.add('dragging');
     const onMove = (e) => {
       const total = window.innerWidth;
-      if (side === 'left') layoutPrefs.leftWidth = Math.max(200, Math.min(460, e.clientX - 20));
-      if (side === 'right') layoutPrefs.rightWidth = Math.max(260, Math.min(560, total - e.clientX - 20));
+      if (side === 'left') layoutPrefs.leftWidth = Math.max(240, Math.min(360, e.clientX - 20));
+      if (side === 'right') layoutPrefs.rightWidth = Math.max(320, Math.min(700, total - e.clientX - 20));
       applyLayoutPrefs();
     };
     const onUp = () => {
