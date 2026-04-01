@@ -706,6 +706,8 @@ function renderStepContent() {
           <h4>sample-${i + 1} / ${sampleCount}</h4>
           <div class="row">
             <span class="pill">状态 ${rec.pipeline_status || 'not_started'}</span>
+            <button class="ghost" onclick="toggleRawTextPanel()">${rawVisible ? '隐藏原始文本' : '查看原始文本'}</button>
+            <button class="ghost" onclick="togglePinRawText()">${st.ui.pinRawText ? '取消置顶' : '置顶原始文本'}</button>
           </div>
         </div>
         ${renderSolutionCard(s.solution || '', i)}
@@ -726,6 +728,17 @@ function renderStepContent() {
         </div>
       </div>
     `;
+    if (rawVisible) {
+      const rawPanel = `
+        <aside class="context-panel-body">
+          <div class="context-panel-head"><h4>原始文本</h4><button class="ghost" onclick="copyCurrentRawText()">复制</button></div>
+          <div class="context-panel-scroll"><pre>${escapeHtml(rawText || '当前样本未提供 raw_text，已回退显示题目。')}</pre></div>
+        </aside>
+      `;
+      root.innerHTML = withContextSplit(html, rawPanel, 'raw');
+      initInlineResizer('raw');
+      return;
+    }
     root.innerHTML = html;
     return;
   }
