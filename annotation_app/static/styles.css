@@ -71,7 +71,7 @@ button.ghost { background: #f4f7fe; }
 
 .workspace-layout {
   display: grid;
-  grid-template-columns: 280px 10px minmax(480px, 1fr) 10px 360px;
+  grid-template-columns: 280px 10px 0 minmax(480px, 1fr) 0 10px 360px;
   gap: 0;
   min-height: 0;
   flex: 1;
@@ -101,6 +101,16 @@ button.ghost { background: #f4f7fe; }
   width: 10px;
   cursor: col-resize;
   position: relative;
+}
+
+.edge-restore {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  width: 28px;
+  padding: 8px 0;
+  border-radius: 10px;
+  align-self: stretch;
+  background: #f4f7ff;
 }
 .resize-handle::before {
   content: '';
@@ -227,13 +237,21 @@ thead tr { background: #f3f7ff; }
 th, td { border-bottom: 1px solid var(--line); padding: 10px; text-align: left; vertical-align: top; }
 
 .is-collapsed { display: none !important; }
-.collapsed-panel {
-  display: flex;
-  align-items: flex-start;
-  justify-content: center;
-  padding: 12px 4px;
+.case-panel.panel-collapsed .left-content,
+.case-panel.panel-collapsed .side-meta,
+.reference-panel.panel-collapsed .right-content,
+.reference-panel.panel-collapsed .side-meta { display: none !important; }
+.panel-collapsed { align-items: center; }
+.panel-collapsed .side-header {
+  border-bottom: 0;
+  padding: 10px 4px;
 }
-.collapsed-panel .icon-btn { writing-mode: vertical-rl; text-orientation: mixed; height: 90px; width: 28px; }
+.panel-collapsed .icon-btn {
+  writing-mode: vertical-rl;
+  text-orientation: mixed;
+  width: 28px;
+  height: 92px;
+}
 
 .toast-region {
   position: fixed;
@@ -260,5 +278,5 @@ th, td { border-bottom: 1px solid var(--line); padding: 10px; text-align: left; 
 @media (max-width: 980px) {
   .control-bar { grid-template-columns: 1fr; }
   .workspace-layout { grid-template-columns: 1fr; }
-  .resize-handle, #casePanel, #referencePanel { display: none; }
+  .resize-handle, #casePanel, #referencePanel, .edge-restore { display: none; }
 }

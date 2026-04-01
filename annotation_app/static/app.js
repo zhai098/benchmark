@@ -943,28 +943,38 @@ function persistLayoutPrefs() {
 function applyLayoutPrefs() {
   const layout = document.getElementById('workspaceLayout');
   if (!layout) return;
-  const left = layoutPrefs.leftCollapsed ? 42 : Math.max(200, Math.min(460, layoutPrefs.leftWidth || 280));
-  const right = layoutPrefs.rightCollapsed ? 42 : Math.max(260, Math.min(560, layoutPrefs.rightWidth || 360));
-  layout.style.gridTemplateColumns = `${left}px 10px minmax(480px, 1fr) 10px ${right}px`;
+  const left = Math.max(200, Math.min(460, layoutPrefs.leftWidth || 280));
+  const right = Math.max(260, Math.min(560, layoutPrefs.rightWidth || 360));
+  const leftCol = layoutPrefs.leftCollapsed ? '0px' : `${left}px`;
+  const leftRestoreCol = layoutPrefs.leftCollapsed ? '28px' : '0px';
+  const rightCol = layoutPrefs.rightCollapsed ? '0px' : `${right}px`;
+  const rightRestoreCol = layoutPrefs.rightCollapsed ? '28px' : '0px';
+  layout.style.gridTemplateColumns = `${leftCol} 10px ${leftRestoreCol} minmax(480px, 1fr) ${rightRestoreCol} 10px ${rightCol}`;
   const casePanel = document.getElementById('casePanel');
   const refPanel = document.getElementById('referencePanel');
   const leftHandle = document.getElementById('leftResizeHandle');
   const rightHandle = document.getElementById('rightResizeHandle');
-  casePanel.classList.toggle('collapsed-panel', !!layoutPrefs.leftCollapsed);
-  refPanel.classList.toggle('collapsed-panel', !!layoutPrefs.rightCollapsed);
+  const leftRestoreBtn = document.getElementById('leftRestoreBtn');
+  const rightRestoreBtn = document.getElementById('rightRestoreBtn');
+  casePanel.classList.toggle('panel-collapsed', !!layoutPrefs.leftCollapsed);
+  refPanel.classList.toggle('panel-collapsed', !!layoutPrefs.rightCollapsed);
+  casePanel.classList.toggle('is-collapsed', !!layoutPrefs.leftCollapsed);
+  refPanel.classList.toggle('is-collapsed', !!layoutPrefs.rightCollapsed);
+  leftRestoreBtn?.classList.toggle('is-collapsed', !layoutPrefs.leftCollapsed);
+  rightRestoreBtn?.classList.toggle('is-collapsed', !layoutPrefs.rightCollapsed);
   leftHandle.classList.toggle('is-collapsed', !!layoutPrefs.leftCollapsed);
   rightHandle.classList.toggle('is-collapsed', !!layoutPrefs.rightCollapsed);
-  casePanel.querySelector('#caseList')?.classList.toggle('is-collapsed', !!layoutPrefs.leftCollapsed);
-  casePanel.querySelector('.task-search-wrap')?.classList.toggle('is-collapsed', !!layoutPrefs.leftCollapsed);
-  casePanel.querySelector('.side-header div')?.classList.toggle('is-collapsed', !!layoutPrefs.leftCollapsed);
-  refPanel.querySelector('.side-header div')?.classList.toggle('is-collapsed', !!layoutPrefs.rightCollapsed);
-  refPanel.querySelector('.reference-tabs')?.classList.toggle('is-collapsed', !!layoutPrefs.rightCollapsed);
-  refPanel.querySelector('#problemSection')?.classList.toggle('is-collapsed', !!layoutPrefs.rightCollapsed);
-  refPanel.querySelector('#solutionSection')?.classList.toggle('is-collapsed', !!layoutPrefs.rightCollapsed);
   const leftBtn = document.getElementById('toggleLeftPanel');
   const rightBtn = document.getElementById('toggleRightPanel');
   if (leftBtn) leftBtn.textContent = layoutPrefs.leftCollapsed ? '任务' : '◧';
   if (rightBtn) rightBtn.textContent = layoutPrefs.rightCollapsed ? '参考' : '◨';
+}
+
+function togglePanel(side) {
+  if (side === 'left') layoutPrefs.leftCollapsed = !layoutPrefs.leftCollapsed;
+  if (side === 'right') layoutPrefs.rightCollapsed = !layoutPrefs.rightCollapsed;
+  applyLayoutPrefs();
+  persistLayoutPrefs();
 }
 
 function bindResize(handleId, side) {
@@ -996,14 +1006,10 @@ function initLayoutControls() {
   bindResize('leftResizeHandle', 'left');
   bindResize('rightResizeHandle', 'right');
   document.getElementById('toggleLeftPanel')?.addEventListener('click', () => {
-    layoutPrefs.leftCollapsed = !layoutPrefs.leftCollapsed;
-    applyLayoutPrefs();
-    persistLayoutPrefs();
+    togglePanel('left');
   });
   document.getElementById('toggleRightPanel')?.addEventListener('click', () => {
-    layoutPrefs.rightCollapsed = !layoutPrefs.rightCollapsed;
-    applyLayoutPrefs();
-    persistLayoutPrefs();
+    togglePanel('right');
   });
 }
 
