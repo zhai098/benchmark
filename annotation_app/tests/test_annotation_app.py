@@ -116,6 +116,8 @@ def test_review_records_reads_new_layout(tmp_path, monkeypatch):
     (ann / 'c1.json').write_text(json.dumps(data), encoding='utf-8')
 
     client = app.test_client()
+    login = client.post('/api/session/role', json={'role': 'reviewer', 'access_key': 'reviewer'})
+    assert login.status_code == 200
     res = client.get('/api/review_records')
     assert res.status_code == 200
     rows = res.get_json()['records']
@@ -126,7 +128,9 @@ def test_root_route_uses_annotator_workspace():
     client = app.test_client()
     res = client.get('/')
     assert res.status_code == 200
-    assert '数据标注客户端' in res.get_data(as_text=True)
+    body = res.get_data(as_text=True)
+    assert 'Annotation Workspace' in body
+    assert 'JSONL 路径' in body
 
 
 def test_frontend_has_katex_and_copy_ui():
@@ -142,3 +146,30 @@ def test_frontend_pipeline_isolation_rules_present():
     assert 'st.correct_solutions.push' in js
     assert "wa.workflow_state = 'completed'" in js
     assert 'Step 1：单样本验证入口（严格串行）' in js
+
+
+def test_annotator_cannot_access_reviewer_apis():
+    client = app.test_client()
+    res = client.get('/api/review_records')
+    assert res.status_code == 403
+
+
+def test_reviewer_can_edit_guideline_and_read_it_back(tmp_path, monkeypatch):
+    monkeypatch.setattr('annotation_app.app.DATA_DIR', tmp_path)
+    monkeypatch.setattr('annotation_app.app.GUIDE_PATH', tmp_path / 'guideline.md')
+    monkeypatch.setattr('annotation_app.app.ANNOTATIONS_DIR', tmp_path / 'annotations')
+    monkeypatch.setattr('annotation_app.app.RECORDS_DIR', tmp_path / 'records')
+
+    client = app.test_client()
+    bad = client.put('/api/guideline', json={'content': '# x'})
+    assert bad.status_code == 403
+
+    login = client.post('/api/session/role', json={'role': 'reviewer', 'access_key': 'reviewer'})
+    assert login.status_code == 200
+
+    updated = client.put('/api/guideline', json={'content': '# 新说明\n- A'})
+    assert updated.status_code == 200
+
+    got = client.get('/api/guideline')
+    assert got.status_code == 200
+    assert '# 新说明' in got.get_json()['content']

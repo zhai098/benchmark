@@ -6,6 +6,7 @@ const nextConfig = {
   async rewrites() {
     const backend = process.env.BACKEND_URL || 'http://127.0.0.1:5000';
     return [
+      { source: '/', destination: `${backend}/annotator` },
       { source: '/annotator', destination: `${backend}/annotator` },
       { source: '/review', destination: `${backend}/review` },
       { source: '/static/:path*', destination: `${backend}/static/:path*` },

@@ -3,16 +3,27 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>服务器端审核面板</title>
+  <title>Reviewer 面板</title>
   <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
 </head>
 <body>
-  <header>
-    <h1>集中审核面板</h1>
-    <button onclick="loadRecords()">刷新记录</button>
+  <header class="topbar">
+    <div>
+      <h1>Reviewer 面板</h1>
+      <p class="sub">审核记录与标注说明维护（仅 reviewer 可见）</p>
+    </div>
+    <div class="row">
+      <button onclick="location.href='/'">返回首页</button>
+      <button onclick="loadRecords()">刷新记录</button>
+    </div>
   </header>
-  <main>
+  <main class="layout single">
     <section class="panel">
+      <h3>标注说明编辑</h3>
+      <p class="sub">保存后，首页将自动显示最新说明。</p>
+      <textarea id="guidelineEditor" class="full-solution" placeholder="# 标注说明"></textarea>
+      <div class="row"><button class="primary" onclick="saveGuideline()">保存说明</button></div>
+
       <h3>汇总</h3>
       <div id="summary"></div>
       <h3>记录列表</h3>

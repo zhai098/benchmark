@@ -1,13 +1,13 @@
 # Frontend dev workflow
 
-For full-stack development, run **two terminals**:
+For full-stack development, run two terminals:
 
 ## Terminal A (Flask backend)
 ```bash
 python annotation_app/app.py
 ```
 
-## Terminal B (Next.js frontend)
+## Terminal B (Next.js frontend proxy)
 ```bash
 cd frontend
 npm install
@@ -16,9 +16,14 @@ npm run dev
 
 Open `http://localhost:3000`.
 
-- `/` uses the Next landing page.
-- `/annotator`, `/review`, and `/api/*` are rewritten to Flask (`http://127.0.0.1:5000`) in dev.
-- You can override backend target with:
+## Routing behavior
+The Next.js app is intentionally a thin shell that forwards product routes to the Flask annotation app:
+- `/` -> Flask `/annotator` (annotation workspace is the main entry)
+- `/annotator` -> Flask `/annotator`
+- `/review` -> Flask `/review`
+- `/api/*` and `/static/*` -> Flask backend
+
+You can override the backend target:
 
 ```bash
 BACKEND_URL=http://127.0.0.1:5000 npm run dev
