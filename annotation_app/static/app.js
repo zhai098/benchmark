@@ -57,7 +57,7 @@ function showToast(message, type = 'success') {
 async function copyTextRobust(rawText) {
   const text = String(rawText ?? '');
   if (!text) throw new Error('没有可复制的文本');
-  if (navigator.clipboard?.writeText) {
+  if (window.isSecureContext && navigator.clipboard?.writeText) {
     try {
       await navigator.clipboard.writeText(text);
       return;
@@ -933,6 +933,12 @@ function loadLayoutPrefs() {
   try {
     const saved = JSON.parse(localStorage.getItem(layoutStorageKey) || '{}');
     Object.assign(layoutPrefs, saved || {});
+    const left = Number(layoutPrefs.leftWidth);
+    const right = Number(layoutPrefs.rightWidth);
+    layoutPrefs.leftWidth = Number.isFinite(left) ? left : 280;
+    layoutPrefs.rightWidth = Number.isFinite(right) ? right : 380;
+    layoutPrefs.leftCollapsed = Boolean(layoutPrefs.leftCollapsed);
+    layoutPrefs.rightCollapsed = Boolean(layoutPrefs.rightCollapsed);
   } catch (_) {}
 }
 
@@ -943,13 +949,20 @@ function persistLayoutPrefs() {
 function applyLayoutPrefs() {
   const layout = document.getElementById('workspaceLayout');
   if (!layout) return;
-  const left = Math.max(200, Math.min(460, layoutPrefs.leftWidth || 280));
-  const right = Math.max(260, Math.min(560, layoutPrefs.rightWidth || 360));
+  const viewport = window.innerWidth || 1440;
+  const left = Math.max(240, Math.min(360, layoutPrefs.leftWidth || 280));
+  const right = Math.max(320, Math.min(700, layoutPrefs.rightWidth || 380));
+  const reserved = (layoutPrefs.leftCollapsed ? 28 : left) + (layoutPrefs.rightCollapsed ? 28 : right) + 20;
+  const minCenter = 720;
+  if (viewport - reserved < minCenter) {
+    layoutPrefs.leftCollapsed = true;
+    layoutPrefs.rightCollapsed = false;
+  }
   const leftCol = layoutPrefs.leftCollapsed ? '0px' : `${left}px`;
   const leftRestoreCol = layoutPrefs.leftCollapsed ? '28px' : '0px';
   const rightCol = layoutPrefs.rightCollapsed ? '0px' : `${right}px`;
   const rightRestoreCol = layoutPrefs.rightCollapsed ? '28px' : '0px';
-  layout.style.gridTemplateColumns = `${leftCol} 10px ${leftRestoreCol} minmax(480px, 1fr) ${rightRestoreCol} 10px ${rightCol}`;
+  layout.style.gridTemplateColumns = `${leftCol} 10px ${leftRestoreCol} minmax(720px, 1fr) ${rightRestoreCol} 10px ${rightCol}`;
   const casePanel = document.getElementById('casePanel');
   const refPanel = document.getElementById('referencePanel');
   const leftHandle = document.getElementById('leftResizeHandle');
@@ -1002,6 +1015,9 @@ function bindResize(handleId, side) {
 
 function initLayoutControls() {
   loadLayoutPrefs();
+  if ((window.innerWidth || 0) < 1360) {
+    layoutPrefs.leftCollapsed = true;
+  }
   applyLayoutPrefs();
   bindResize('leftResizeHandle', 'left');
   bindResize('rightResizeHandle', 'right');
