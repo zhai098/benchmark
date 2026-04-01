@@ -481,7 +481,7 @@ function buildDependencyView() {
   const grouped = flattenClaimsByStep(wa.claims);
   if (!grouped.length) return '<div class="card"><h3>请先在 Step 3 完成 claim 整理。</h3></div>';
   st.ui.depStepIdx = Math.max(0, Math.min(grouped.length - 1, st.ui.depStepIdx || 0));
-  const target = grouped[st.ui.depStepIdx];
+  const targetStep = (wa.steps || [])[st.ui.depStepIdx] || {};
   const targetKey = `s${st.ui.depStepIdx + 1}`;
   wa.step_dependencies = wa.step_dependencies || {};
   const selectedDeps = wa.step_dependencies[targetKey] || [];
@@ -507,7 +507,7 @@ function buildDependencyView() {
         <span class="pill">已选依赖 ${selectedDeps.length}</span>
       </div>
       <h4>当前 Step 内容</h4>
-      ${target.claims.map((x) => `<div class="curr-claim"><b>${x.id}</b> ${escapeHtml(x.text)}</div>`).join('') || '<p class="muted-note">当前 Step 无 claim</p>'}
+      <div class="curr-claim">${escapeHtml(targetStep.text || '') || '<span class="muted-note">当前 Step 暂无内容</span>'}</div>
     </div>
     <div class="dep-section">
       <h4>可选前序 claims（仅来自之前的 Step）</h4>
@@ -564,7 +564,16 @@ function buildWorkspaceHeader(c, st) {
 
 function getRawTextForSample(c, idx) {
   const sample = (c.samples || [])[idx] || {};
-  return String(sample.raw_text || sample.input || sample.problem || c.question || '').trim();
+  return String(
+    sample.solution
+    || sample.raw_solution
+    || sample.generated_solution
+    || sample.raw_text
+    || sample.input
+    || sample.problem
+    || c.question
+    || '',
+  ).trim();
 }
 
 function toggleRawTextPanel() {
@@ -732,7 +741,7 @@ function renderStepContent() {
       const rawPanel = `
         <aside class="context-panel-body">
           <div class="context-panel-head"><h4>原始文本</h4><button class="ghost" onclick="copyCurrentRawText()">复制</button></div>
-          <div class="context-panel-scroll"><pre>${escapeHtml(rawText || '当前样本未提供 raw_text，已回退显示题目。')}</pre></div>
+          <div class="context-panel-scroll"><pre>${escapeHtml(rawText || '当前样本未提供 solution/raw_solution，已回退显示题目。')}</pre></div>
         </aside>
       `;
       root.innerHTML = withContextSplit(html, rawPanel, 'raw');
