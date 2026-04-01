@@ -36,14 +36,23 @@
       </div>
     </section>
 
-    <main class="layout">
-      <aside id="casePanel" class="case-panel">
-        <div class="aside-head">
-          <h3>任务导航</h3>
-          <p>按题目切换，进度自动恢复</p>
+    <main id="workspaceLayout" class="workspace-layout">
+      <aside id="casePanel" class="panel side-panel case-panel">
+        <div class="side-header">
+          <div class="side-meta">
+            <h3>任务导航</h3>
+            <p>按题目切换，进度自动恢复</p>
+          </div>
+          <button id="toggleLeftPanel" class="icon-btn" title="折叠任务导航" aria-label="折叠任务导航">◧</button>
         </div>
-        <ul id="caseList"></ul>
+        <div class="task-search-wrap left-content">
+          <input id="taskFilter" placeholder="搜索任务 ID" oninput="renderCaseList()" />
+        </div>
+        <ul id="caseList" class="left-content"></ul>
       </aside>
+
+      <div id="leftResizeHandle" class="resize-handle" role="separator" aria-orientation="vertical" aria-label="调整左侧面板宽度"></div>
+      <button id="leftRestoreBtn" class="edge-restore is-collapsed" onclick="togglePanel('left')" title="展开任务导航">任务</button>
 
       <section class="panel workspace-main">
         <nav class="step-nav" aria-label="Annotation steps">
@@ -54,16 +63,43 @@
           <button class="step-btn" data-step="5" onclick="goStep(5)">5 依赖关系</button>
           <button class="step-btn" data-step="6" onclick="goStep(6)">6 结果总览</button>
         </nav>
-
-        <article class="context-card">
-          <h2 id="caseTitle">未加载</h2>
-          <pre id="qAndA"></pre>
-        </article>
-
         <article id="stepContent" class="workspace-content"></article>
       </section>
+
+      <div id="rightResizeHandle" class="resize-handle" role="separator" aria-orientation="vertical" aria-label="调整右侧面板宽度"></div>
+      <button id="rightRestoreBtn" class="edge-restore is-collapsed" onclick="togglePanel('right')" title="展开参考面板">参考</button>
+
+      <aside id="referencePanel" class="panel side-panel reference-panel">
+        <div class="side-header">
+          <div class="side-meta">
+            <h3>题面与参考答案</h3>
+            <p>全程可见，避免反复切换</p>
+          </div>
+          <button id="toggleRightPanel" class="icon-btn" title="折叠参考面板" aria-label="折叠参考面板">◨</button>
+        </div>
+        <div class="reference-tabs right-content" role="tablist" aria-label="Reference sections">
+          <button id="tabProblem" class="tab-btn active" onclick="setReferenceTab('problem')">题目</button>
+          <button id="tabSolution" class="tab-btn" onclick="setReferenceTab('solution')">标准答案</button>
+        </div>
+        <section id="problemSection" class="reference-section active right-content">
+          <div class="reference-head">
+            <h4>当前问题</h4>
+            <button class="ghost" onclick="copyReferenceSection('problem')">复制题目</button>
+          </div>
+          <div id="problemContent" class="reference-body">未加载</div>
+        </section>
+        <section id="solutionSection" class="reference-section right-content">
+          <div class="reference-head">
+            <h4>标准答案</h4>
+            <button class="ghost" onclick="copyReferenceSection('solution')">复制答案</button>
+          </div>
+          <div id="solutionContent" class="reference-body">未加载</div>
+        </section>
+      </aside>
     </main>
   </div>
+
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
 
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
