@@ -698,8 +698,6 @@ function renderStepContent() {
     const clsWrong = rec.is_correct === false ? 'tag active bad' : 'tag';
     const clsUnset = rec.is_correct === null ? 'tag active' : 'tag';
     let html = `${header}<h3>Step 1：单样本验证入口（严格串行）</h3><p>一次只处理一个样本：判定后进入完整流程，完成后再转到下一样本。</p>`;
-    const rawText = getRawTextForSample(c, i);
-    const rawVisible = st.ui.showRawText || st.ui.pinRawText;
     html += `
       <div class="card sample-focus">
         <div class="card-head">
