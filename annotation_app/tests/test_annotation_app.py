@@ -129,8 +129,8 @@ def test_root_route_shows_home_entry():
     res = client.get('/')
     assert res.status_code == 200
     body = res.get_data(as_text=True)
-    assert '标注入口' in body
-    assert '进入标注工作区' in body
+    assert 'Annotation Workspace' in body
+    assert 'JSONL 路径' in body
 
 
 def test_frontend_has_katex_and_copy_ui():
@@ -154,7 +154,7 @@ def test_annotator_cannot_access_reviewer_apis():
     assert res.status_code == 403
 
 
-def test_reviewer_can_edit_guideline_and_home_reads_it(tmp_path, monkeypatch):
+def test_reviewer_can_edit_guideline_and_read_it_back(tmp_path, monkeypatch):
     monkeypatch.setattr('annotation_app.app.DATA_DIR', tmp_path)
     monkeypatch.setattr('annotation_app.app.GUIDE_PATH', tmp_path / 'guideline.md')
     monkeypatch.setattr('annotation_app.app.ANNOTATIONS_DIR', tmp_path / 'annotations')

@@ -160,7 +160,9 @@ def split_by_cut_points(text: str, cut_points: list[int]) -> list[str]:
 
 @app.get("/")
 def landing_page():
-    return render_template("home.html", role=current_role())
+    if current_role() != "annotator":
+        session["role"] = "annotator"
+    return render_template("annotator.html")
 
 
 @app.get("/annotator")

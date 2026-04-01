@@ -11,11 +11,3 @@ body {
     radial-gradient(circle at 80% -30%, rgba(14, 165, 233, 0.2), transparent 38%),
     linear-gradient(180deg, #020617 0%, #020617 65%, #0b1220 100%);
 }
-
-.section-shell {
-  @apply mx-auto max-w-6xl px-6 lg:px-10;
-}
-
-.card-surface {
-  @apply rounded-2xl border border-white/10 bg-white/[0.03] shadow-soft backdrop-blur;
-}
