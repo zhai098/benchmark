@@ -124,7 +124,7 @@ def test_review_records_reads_new_layout(tmp_path, monkeypatch):
     assert any(r['file'] == 'u1/d1/c1.json' for r in rows)
 
 
-def test_root_route_uses_annotator_workspace():
+def test_root_route_shows_home_entry():
     client = app.test_client()
     res = client.get('/')
     assert res.status_code == 200
