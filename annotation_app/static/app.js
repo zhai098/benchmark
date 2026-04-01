@@ -742,7 +742,16 @@ function renderStepContent() {
   }
 
   if (st.active_sample_idx === null) {
-    root.innerHTML = `${header}<div class="card"><h3>请先在 Step 1 中选择一个判定为“正确”的 sample 作为当前工作样本。</h3></div>`;
+    root.innerHTML = `${header}
+      <div class="card">
+        <h3>请先在 Step 1 中选择一个判定为“正确”的 sample 作为当前工作样本。</h3>
+        <p class="muted-note">当前尚未激活工作样本，因此无法进行当前步骤。</p>
+        <div class="row">
+          <button class="primary" onclick="jumpToSampleVerification()">前往 Step 1 选择样本</button>
+          <button class="ghost" onclick="goStep(1)">仅切换到 Step 1</button>
+        </div>
+      </div>
+    `;
     return;
   }
 
@@ -867,6 +876,15 @@ function moveSampleCursor(delta) {
   st.current_step = 1;
   currentStep = 1;
   renderStepContent();
+}
+
+function jumpToSampleVerification() {
+  const c = selectedCase();
+  if (!c) return;
+  const st = getCaseState(c.id);
+  const firstReady = (st.sample_validation || []).findIndex((rec) => rec?.is_correct === true && rec?.pipeline_status !== 'completed');
+  if (firstReady >= 0) st.sample_cursor = firstReady;
+  goStep(1);
 }
 
 function buildProgressPayload(status = 'in_progress') {
