@@ -9,6 +9,14 @@ let saveRequestSeq = 0;
 let lastAppliedSaveSeq = 0;
 let lastSavedHash = '';
 let lastSavedFingerprint = '';
+let referenceTab = 'problem';
+const layoutPrefs = {
+  leftWidth: 280,
+  rightWidth: 360,
+  leftCollapsed: false,
+  rightCollapsed: false,
+};
+const layoutStorageKey = 'annotation_layout_prefs_v2';
 
 function initDeviceId() {
   const key = 'annotation_device_id';
@@ -36,6 +44,41 @@ function setSaveState(text, cls = '') {
   badge.className = `save-state ${cls}`.trim();
 }
 
+function showToast(message, type = 'success') {
+  const region = document.getElementById('toastRegion');
+  if (!region) return;
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
+  toast.textContent = message;
+  region.appendChild(toast);
+  setTimeout(() => toast.remove(), 2600);
+}
+
+async function copyTextRobust(rawText) {
+  const text = String(rawText ?? '');
+  if (!text) throw new Error('没有可复制的文本');
+  if (window.isSecureContext && navigator.clipboard?.writeText) {
+    try {
+      await navigator.clipboard.writeText(text);
+      return;
+    } catch (err) {
+      // fallback below
+    }
+  }
+  const ta = document.createElement('textarea');
+  ta.value = text;
+  ta.setAttribute('readonly', '');
+  ta.style.position = 'fixed';
+  ta.style.opacity = '0';
+  ta.style.left = '-9999px';
+  document.body.appendChild(ta);
+  ta.select();
+  ta.setSelectionRange(0, ta.value.length);
+  const ok = document.execCommand('copy');
+  document.body.removeChild(ta);
+  if (!ok) throw new Error('浏览器禁止复制，请手动复制');
+}
+
 function getDefaultWorkingAnnotation(sample = {}) {
   return {
     selected_solution_text: sample.solution || '',
@@ -45,6 +88,7 @@ function getDefaultWorkingAnnotation(sample = {}) {
     claims: [],
     claim_checks: {},
     dependencies: {},
+    step_dependencies: {},
     workflow_state: 'sample_selected',
   };
 }
@@ -58,6 +102,13 @@ function getCaseState(caseId) {
       sample_validation: [],
       sample_annotations: {},
       correct_solutions: [],
+      ui: {
+        showRawText: false,
+        pinRawText: false,
+        rawPanelWidth: 360,
+        stepContextWidth: 360,
+        depStepIdx: 0,
+      },
     };
   }
   return stateByCase[caseId];
@@ -143,11 +194,15 @@ async function loadDataset() {
 
 function renderCaseList() {
   const ul = document.getElementById('caseList');
+  const filter = (document.getElementById('taskFilter')?.value || '').trim().toLowerCase();
   ul.innerHTML = '';
   dataset.forEach((c, i) => {
+    if (filter && !String(c.id || '').toLowerCase().includes(filter)) return;
     const li = document.createElement('li');
     const btn = document.createElement('button');
     btn.textContent = c.id;
+    btn.title = c.id;
+    btn.classList.toggle('active-task', i === currentCaseIndex);
     btn.onclick = () => selectCase(i);
     li.appendChild(btn);
     ul.appendChild(li);
@@ -180,15 +235,17 @@ function goStep(s) {
 function renderCurrentCase() {
   const c = selectedCase();
   if (!c) return;
-  const st = getCaseState(c.id);
-  const wa = getWorkingAnnotation(st);
-  const stats = getClaimCheckStats(st);
-  const activeSample = st.active_sample_idx === null ? '-' : `sample-${st.active_sample_idx + 1}`;
-  const totalSamples = (c.samples || []).length;
-  const completed = st.sample_validation.filter(x => x?.pipeline_status === 'completed' || x?.pipeline_status === 'discarded').length;
-  document.getElementById('caseTitle').innerHTML = `当前问题：${escapeHtml(c.id)} <span class="pill">samples ${totalSamples}</span> <span class="pill">progress ${completed}/${totalSamples}</span> <span class="pill">active ${activeSample}</span> <span class="pill">steps ${(wa.steps || []).length}</span> <span class="pill">claims ${stats.total}</span>`;
-  document.getElementById('qAndA').textContent = `题目:\n${c.question}\n\n标准答案:\n${c.reference_answer}`;
+  renderReferencePanel(c);
+  renderCaseList();
   renderStepContent();
+}
+
+function renderReferencePanel(c) {
+  const problemNode = document.getElementById('problemContent');
+  const solutionNode = document.getElementById('solutionContent');
+  if (!problemNode || !solutionNode) return;
+  problemNode.innerHTML = renderLatexWithFallback(c?.question || '未加载');
+  solutionNode.innerHTML = renderLatexWithFallback(c?.reference_answer || '未加载');
 }
 
 function sampleRecord(st, i) {
@@ -422,30 +479,41 @@ function buildDependencyView() {
   const st = getCaseState(selectedCase().id);
   const wa = getWorkingAnnotation(st);
   const grouped = flattenClaimsByStep(wa.claims);
-  let html = '<h3>Step 5：依赖关系（按当前 Step 逐条标注）</h3>';
-
-  grouped.forEach((currStep, sIdx) => {
-    html += `<section class="dep-section"><h4>当前 Step ${sIdx + 1}</h4>`;
-    currStep.claims.forEach(curr => {
-      html += `<div class="dep-card"><div class="curr-claim"><b>${curr.id}</b> ${curr.text}</div>`;
-      html += '<div class="prev-steps">';
-      for (let ps = sIdx; ps >= 0; ps--) {
-        const prev = grouped[ps];
-        const candidates = prev.claims.filter(c => (c.stepIdx < curr.stepIdx) || (c.stepIdx === curr.stepIdx && c.claimIdx < curr.claimIdx));
-        if (!candidates.length) continue;
-        html += `<details><summary>前序 Step ${ps + 1}（${candidates.length}条）</summary>`;
-        candidates.forEach(cand => {
-          const deps = wa.dependencies[curr.id] || [];
-          const checked = deps.includes(cand.id) ? 'checked' : '';
-          html += `<label class="dep-option"><input type="checkbox" ${checked} onchange="toggleDep('${curr.id}','${cand.id}',this.checked)"> <span>${cand.id}</span> ${cand.text}</label>`;
-        });
-        html += '</details>';
-      }
-      html += '</div></div>';
+  if (!grouped.length) return '<div class="card"><h3>请先在 Step 3 完成 claim 整理。</h3></div>';
+  st.ui.depStepIdx = Math.max(0, Math.min(grouped.length - 1, st.ui.depStepIdx || 0));
+  const target = grouped[st.ui.depStepIdx];
+  const targetKey = `s${st.ui.depStepIdx + 1}`;
+  wa.step_dependencies = wa.step_dependencies || {};
+  const selectedDeps = wa.step_dependencies[targetKey] || [];
+  const options = grouped.map((step, i) => `<option value="${i}" ${i === st.ui.depStepIdx ? 'selected' : ''}>Step ${i + 1}</option>`).join('');
+  let candidateHtml = '';
+  for (let si = 0; si < st.ui.depStepIdx; si += 1) {
+    const step = grouped[si];
+    if (!step.claims.length) continue;
+    candidateHtml += `<details open><summary>Step ${si + 1}</summary>`;
+    step.claims.forEach((cand) => {
+      const checked = selectedDeps.includes(cand.id) ? 'checked' : '';
+      candidateHtml += `<label class="dep-option"><input type="checkbox" ${checked} onchange="updateStepDependency(${st.ui.depStepIdx}, '${cand.id}', this.checked)"> <span>${cand.id}</span> ${escapeHtml(cand.text)}</label>`;
     });
-    html += '</section>';
-  });
-  return html;
+    candidateHtml += '</details>';
+  }
+  return `
+    <h3>Step 5：依赖关系（按 Step 标注）</h3>
+    <div class="card">
+      <div class="row">
+        <label>当前目标 Step
+          <select onchange="setDependencyTargetStep(this.value)">${options}</select>
+        </label>
+        <span class="pill">已选依赖 ${selectedDeps.length}</span>
+      </div>
+      <h4>当前 Step 内容</h4>
+      ${target.claims.map((x) => `<div class="curr-claim"><b>${x.id}</b> ${escapeHtml(x.text)}</div>`).join('') || '<p class="muted-note">当前 Step 无 claim</p>'}
+    </div>
+    <div class="dep-section">
+      <h4>可选前序 claims（仅来自之前的 Step）</h4>
+      ${candidateHtml || '<p class="muted-note">当前为第 1 个 Step，没有前序 claims。</p>'}
+    </div>
+  `;
 }
 
 function buildSummaryView() {
@@ -468,9 +536,146 @@ function buildSummaryView() {
     <h4>Claim整理结果（按 step）</h4><pre>${JSON.stringify(wa.claims, null, 2)}</pre>
     <h4>Claim正确性检查</h4><pre>${JSON.stringify(wa.claim_checks, null, 2)}</pre>
     <h4>依赖关系</h4><pre>${JSON.stringify(wa.dependencies, null, 2)}</pre>
+    <h4>Step 依赖关系（简化标注）</h4><pre>${JSON.stringify(wa.step_dependencies || {}, null, 2)}</pre>
     <h4>已完成正确解参考</h4><pre>${JSON.stringify(st.correct_solutions, null, 2)}</pre>
     <button class="primary" onclick="submitCase()">完成当前样本并保存</button>
   `;
+}
+
+function buildWorkspaceHeader(c, st) {
+  const wa = getWorkingAnnotation(st);
+  const stats = getClaimCheckStats(st);
+  const totalSamples = (c.samples || []).length;
+  const completed = st.sample_validation.filter(x => x?.pipeline_status === 'completed' || x?.pipeline_status === 'discarded').length;
+  const activeSample = st.active_sample_idx === null ? '-' : `sample-${st.active_sample_idx + 1}`;
+  return `
+    <div class="card">
+      <div class="row">
+        <h3 style="margin:0;">${escapeHtml(c.id)}</h3>
+        <span class="pill">samples ${totalSamples}</span>
+        <span class="pill">progress ${completed}/${totalSamples}</span>
+        <span class="pill">active ${activeSample}</span>
+        <span class="pill">steps ${(wa.steps || []).length}</span>
+        <span class="pill">claims ${stats.total}</span>
+      </div>
+    </div>
+  `;
+}
+
+function getRawTextForSample(c, idx) {
+  const sample = (c.samples || [])[idx] || {};
+  return String(sample.raw_text || sample.input || sample.problem || c.question || '').trim();
+}
+
+function toggleRawTextPanel() {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  st.ui.showRawText = !st.ui.showRawText;
+  renderStepContent();
+}
+
+function togglePinRawText() {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  st.ui.pinRawText = !st.ui.pinRawText;
+  if (st.ui.pinRawText) st.ui.showRawText = true;
+  renderStepContent();
+}
+
+async function copyCurrentRawText() {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  const raw = getRawTextForSample(c, st.sample_cursor || 0);
+  try {
+    await copyTextRobust(raw);
+    showToast('已复制原始文本', 'success');
+  } catch (err) {
+    showToast(`复制失败：${err.message}`, 'error');
+  }
+}
+
+function setDependencyTargetStep(v) {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  st.ui.depStepIdx = Math.max(0, Number(v) || 0);
+  renderStepContent();
+}
+
+function updateStepDependency(stepIdx, depId, checked) {
+  const st = getCaseState(selectedCase().id);
+  const wa = getWorkingAnnotation(st);
+  const key = `s${stepIdx + 1}`;
+  wa.step_dependencies = wa.step_dependencies || {};
+  wa.step_dependencies[key] = wa.step_dependencies[key] || [];
+  if (checked) {
+    if (!wa.step_dependencies[key].includes(depId)) wa.step_dependencies[key].push(depId);
+  } else {
+    wa.step_dependencies[key] = wa.step_dependencies[key].filter((x) => x !== depId);
+  }
+  wa.workflow_state = 'dependencies_labeled';
+  scheduleAutosave();
+}
+
+function buildStepContextPanel(steps = []) {
+  const cards = (steps || []).map((step, i) => `
+    <article class="step-context-card">
+      <header>Step ${i + 1}</header>
+      <div>${escapeHtml(step.text || '')}</div>
+    </article>
+  `).join('') || '<p class="muted-note">尚未生成 Step 内容。</p>';
+  return `
+    <aside class="context-panel-body">
+      <div class="context-panel-head">
+        <h4>Step 上下文</h4>
+        <span class="pill">共 ${(steps || []).length} 条</span>
+      </div>
+      <div class="context-panel-scroll">${cards}</div>
+    </aside>
+  `;
+}
+
+function withContextSplit(mainHtml, contextHtml, panelType = 'step') {
+  const c = selectedCase(); if (!c) return mainHtml;
+  const st = getCaseState(c.id);
+  const width = panelType === 'raw'
+    ? Math.max(300, Math.min(680, st.ui.rawPanelWidth || 360))
+    : Math.max(300, Math.min(620, st.ui.stepContextWidth || 360));
+  const splitId = panelType === 'raw' ? 'rawSplit' : 'stepSplit';
+  const handleId = panelType === 'raw' ? 'rawSplitHandle' : 'stepSplitHandle';
+  return `
+    <div id="${splitId}" class="context-split">
+      <section class="context-main">${mainHtml}</section>
+      <div id="${handleId}" class="inline-resize-handle" aria-hidden="true"></div>
+      <section class="context-side" style="width:${width}px">${contextHtml}</section>
+    </div>
+  `;
+}
+
+function initInlineResizer(panelType = 'step') {
+  const handleId = panelType === 'raw' ? 'rawSplitHandle' : 'stepSplitHandle';
+  const splitId = panelType === 'raw' ? 'rawSplit' : 'stepSplit';
+  const handle = document.getElementById(handleId);
+  const split = document.getElementById(splitId);
+  if (!handle || !split) return;
+  handle.onmousedown = (event) => {
+    event.preventDefault();
+    const onMove = (e) => {
+      const rect = split.getBoundingClientRect();
+      const nextWidth = rect.right - e.clientX;
+      const c = selectedCase(); if (!c) return;
+      const st = getCaseState(c.id);
+      if (panelType === 'raw') st.ui.rawPanelWidth = Math.max(300, Math.min(680, nextWidth));
+      else st.ui.stepContextWidth = Math.max(300, Math.min(620, nextWidth));
+      const side = split.querySelector('.context-side');
+      if (side) side.style.width = `${panelType === 'raw' ? st.ui.rawPanelWidth : st.ui.stepContextWidth}px`;
+    };
+    const onUp = () => {
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  };
 }
 
 function renderStepContent() {
@@ -479,6 +684,7 @@ function renderStepContent() {
   const st = getCaseState(c.id);
   const wa = getWorkingAnnotation(st);
   const root = document.getElementById('stepContent');
+  const header = buildWorkspaceHeader(c, st);
   const navButtons = document.querySelectorAll('.step-btn');
   navButtons.forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.step) === currentStep));
 
@@ -491,7 +697,7 @@ function renderStepContent() {
     const clsCorrect = rec.is_correct === true ? 'tag active ok' : 'tag';
     const clsWrong = rec.is_correct === false ? 'tag active bad' : 'tag';
     const clsUnset = rec.is_correct === null ? 'tag active' : 'tag';
-    let html = '<h3>Step 1：单样本验证入口（严格串行）</h3><p>一次只处理一个样本：判定后进入完整流程，完成后再转到下一样本。</p>';
+    let html = `${header}<h3>Step 1：单样本验证入口（严格串行）</h3><p>一次只处理一个样本：判定后进入完整流程，完成后再转到下一样本。</p>`;
     html += `
       <div class="card sample-focus">
         <div class="card-head">
@@ -523,12 +729,12 @@ function renderStepContent() {
   }
 
   if (st.active_sample_idx === null) {
-    root.innerHTML = '<div class="card"><h3>请先在 Step 1 中选择一个判定为“正确”的 sample 作为当前工作样本。</h3></div>';
+    root.innerHTML = `${header}<div class="card"><h3>请先在 Step 1 中选择一个判定为“正确”的 sample 作为当前工作样本。</h3></div>`;
     return;
   }
 
   if (currentStep === 2) {
-    root.innerHTML = `
+    root.innerHTML = `${header}
       <h3>Step 2：Step切分（在完整 solution 上打点）</h3>
       <p>当前切分对象：sample-${st.active_sample_idx + 1}</p>
       ${renderSolutionCard(wa.selected_solution_text || '', null)}
@@ -562,7 +768,8 @@ function renderStepContent() {
         </tr>
       `;
     });
-    root.innerHTML = `
+    const mainHtml = `
+      ${header}
       <h3>Step 3：整理每个 Step 对应的 Claim（使用预切分 claim）</h3>
       <div class="kpi-grid">
         <div class="kpi"><small>Step 数</small><b>${stepCount}</b></div>
@@ -578,12 +785,14 @@ function renderStepContent() {
       </div>
       <pre>${JSON.stringify(wa.claims, null, 2)}</pre>
     `;
+    root.innerHTML = withContextSplit(mainHtml, buildStepContextPanel(wa.steps || []), 'step');
+    initInlineResizer('step');
     return;
   }
 
   if (currentStep === 4) {
     const checkStats = getClaimCheckStats(st);
-    let html = '<h3>Step 4：Claim正确性检查与修正</h3>';
+    let html = `${header}<h3>Step 4：Claim正确性检查与修正</h3>`;
     html += `
       <div class="kpi-grid">
         <div class="kpi"><small>Claim 总数</small><b>${checkStats.total}</b></div>
@@ -610,17 +819,18 @@ function renderStepContent() {
       });
       html += `<button onclick="addClaim(${si})">+ 添加 claim</button>`;
     });
-    root.innerHTML = html;
+    root.innerHTML = withContextSplit(html, buildStepContextPanel(wa.steps || []), 'step');
+    initInlineResizer('step');
     return;
   }
 
   if (currentStep === 5) {
-    root.innerHTML = buildDependencyView();
+    root.innerHTML = `${header}${buildDependencyView()}`;
     return;
   }
 
   if (currentStep === 6) {
-    root.innerHTML = buildSummaryView();
+    root.innerHTML = `${header}${buildSummaryView()}`;
   }
 }
 
@@ -670,6 +880,7 @@ function buildProgressPayload(status = 'in_progress') {
       claims: wa.claims,
       claim_checks: wa.claim_checks,
       dependencies: wa.dependencies,
+      step_dependencies: wa.step_dependencies,
       sample_annotations: st.sample_annotations,
     },
     sample_decisions: st.sample_validation,
@@ -767,6 +978,7 @@ async function restoreProgress(caseId) {
       claims: savedAnnotations.claims || [],
       claim_checks: savedAnnotations.claim_checks || {},
       dependencies: savedAnnotations.dependencies || {},
+      step_dependencies: savedAnnotations.step_dependencies || {},
       workflow_state: progress.current_workflow_state?.workflow_state || 'sample_selected',
     };
   }
@@ -819,15 +1031,144 @@ async function copySolutionRaw(sampleIdx) {
   const raw = sampleIdx === null
     ? (wa.selected_solution_text || '')
     : (((c.samples || [])[sampleIdx] || {}).solution || '');
-  await navigator.clipboard.writeText(raw);
+  try {
+    await copyTextRobust(raw);
+  } catch (err) {
+    showToast(`复制失败：${err.message}`, 'error');
+    const nodeIdFail = sampleIdx === null ? 'copyStatus_active' : `copyStatus_${sampleIdx}`;
+    const statusNodeFail = document.getElementById(nodeIdFail);
+    if (statusNodeFail) statusNodeFail.textContent = '复制失败，请手动复制';
+    return;
+  }
   const nodeId = sampleIdx === null ? 'copyStatus_active' : `copyStatus_${sampleIdx}`;
   const statusNode = document.getElementById(nodeId);
   if (!statusNode) return;
-  statusNode.textContent = 'Copied';
+  statusNode.textContent = '已复制';
+  showToast('已复制解答文本', 'success');
   clearTimeout(saveBadgeTimer);
   saveBadgeTimer = setTimeout(() => {
     statusNode.textContent = '';
   }, 1200);
+}
+
+async function copyReferenceSection(section) {
+  const c = selectedCase();
+  if (!c) return showToast('未加载题目，无法复制', 'error');
+  const raw = section === 'problem' ? (c.question || '') : (c.reference_answer || '');
+  try {
+    await copyTextRobust(raw);
+    showToast(section === 'problem' ? '题目已复制' : '标准答案已复制', 'success');
+  } catch (err) {
+    showToast(`复制失败：${err.message}`, 'error');
+  }
+}
+
+function setReferenceTab(tab) {
+  referenceTab = tab;
+  document.getElementById('tabProblem')?.classList.toggle('active', tab === 'problem');
+  document.getElementById('tabSolution')?.classList.toggle('active', tab === 'solution');
+  document.getElementById('problemSection')?.classList.toggle('active', tab === 'problem');
+  document.getElementById('solutionSection')?.classList.toggle('active', tab === 'solution');
+}
+
+function loadLayoutPrefs() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(layoutStorageKey) || '{}');
+    Object.assign(layoutPrefs, saved || {});
+    const left = Number(layoutPrefs.leftWidth);
+    const right = Number(layoutPrefs.rightWidth);
+    layoutPrefs.leftWidth = Number.isFinite(left) ? left : 280;
+    layoutPrefs.rightWidth = Number.isFinite(right) ? right : 380;
+    layoutPrefs.leftCollapsed = Boolean(layoutPrefs.leftCollapsed);
+    layoutPrefs.rightCollapsed = Boolean(layoutPrefs.rightCollapsed);
+  } catch (_) {}
+}
+
+function persistLayoutPrefs() {
+  localStorage.setItem(layoutStorageKey, JSON.stringify(layoutPrefs));
+}
+
+function applyLayoutPrefs() {
+  const layout = document.getElementById('workspaceLayout');
+  if (!layout) return;
+  const viewport = window.innerWidth || 1440;
+  const left = Math.max(240, Math.min(360, layoutPrefs.leftWidth || 280));
+  const right = Math.max(320, Math.min(700, layoutPrefs.rightWidth || 380));
+  const reserved = (layoutPrefs.leftCollapsed ? 28 : left) + (layoutPrefs.rightCollapsed ? 28 : right) + 20;
+  const minCenter = 720;
+  if (viewport - reserved < minCenter) {
+    layoutPrefs.leftCollapsed = true;
+    layoutPrefs.rightCollapsed = false;
+  }
+  const leftCol = layoutPrefs.leftCollapsed ? '0px' : `${left}px`;
+  const leftRestoreCol = layoutPrefs.leftCollapsed ? '28px' : '0px';
+  const rightCol = layoutPrefs.rightCollapsed ? '0px' : `${right}px`;
+  const rightRestoreCol = layoutPrefs.rightCollapsed ? '28px' : '0px';
+  layout.style.gridTemplateColumns = `${leftCol} 10px ${leftRestoreCol} minmax(720px, 1fr) ${rightRestoreCol} 10px ${rightCol}`;
+  const casePanel = document.getElementById('casePanel');
+  const refPanel = document.getElementById('referencePanel');
+  const leftHandle = document.getElementById('leftResizeHandle');
+  const rightHandle = document.getElementById('rightResizeHandle');
+  const leftRestoreBtn = document.getElementById('leftRestoreBtn');
+  const rightRestoreBtn = document.getElementById('rightRestoreBtn');
+  casePanel.classList.toggle('panel-collapsed', !!layoutPrefs.leftCollapsed);
+  refPanel.classList.toggle('panel-collapsed', !!layoutPrefs.rightCollapsed);
+  casePanel.classList.toggle('is-collapsed', !!layoutPrefs.leftCollapsed);
+  refPanel.classList.toggle('is-collapsed', !!layoutPrefs.rightCollapsed);
+  leftRestoreBtn?.classList.toggle('is-collapsed', !layoutPrefs.leftCollapsed);
+  rightRestoreBtn?.classList.toggle('is-collapsed', !layoutPrefs.rightCollapsed);
+  leftHandle.classList.toggle('is-collapsed', !!layoutPrefs.leftCollapsed);
+  rightHandle.classList.toggle('is-collapsed', !!layoutPrefs.rightCollapsed);
+  const leftBtn = document.getElementById('toggleLeftPanel');
+  const rightBtn = document.getElementById('toggleRightPanel');
+  if (leftBtn) leftBtn.textContent = layoutPrefs.leftCollapsed ? '任务' : '◧';
+  if (rightBtn) rightBtn.textContent = layoutPrefs.rightCollapsed ? '参考' : '◨';
+}
+
+function togglePanel(side) {
+  if (side === 'left') layoutPrefs.leftCollapsed = !layoutPrefs.leftCollapsed;
+  if (side === 'right') layoutPrefs.rightCollapsed = !layoutPrefs.rightCollapsed;
+  applyLayoutPrefs();
+  persistLayoutPrefs();
+}
+
+function bindResize(handleId, side) {
+  const handle = document.getElementById(handleId);
+  if (!handle) return;
+  handle.addEventListener('mousedown', (event) => {
+    event.preventDefault();
+    handle.classList.add('dragging');
+    const onMove = (e) => {
+      const total = window.innerWidth;
+      if (side === 'left') layoutPrefs.leftWidth = Math.max(240, Math.min(360, e.clientX - 20));
+      if (side === 'right') layoutPrefs.rightWidth = Math.max(320, Math.min(700, total - e.clientX - 20));
+      applyLayoutPrefs();
+    };
+    const onUp = () => {
+      handle.classList.remove('dragging');
+      persistLayoutPrefs();
+      window.removeEventListener('mousemove', onMove);
+      window.removeEventListener('mouseup', onUp);
+    };
+    window.addEventListener('mousemove', onMove);
+    window.addEventListener('mouseup', onUp);
+  });
+}
+
+function initLayoutControls() {
+  loadLayoutPrefs();
+  if ((window.innerWidth || 0) < 1360) {
+    layoutPrefs.leftCollapsed = true;
+  }
+  applyLayoutPrefs();
+  bindResize('leftResizeHandle', 'left');
+  bindResize('rightResizeHandle', 'right');
+  document.getElementById('toggleLeftPanel')?.addEventListener('click', () => {
+    togglePanel('left');
+  });
+  document.getElementById('toggleRightPanel')?.addEventListener('click', () => {
+    togglePanel('right');
+  });
 }
 
 window.addEventListener('beforeunload', () => {
@@ -846,4 +1187,6 @@ document.getElementById('annotator').addEventListener('change', async () => {
 });
 
 initDeviceId();
+initLayoutControls();
+setReferenceTab('problem');
 setSaveState('未保存', 'pending');
