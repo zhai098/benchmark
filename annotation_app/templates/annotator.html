@@ -12,7 +12,7 @@
     <header class="topbar">
       <div class="title-wrap">
         <h1>Annotation Workspace</h1>
-        <p class="sub">高质量标注流程：样本验证 → Step/Claim/依赖标注 → 总览提交</p>
+        <p class="sub">高质量标注流程：题目质检 → 样本验证 → Step/Claim/依赖标注 → 总览提交</p>
       </div>
       <div class="status-wrap">
         <span class="status-chip">Reviewer 工具已隔离</span>
@@ -56,6 +56,7 @@
 
       <section class="panel workspace-main">
         <nav class="step-nav" aria-label="Annotation steps">
+          <button class="step-btn" data-step="0" onclick="goStep(0)">0 题目质检</button>
           <button class="step-btn" data-step="1" onclick="goStep(1)">1 多采样验证</button>
           <button class="step-btn" data-step="2" onclick="goStep(2)">2 Step切分</button>
           <button class="step-btn" data-step="3" onclick="goStep(3)">3 Claim整理</button>

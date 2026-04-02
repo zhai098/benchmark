@@ -1,6 +1,6 @@
 let dataset = [];
 let currentCaseIndex = -1;
-let currentStep = 1;
+let currentStep = 0;
 const stateByCase = {};
 let deviceId = '';
 let autosaveTimer = null;
@@ -96,9 +96,15 @@ function getDefaultWorkingAnnotation(sample = {}) {
 function getCaseState(caseId) {
   if (!stateByCase[caseId]) {
     stateByCase[caseId] = {
-      current_step: 1,
+      current_step: 0,
       active_sample_idx: null,
       sample_cursor: 0,
+      problem_quality_screening: {
+        decision: null,
+        reason: '',
+        other_text: '',
+        rejected_at: '',
+      },
       sample_validation: [],
       sample_annotations: {},
       correct_solutions: [],
@@ -213,22 +219,31 @@ async function selectCase(idx) {
   if (idx === currentCaseIndex) return;
   await flushAutosave();
   currentCaseIndex = idx;
-  currentStep = 1;
   const c = selectedCase();
   const st = getCaseState(c.id);
-  st.current_step = currentStep;
   await restoreProgress(c.id);
+  const qualityPassed = st.problem_quality_screening?.decision === 'pass';
+  currentStep = qualityPassed ? Math.max(1, st.current_step || 1) : 0;
+  st.current_step = currentStep;
   if (!Number.isInteger(st.sample_cursor)) st.sample_cursor = 0;
   renderCurrentCase();
 }
 
 function goStep(s) {
-  currentStep = s;
   const c = selectedCase();
-  if (c) {
-    getCaseState(c.id).current_step = s;
-    scheduleAutosave();
+  if (!c) return;
+  const st = getCaseState(c.id);
+  const qualityPassed = st.problem_quality_screening?.decision === 'pass';
+  if (s > 0 && !qualityPassed) {
+    currentStep = 0;
+    st.current_step = 0;
+    showToast('请先完成题目质量筛查（通过后才能进入后续流程）', 'error');
+    renderStepContent();
+    return;
   }
+  currentStep = s;
+  st.current_step = s;
+  scheduleAutosave();
   renderStepContent();
 }
 
@@ -286,6 +301,13 @@ function findNextSampleCursor(st, start) {
 function setActiveSampleFromCursor() {
   const c = selectedCase();
   const st = getCaseState(c.id);
+  if (st.problem_quality_screening?.decision !== 'pass') {
+    alert('请先在题目质量筛查步骤完成通过后再开始样本流程。');
+    currentStep = 0;
+    st.current_step = 0;
+    renderStepContent();
+    return;
+  }
   const idx = st.sample_cursor || 0;
   const rec = sampleRecord(st, idx);
   const pre = rec.pre_screening || {};
@@ -354,35 +376,89 @@ function chooseSampleStatus(i, status) {
   renderStepContent();
 }
 
-function setPreScreenDecision(i, decision) {
-  const st = getCaseState(selectedCase().id);
-  const rec = sampleRecord(st, i);
-  rec.pre_screening = rec.pre_screening || { decision: null, reason: '', other_text: '' };
-  rec.pre_screening.decision = decision;
+function ensureProblemQualityScreening(st) {
+  st.problem_quality_screening = st.problem_quality_screening || {
+    decision: null, reason: '', other_text: '', rejected_at: '',
+  };
+  if (typeof st.problem_quality_screening !== 'object') {
+    st.problem_quality_screening = { decision: null, reason: '', other_text: '', rejected_at: '' };
+  }
+  return st.problem_quality_screening;
+}
+
+function setProblemQualityRejectReason(reason) {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  const screening = ensureProblemQualityScreening(st);
+  screening.reason = reason;
+  if (reason !== 'Other') screening.other_text = '';
+  scheduleAutosave();
+  renderStepContent();
+}
+
+function setProblemQualityRejectOtherText(value) {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  const screening = ensureProblemQualityScreening(st);
+  screening.other_text = value;
+  scheduleAutosave();
+}
+
+function setProblemQualityDecision(decision) {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  const screening = ensureProblemQualityScreening(st);
+  screening.decision = decision;
   if (decision !== 'reject') {
-    rec.pre_screening.reason = '';
-    rec.pre_screening.other_text = '';
+    screening.reason = '';
+    screening.other_text = '';
+    screening.rejected_at = '';
   }
   scheduleAutosave();
   renderStepContent();
 }
 
-function setPreScreenReason(i, reason) {
-  const st = getCaseState(selectedCase().id);
-  const rec = sampleRecord(st, i);
-  rec.pre_screening = rec.pre_screening || { decision: null, reason: '', other_text: '' };
-  rec.pre_screening.reason = reason;
-  if (reason !== 'Other') rec.pre_screening.other_text = '';
+async function passProblemQualityCheck() {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  const screening = ensureProblemQualityScreening(st);
+  screening.decision = 'pass';
+  screening.reason = '';
+  screening.other_text = '';
+  screening.rejected_at = '';
+  currentStep = 1;
+  st.current_step = 1;
   scheduleAutosave();
   renderStepContent();
 }
 
-function setPreScreenOtherText(i, value) {
-  const st = getCaseState(selectedCase().id);
-  const rec = sampleRecord(st, i);
-  rec.pre_screening = rec.pre_screening || { decision: null, reason: '', other_text: '' };
-  rec.pre_screening.other_text = value;
-  scheduleAutosave();
+async function rejectProblemQualityAndSkip() {
+  const c = selectedCase(); if (!c) return;
+  const st = getCaseState(c.id);
+  const screening = ensureProblemQualityScreening(st);
+  if (!screening.reason) {
+    alert('请先选择拒绝原因。');
+    return;
+  }
+  if (screening.reason === 'Other' && !String(screening.other_text || '').trim()) {
+    alert('选择 Other 时请填写简短说明。');
+    return;
+  }
+  screening.decision = 'reject';
+  screening.rejected_at = new Date().toISOString();
+  st.active_sample_idx = null;
+  st.current_step = 0;
+  currentStep = 0;
+  await persistProgress('in_progress', true);
+  const rejectedCaseId = c.id;
+  const nextIdx = currentCaseIndex + 1;
+  if (nextIdx < dataset.length) {
+    await selectCase(nextIdx);
+    showToast(`题目 ${rejectedCaseId} 已按低质量筛除，已自动跳到下一题`, 'success');
+    return;
+  }
+  renderCurrentCase();
+  showToast(`题目 ${rejectedCaseId} 已按低质量筛除（当前已是最后一题）`, 'success');
 }
 
 function setSampleField(i, k, v) {
@@ -760,6 +836,58 @@ function renderStepContent() {
   const navButtons = document.querySelectorAll('.step-btn');
   navButtons.forEach((btn) => btn.classList.toggle('active', Number(btn.dataset.step) === currentStep));
 
+  if (currentStep === 0) {
+    const screening = ensureProblemQualityScreening(st);
+    const passCls = screening.decision === 'pass' ? 'tag active ok' : 'tag';
+    const rejectCls = screening.decision === 'reject' ? 'tag active bad' : 'tag';
+    const rejectReasons = [
+      { key: 'Wrong', label: 'Wrong' },
+      { key: 'Contradictory', label: 'Contradictory' },
+      { key: 'Too Simple', label: 'Too Simple' },
+      { key: 'Ambiguous', label: 'Ambiguous' },
+      { key: 'Other', label: 'Other' },
+    ];
+    const rejectReasonButtons = rejectReasons.map((x) => (
+      `<button class="${screening.reason === x.key ? 'tag active' : 'tag'}" onclick="setProblemQualityRejectReason('${x.key}')">${x.label}</button>`
+    )).join('');
+    root.innerHTML = `
+      ${header}
+      <h3>Step 0：题目质量筛查（独立前置步骤）</h3>
+      <p>该步骤独立于后续标注流程：通过后进入 Step 1；拒绝则自动跳过当前题目。</p>
+      <div class="card sample-focus">
+        <div class="row">
+          <button class="${passCls}" onclick="passProblemQualityCheck()">Pass quality check</button>
+          <button class="${rejectCls}" onclick="setProblemQualityDecision('reject')">Reject as low-quality problem</button>
+        </div>
+        <div class="card">
+          <h4 style="margin:0 0 8px;">问题陈述</h4>
+          <div class="rendered-math">${renderLatexWithFallback(c.question || '未提供题目')}</div>
+        </div>
+        <div class="card">
+          <h4 style="margin:0 0 8px;">标准/参考答案</h4>
+          <div class="rendered-math">${renderLatexWithFallback(c.reference_answer || '未提供标准答案')}</div>
+        </div>
+        ${screening.decision === 'reject' ? `
+          <div class="row">
+            <span>拒绝原因：</span>
+            ${rejectReasonButtons}
+          </div>
+          ${screening.reason === 'Other' ? `
+            <div class="row">
+              <label style="width:100%;">Other 说明
+                <input value="${escapeHtml(screening.other_text || '')}" maxlength="200" oninput="setProblemQualityRejectOtherText(this.value)" placeholder="请简要说明其他质量问题（必填）" />
+              </label>
+            </div>
+          ` : ''}
+          <div class="row">
+            <button class="primary" onclick="rejectProblemQualityAndSkip()">确认拒绝并自动跳过当前题目</button>
+          </div>
+        ` : ''}
+      </div>
+    `;
+    return;
+  }
+
   if (currentStep === 1) {
     const sampleCount = (c.samples || []).length;
     const i = Math.min(st.sample_cursor || 0, Math.max(0, sampleCount - 1));
@@ -999,11 +1127,12 @@ function buildProgressPayload(status = 'in_progress') {
     device_id: deviceId,
     case_id: c.id,
     status,
-    current_step: st.current_step || currentStep,
+    current_step: st.current_step ?? currentStep,
     current_workflow_state: {
       active_sample_idx: st.active_sample_idx,
       sample_cursor: st.sample_cursor || 0,
       workflow_state: wa.workflow_state || 'sample_selected',
+      problem_quality_screening: st.problem_quality_screening || { decision: null, reason: '', other_text: '', rejected_at: '' },
     },
     current_annotations: {
       selected_solution_text: wa.selected_solution_text,
@@ -1095,8 +1224,11 @@ async function restoreProgress(caseId) {
     return;
   }
   const progress = data.progress || {};
-  st.current_step = progress.current_step || 1;
+  st.current_step = progress.current_step || 0;
   currentStep = st.current_step;
+  st.problem_quality_screening = progress.current_workflow_state?.problem_quality_screening || st.problem_quality_screening || {
+    decision: null, reason: '', other_text: '', rejected_at: '',
+  };
   st.sample_validation = progress.sample_decisions || [];
   st.correct_solutions = progress.correct_solutions || [];
   st.active_sample_idx = progress.current_workflow_state?.active_sample_idx ?? null;
@@ -1118,6 +1250,11 @@ async function restoreProgress(caseId) {
   st.sample_cursor = Number.isInteger(progress.current_workflow_state?.sample_cursor)
     ? progress.current_workflow_state.sample_cursor
     : (st.sample_cursor || 0);
+  const qualityPassed = st.problem_quality_screening?.decision === 'pass';
+  if (!qualityPassed) {
+    st.current_step = 0;
+    currentStep = 0;
+  }
   setSaveState(`已恢复 ${formatUtcToLocal(progress.updated_at_utc)}`, 'saved');
 }
 
