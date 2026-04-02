@@ -179,11 +179,17 @@ function getClaimCheckStats(st) {
   const checks = wa.claim_checks || {};
   let correct = 0;
   let incorrect = 0;
+  let deleted = 0;
   Object.values(checks).forEach(v => {
     if (v === 'correct') correct += 1;
     else if (v === 'incorrect') incorrect += 1;
+    else if (v === 'delete') deleted += 1;
   });
-  return { total, correct, incorrect, checked: correct + incorrect, unchecked: Math.max(0, total - correct - incorrect) };
+  return {
+    total, correct, incorrect, deleted,
+    checked: correct + incorrect + deleted,
+    unchecked: Math.max(0, total - correct - incorrect - deleted),
+  };
 }
 
 async function loadDataset() {
@@ -517,13 +523,30 @@ function organizeClaimsBySteps() {
   const st = getCaseState(selectedCase().id);
   const wa = getWorkingAnnotation(st);
   const stepCount = (wa.steps || []).length;
+  const claims = wa.presegmented_claims || [];
   wa.claims = Array.from({ length: stepCount }, (_, i) => ({ step_id: `s${i + 1}`, claims: [] }));
-  (wa.presegmented_claims || []).forEach((claim, i) => {
-    let stepIdx = Number(document.getElementById(`claimStepSel_${i}`)?.value ?? -1);
-    if (!Number.isInteger(stepIdx) || stepIdx < 0 || stepIdx >= stepCount) return;
-    claim.step_idx = stepIdx;
-    wa.claims[stepIdx].claims.push((claim.text || '').trim());
+  claims.forEach((claim) => {
+    claim.step_idx = -1;
   });
+  let prevEnd = -1;
+  for (let si = 0; si < stepCount; si += 1) {
+    const start = Number(document.getElementById(`stepRangeStart_${si}`)?.value ?? -1);
+    const end = Number(document.getElementById(`stepRangeEnd_${si}`)?.value ?? -1);
+    if (start < 0 && end < 0) continue;
+    if (!Number.isInteger(start) || !Number.isInteger(end) || start < 0 || end < 0 || start > end || end >= claims.length) {
+      alert(`Step ${si + 1} 的边界无效，请重新选择起止 Claim。`);
+      return;
+    }
+    if (start !== prevEnd + 1) {
+      alert(`Step ${si + 1} 必须从 Claim #${prevEnd + 2} 开始，保证按顺序连续分段。`);
+      return;
+    }
+    for (let ci = start; ci <= end; ci += 1) {
+      claims[ci].step_idx = si;
+      wa.claims[si].claims.push((claims[ci].text || '').trim());
+    }
+    prevEnd = end;
+  }
   wa.workflow_state = 'claims_assigned';
   scheduleAutosave();
   renderStepContent();
@@ -538,7 +561,7 @@ function updateClaimCheck(claimId, status) {
 }
 
 function claimCheckTag(claimId, current, expected, label) {
-  return `<button class="${current === expected ? 'tag active' : 'tag'}" onclick="updateClaimCheckAndRender('${expected}', '${claimId}')">${label}</button>`;
+  return `<button class="${current === expected ? `tag active ${expected}` : 'tag'}" onclick="updateClaimCheckAndRender('${expected}', '${claimId}')">${label}</button>`;
 }
 
 function updateClaimCheckAndRender(status, claimId) {
@@ -569,6 +592,18 @@ function flattenClaimsByStep(claims) {
   }));
 }
 
+function getClaimsForLaterStages(wa) {
+  const filtered = (wa.claims || []).map((s, si) => ({
+    step_id: s.step_id || `s${si + 1}`,
+    claims: (s.claims || []).filter((_, ci) => (wa.claim_checks[`s${si + 1}c${ci + 1}`] || '') !== 'delete'),
+  }));
+  const filteredChecks = {};
+  Object.entries(wa.claim_checks || {}).forEach(([claimId, status]) => {
+    if (status !== 'delete') filteredChecks[claimId] = status;
+  });
+  return { claims: filtered, claim_checks: filteredChecks };
+}
+
 function toggleDep(currId, depId, checked) {
   const st = getCaseState(selectedCase().id);
   const wa = getWorkingAnnotation(st);
@@ -585,7 +620,7 @@ function toggleDep(currId, depId, checked) {
 function buildDependencyView() {
   const st = getCaseState(selectedCase().id);
   const wa = getWorkingAnnotation(st);
-  const grouped = flattenClaimsByStep(wa.claims);
+  const grouped = flattenClaimsByStep(getClaimsForLaterStages(wa).claims);
   if (!grouped.length) return '<div class="card"><h3>请先在 Step 3 完成 claim 整理。</h3></div>';
   st.ui.depStepIdx = Math.max(0, Math.min(grouped.length - 1, st.ui.depStepIdx || 0));
   const targetStep = (wa.steps || [])[st.ui.depStepIdx] || {};
@@ -628,6 +663,7 @@ function buildSummaryView() {
   const st = getCaseState(c.id);
   const wa = getWorkingAnnotation(st);
   const stats = getClaimCheckStats(st);
+  const laterStageData = getClaimsForLaterStages(wa);
   return `
     <h3>Step 6：提交前总览</h3>
     <p>请检查以下结果无误后提交：</p>
@@ -635,13 +671,14 @@ function buildSummaryView() {
       <div class="kpi"><small>Step 数</small><b>${(wa.steps || []).length}</b></div>
       <div class="kpi"><small>Claim 总数</small><b>${stats.total}</b></div>
       <div class="kpi"><small>已检查</small><b>${stats.checked}</b></div>
+      <div class="kpi"><small>删除</small><b>${stats.deleted}</b></div>
       <div class="kpi"><small>未检查</small><b>${stats.unchecked}</b></div>
     </div>
     <h4>多采样验证</h4><pre>${JSON.stringify(st.sample_validation, null, 2)}</pre>
     <h4>当前工作流状态</h4><pre>${JSON.stringify(wa.workflow_state || '', null, 2)}</pre>
     <h4>Step切分（当前样本）</h4><pre>${JSON.stringify({ active_sample_idx: st.active_sample_idx, cut_points: wa.cut_points, steps: wa.steps }, null, 2)}</pre>
-    <h4>Claim整理结果（按 step）</h4><pre>${JSON.stringify(wa.claims, null, 2)}</pre>
-    <h4>Claim正确性检查</h4><pre>${JSON.stringify(wa.claim_checks, null, 2)}</pre>
+    <h4>Claim整理结果（按 step，已排除 Delete）</h4><pre>${JSON.stringify(laterStageData.claims, null, 2)}</pre>
+    <h4>Claim正确性检查（已排除 Delete）</h4><pre>${JSON.stringify(laterStageData.claim_checks, null, 2)}</pre>
     <h4>依赖关系</h4><pre>${JSON.stringify(wa.dependencies, null, 2)}</pre>
     <h4>Step 依赖关系（简化标注）</h4><pre>${JSON.stringify(wa.step_dependencies || {}, null, 2)}</pre>
     <h4>已完成正确解参考</h4><pre>${JSON.stringify(st.correct_solutions, null, 2)}</pre>
@@ -735,8 +772,10 @@ function updateStepDependency(stepIdx, depId, checked) {
 function buildStepContextPanel(steps = []) {
   const cards = (steps || []).map((step, i) => `
     <article class="step-context-card">
-      <header>Step ${i + 1}</header>
-      <div>${escapeHtml(step.text || '')}</div>
+      <details open>
+        <summary>Step ${i + 1}</summary>
+        <textarea class="step-context-text" readonly>${escapeHtml(step.text || '')}</textarea>
+      </details>
     </article>
   `).join('') || '<p class="muted-note">尚未生成 Step 内容。</p>';
   return `
@@ -936,35 +975,55 @@ function renderStepContent() {
   if (currentStep === 3) {
     const stepCount = (wa.steps || []).length;
     const claims = wa.presegmented_claims || [];
-    const unassigned = claims.filter(x => !Number.isInteger(x.step_idx) || x.step_idx < 0).length;
-    let rows = '';
-    claims.forEach((cl, i) => {
-      const defaultStepIdx = (Number.isInteger(cl.step_idx) && cl.step_idx >= 0 && cl.step_idx < stepCount) ? cl.step_idx : -1;
-      const options = ['<option value="-1">未分配</option>']
-        .concat(Array.from({ length: stepCount }, (_, si) => `<option value="${si}" ${defaultStepIdx === si ? 'selected' : ''}>Step ${si + 1}</option>`))
-        .join('');
-      rows += `
+    const claimOptions = ['<option value="-1">未设置</option>']
+      .concat(claims.map((cl, i) => `<option value="${i}">${cl.id || `p${i + 1}`}</option>`))
+      .join('');
+    let prevEnd = -1;
+    let rangeRows = '';
+    for (let si = 0; si < stepCount; si += 1) {
+      let start = -1;
+      let end = -1;
+      for (let ci = 0; ci < claims.length; ci += 1) {
+        if ((claims[ci]?.step_idx ?? -1) === si) {
+          if (start < 0) start = ci;
+          end = ci;
+        }
+      }
+      if (start < 0 && claims.length > 0 && prevEnd + 1 < claims.length) {
+        start = prevEnd + 1;
+        end = prevEnd + 1;
+      }
+      if (start >= 0) prevEnd = Math.max(prevEnd, end);
+      rangeRows += `
         <tr>
-          <td>${cl.id}</td>
-          <td>${escapeHtml(cl.text)}</td>
-          <td><select id="claimStepSel_${i}">${options}</select></td>
+          <td>Step ${si + 1}</td>
+          <td><select id="stepRangeStart_${si}">${claimOptions.replace(`value="${start}"`, `value="${start}" selected`)}</select></td>
+          <td><select id="stepRangeEnd_${si}">${claimOptions.replace(`value="${end}"`, `value="${end}" selected`)}</select></td>
         </tr>
       `;
-    });
+    }
+    const unassigned = claims.filter(x => !Number.isInteger(x.step_idx) || x.step_idx < 0).length;
+    const previewRows = claims.map((cl, i) => `<tr><td>${cl.id}</td><td>${escapeHtml(cl.text)}</td><td>#${i + 1}</td></tr>`).join('');
     const mainHtml = `
       ${header}
-      <h3>Step 3：整理每个 Step 对应的 Claim（使用预切分 claim）</h3>
+      <h3>Step 3：按顺序为每个 Step 标注 Claim 连续区间（边界选择）</h3>
+      <p class="muted-note">Claim 已按原始顺序排列。请仅为每个 Step 选择起始/结束 Claim，系统会自动按连续区间归属。</p>
       <div class="kpi-grid">
         <div class="kpi"><small>Step 数</small><b>${stepCount}</b></div>
         <div class="kpi"><small>预切分 Claim</small><b>${claims.length}</b></div>
         <div class="kpi"><small>未分配</small><b>${unassigned}</b></div>
       </div>
       <table>
-        <thead><tr><th>Claim</th><th>文本</th><th>归属 Step</th></tr></thead>
-        <tbody>${rows || '<tr><td colspan="3">当前 solution 未提供预切分 claim</td></tr>'}</tbody>
+        <thead><tr><th>Step</th><th>起始 Claim</th><th>结束 Claim</th></tr></thead>
+        <tbody>${rangeRows || '<tr><td colspan="3">请先在 Step 2 生成 Step</td></tr>'}</tbody>
+      </table>
+      <h4>Claim 顺序预览</h4>
+      <table>
+        <thead><tr><th>Claim</th><th>文本</th><th>顺序</th></tr></thead>
+        <tbody>${previewRows || '<tr><td colspan="3">当前 solution 未提供预切分 claim</td></tr>'}</tbody>
       </table>
       <div class="row">
-        <button class="primary" onclick="organizeClaimsBySteps()">保存并生成 Step-Claim 结构</button>
+        <button class="primary" onclick="organizeClaimsBySteps()">按边界保存并生成 Step-Claim 结构</button>
       </div>
       <pre>${JSON.stringify(wa.claims, null, 2)}</pre>
     `;
@@ -981,6 +1040,7 @@ function renderStepContent() {
         <div class="kpi"><small>Claim 总数</small><b>${checkStats.total}</b></div>
         <div class="kpi"><small>正确</small><b>${checkStats.correct}</b></div>
         <div class="kpi"><small>错误</small><b>${checkStats.incorrect}</b></div>
+        <div class="kpi"><small>删除</small><b>${checkStats.deleted}</b></div>
         <div class="kpi"><small>未检查</small><b>${checkStats.unchecked}</b></div>
       </div>
     `;
@@ -989,13 +1049,16 @@ function renderStepContent() {
       (cs.claims || []).forEach((claim, ci) => {
         const claimId = `s${si + 1}c${ci + 1}`;
         const current = wa.claim_checks[claimId] || 'unchecked';
+        const cardCls = current === 'correct' ? 'claim-card claim-correct'
+          : current === 'incorrect' ? 'claim-card claim-incorrect'
+            : current === 'delete' ? 'claim-card claim-delete' : 'claim-card';
         html += `
-          <div class="card">
+          <div class="card ${cardCls}">
             <div><input class="claim-input" value="${escapeHtml(claim)}" oninput="editClaim(${si}, ${ci}, this.value)"></div>
             <div class="row">
               ${claimCheckTag(claimId, current, 'correct', '正确')}
               ${claimCheckTag(claimId, current, 'incorrect', '错误')}
-              ${claimCheckTag(claimId, current, 'unchecked', '未检查')}
+              ${claimCheckTag(claimId, current, 'delete', '删除')}
             </div>
           </div>
         `;
@@ -1044,6 +1107,7 @@ function buildProgressPayload(status = 'in_progress') {
   if (!c) return null;
   const st = getCaseState(c.id);
   const wa = getWorkingAnnotation(st);
+  const laterStageData = getClaimsForLaterStages(wa);
   return {
     annotator_id: annotatorId(),
     device_id: deviceId,
@@ -1061,8 +1125,8 @@ function buildProgressPayload(status = 'in_progress') {
       cut_points: wa.cut_points,
       steps: wa.steps,
       presegmented_claims: wa.presegmented_claims,
-      claims: wa.claims,
-      claim_checks: wa.claim_checks,
+      claims: laterStageData.claims,
+      claim_checks: laterStageData.claim_checks,
       dependencies: wa.dependencies,
       step_dependencies: wa.step_dependencies,
       sample_annotations: st.sample_annotations,
