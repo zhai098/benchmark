@@ -270,7 +270,15 @@ function sampleRecord(st, i) {
     is_new_class: false,
     summary: '',
     pipeline_status: 'not_started',
+    pre_screening: {
+      decision: null,
+      reason: '',
+      other_text: '',
+    },
   };
+  if (!st.sample_validation[i].pre_screening || typeof st.sample_validation[i].pre_screening !== 'object') {
+    st.sample_validation[i].pre_screening = { decision: null, reason: '', other_text: '' };
+  }
   return st.sample_validation[i];
 }
 
@@ -302,6 +310,30 @@ function setActiveSampleFromCursor() {
   }
   const idx = st.sample_cursor || 0;
   const rec = sampleRecord(st, idx);
+  const pre = rec.pre_screening || {};
+  if (pre.decision !== 'pass' && pre.decision !== 'reject') {
+    alert('请先完成题目质量预筛查（Pass 或 Reject）。');
+    return;
+  }
+  if (pre.decision === 'reject') {
+    if (!pre.reason) {
+      alert('已选择低质量拒绝，请补充拒绝原因。');
+      return;
+    }
+    if (pre.reason === 'Other' && !String(pre.other_text || '').trim()) {
+      alert('选择 Other 时请填写简短说明。');
+      return;
+    }
+    rec.pipeline_status = 'discarded';
+    delete st.sample_annotations[idx];
+    st.correct_solutions = (st.correct_solutions || []).filter(x => x.sample_idx !== idx);
+    if (st.active_sample_idx === idx) st.active_sample_idx = null;
+    st.sample_cursor = findNextSampleCursor(st, idx + 1);
+    scheduleAutosave();
+    renderCurrentCase();
+    alert('该样本已按低质量题目筛除，不进入后续标注流程。');
+    return;
+  }
   if (rec.is_correct !== true) {
     alert('当前样本尚未判定为正确，不能进入主工作流。');
     return;
@@ -865,6 +897,22 @@ function renderStepContent() {
     const clsCorrect = rec.is_correct === true ? 'tag active ok' : 'tag';
     const clsWrong = rec.is_correct === false ? 'tag active bad' : 'tag';
     const clsUnset = rec.is_correct === null ? 'tag active' : 'tag';
+    const pre = rec.pre_screening || { decision: null, reason: '', other_text: '' };
+    const prePassCls = pre.decision === 'pass' ? 'tag active ok' : 'tag';
+    const preRejectCls = pre.decision === 'reject' ? 'tag active bad' : 'tag';
+    const rejectReasons = [
+      { key: 'Wrong', label: 'Wrong' },
+      { key: 'Contradictory', label: 'Contradictory' },
+      { key: 'Too Simple', label: 'Too Simple' },
+      { key: 'Ambiguous', label: 'Ambiguous' },
+      { key: 'Other', label: 'Other' },
+    ];
+    const rejectReasonButtons = rejectReasons.map((x) => (
+      `<button class="${pre.reason === x.key ? 'tag active' : 'tag'}" onclick="setPreScreenReason(${i}, '${x.key}')">${x.label}</button>`
+    )).join('');
+    const rejectionSummary = pre.decision === 'reject'
+      ? `<div class="row"><span class="pill">已拒绝原因：${escapeHtml(pre.reason || '未选择')}</span>${pre.reason === 'Other' ? `<span class="pill">说明：${escapeHtml(pre.other_text || '未填写')}</span>` : ''}</div>`
+      : '';
     let html = `${header}<h3>Step 1：单样本验证入口（严格串行）</h3><p>一次只处理一个样本：判定后进入完整流程，完成后再转到下一样本。</p>`;
     const rawText = getRawTextForSample(c, i);
     const rawVisible = st.ui.showRawText || st.ui.pinRawText;
@@ -877,6 +925,36 @@ function renderStepContent() {
             <button class="ghost" onclick="toggleRawTextPanel()">${rawVisible ? '隐藏原始文本' : '查看原始文本'}</button>
             <button class="ghost" onclick="togglePinRawText()">${st.ui.pinRawText ? '取消置顶' : '置顶原始文本'}</button>
           </div>
+        </div>
+        <div class="card">
+          <h4>预筛查：题目质量检查（进入后续流程前必做）</h4>
+          <p class="muted-note">请先阅读题目与标准答案，再判断该题是否为低质量题目。</p>
+          <div class="row">
+            <button class="${prePassCls}" onclick="setPreScreenDecision(${i}, 'pass')">Pass quality check</button>
+            <button class="${preRejectCls}" onclick="setPreScreenDecision(${i}, 'reject')">Reject as low-quality problem</button>
+          </div>
+          <div class="card">
+            <h5 style="margin:0 0 8px;">问题陈述</h5>
+            <div class="rendered-math">${renderLatexWithFallback(c.question || '未提供题目')}</div>
+          </div>
+          <div class="card">
+            <h5 style="margin:0 0 8px;">标准/参考答案</h5>
+            <div class="rendered-math">${renderLatexWithFallback(c.reference_answer || '未提供标准答案')}</div>
+          </div>
+          ${pre.decision === 'reject' ? `
+            <div class="row">
+              <span>拒绝原因：</span>
+              ${rejectReasonButtons}
+            </div>
+            ${pre.reason === 'Other' ? `
+              <div class="row">
+                <label style="width:100%;">Other 说明
+                  <input value="${escapeHtml(pre.other_text || '')}" maxlength="200" oninput="setPreScreenOtherText(${i}, this.value)" placeholder="请简要说明其他质量问题（必填）" />
+                </label>
+              </div>
+            ` : ''}
+          ` : ''}
+          ${rejectionSummary}
         </div>
         ${renderSolutionCard(s.solution || '', i)}
         <div class="row">
