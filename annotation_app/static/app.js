@@ -112,6 +112,7 @@ function getCaseState(caseId) {
         showRawText: false,
         pinRawText: false,
         rawPanelWidth: 360,
+        claimPreviewWidth: 360,
         stepContextWidth: 360,
         depStepIdx: 0,
       },
@@ -789,6 +790,30 @@ function buildStepContextPanel(steps = []) {
   `;
 }
 
+function buildClaimPreviewPanel(claims = []) {
+  const rows = (claims || []).map((cl, i) => `
+    <tr>
+      <td>${cl.id || `p${i + 1}`}</td>
+      <td>${escapeHtml(cl.text || '')}</td>
+      <td>#${i + 1}</td>
+    </tr>
+  `).join('');
+  return `
+    <aside class="context-panel-body">
+      <div class="context-panel-head">
+        <h4>Claim 顺序预览</h4>
+        <span class="pill">共 ${(claims || []).length} 条</span>
+      </div>
+      <div class="context-panel-scroll">
+        <table class="compact-table">
+          <thead><tr><th>Claim</th><th>文本</th><th>顺序</th></tr></thead>
+          <tbody>${rows || '<tr><td colspan="3">当前 solution 未提供预切分 claim</td></tr>'}</tbody>
+        </table>
+      </div>
+    </aside>
+  `;
+}
+
 function withContextSplit(mainHtml, contextHtml, panelType = 'step') {
   const c = selectedCase(); if (!c) return mainHtml;
   const st = getCaseState(c.id);
@@ -802,6 +827,22 @@ function withContextSplit(mainHtml, contextHtml, panelType = 'step') {
       <section class="context-main">${mainHtml}</section>
       <div id="${handleId}" class="inline-resize-handle" aria-hidden="true"></div>
       <section class="context-side" style="width:${width}px">${contextHtml}</section>
+    </div>
+  `;
+}
+
+function withDualContextSplit(mainHtml, middleHtml, rightHtml) {
+  const c = selectedCase(); if (!c) return mainHtml;
+  const st = getCaseState(c.id);
+  const middleWidth = Math.max(300, Math.min(640, st.ui.claimPreviewWidth || 360));
+  const rightWidth = Math.max(300, Math.min(620, st.ui.stepContextWidth || 360));
+  return `
+    <div id="stepClaimSplit" class="context-split context-split-3">
+      <section class="context-main">${mainHtml}</section>
+      <div id="claimSplitHandle" class="inline-resize-handle" aria-hidden="true"></div>
+      <section class="context-side" style="width:${middleWidth}px">${middleHtml}</section>
+      <div id="stepSplitHandleDual" class="inline-resize-handle" aria-hidden="true"></div>
+      <section class="context-side" style="width:${rightWidth}px">${rightHtml}</section>
     </div>
   `;
 }
@@ -831,6 +872,36 @@ function initInlineResizer(panelType = 'step') {
     window.addEventListener('mousemove', onMove);
     window.addEventListener('mouseup', onUp);
   };
+}
+
+function initDualInlineResizer() {
+  const split = document.getElementById('stepClaimSplit');
+  const claimHandle = document.getElementById('claimSplitHandle');
+  const stepHandle = document.getElementById('stepSplitHandleDual');
+  if (!split || !claimHandle || !stepHandle) return;
+
+  const bindHandle = (handle, panelKey, min, max, sideIndex) => {
+    handle.onmousedown = (event) => {
+      event.preventDefault();
+      const onMove = (e) => {
+        const rect = split.getBoundingClientRect();
+        const nextWidth = rect.right - e.clientX;
+        const c = selectedCase(); if (!c) return;
+        const st = getCaseState(c.id);
+        st.ui[panelKey] = Math.max(min, Math.min(max, nextWidth));
+        const side = split.querySelectorAll('.context-side')[sideIndex];
+        if (side) side.style.width = `${st.ui[panelKey]}px`;
+      };
+      const onUp = () => {
+        window.removeEventListener('mousemove', onMove);
+        window.removeEventListener('mouseup', onUp);
+      };
+      window.addEventListener('mousemove', onMove);
+      window.addEventListener('mouseup', onUp);
+    };
+  };
+  bindHandle(claimHandle, 'claimPreviewWidth', 300, 640, 0);
+  bindHandle(stepHandle, 'stepContextWidth', 300, 620, 1);
 }
 
 function renderStepContent() {
@@ -1003,7 +1074,6 @@ function renderStepContent() {
       `;
     }
     const unassigned = claims.filter(x => !Number.isInteger(x.step_idx) || x.step_idx < 0).length;
-    const previewRows = claims.map((cl, i) => `<tr><td>${cl.id}</td><td>${escapeHtml(cl.text)}</td><td>#${i + 1}</td></tr>`).join('');
     const mainHtml = `
       ${header}
       <h3>Step 3：按顺序为每个 Step 标注 Claim 连续区间（边界选择）</h3>
@@ -1017,18 +1087,13 @@ function renderStepContent() {
         <thead><tr><th>Step</th><th>起始 Claim</th><th>结束 Claim</th></tr></thead>
         <tbody>${rangeRows || '<tr><td colspan="3">请先在 Step 2 生成 Step</td></tr>'}</tbody>
       </table>
-      <h4>Claim 顺序预览</h4>
-      <table>
-        <thead><tr><th>Claim</th><th>文本</th><th>顺序</th></tr></thead>
-        <tbody>${previewRows || '<tr><td colspan="3">当前 solution 未提供预切分 claim</td></tr>'}</tbody>
-      </table>
       <div class="row">
         <button class="primary" onclick="organizeClaimsBySteps()">按边界保存并生成 Step-Claim 结构</button>
       </div>
       <pre>${JSON.stringify(wa.claims, null, 2)}</pre>
     `;
-    root.innerHTML = withContextSplit(mainHtml, buildStepContextPanel(wa.steps || []), 'step');
-    initInlineResizer('step');
+    root.innerHTML = withDualContextSplit(mainHtml, buildClaimPreviewPanel(claims), buildStepContextPanel(wa.steps || []));
+    initDualInlineResizer();
     return;
   }
 

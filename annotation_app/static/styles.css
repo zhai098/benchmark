@@ -183,6 +183,9 @@ button.ghost { background: #f4f7fe; }
   min-height: 0;
   gap: 0;
 }
+.context-split-3 {
+  grid-template-columns: minmax(0, 1fr) 10px auto 10px auto;
+}
 .context-main { min-width: 0; }
 .context-side {
   min-width: 300px;
@@ -217,6 +220,10 @@ button.ghost { background: #f4f7fe; }
 }
 .context-panel-head h4 { margin: 0; }
 .context-panel-scroll { padding: 12px; overflow: auto; min-height: 0; }
+.compact-table { table-layout: fixed; }
+.compact-table th:nth-child(1), .compact-table td:nth-child(1) { width: 70px; }
+.compact-table th:nth-child(3), .compact-table td:nth-child(3) { width: 56px; }
+.compact-table td:nth-child(2) { word-break: break-word; }
 .step-context-card {
   border: 1px solid var(--line);
   border-radius: 10px;
@@ -350,7 +357,7 @@ th, td { border-bottom: 1px solid var(--line); padding: 10px; text-align: left; 
 
 @media (max-width: 1200px) {
   .step-nav { grid-template-columns: repeat(3, minmax(0, 1fr)); }
-  .context-split { grid-template-columns: 1fr; }
+  .context-split, .context-split-3 { grid-template-columns: 1fr; }
   .inline-resize-handle { display: none; }
   .context-side { width: auto !important; margin-top: 10px; min-width: 0; }
 }
