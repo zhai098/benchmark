@@ -1122,7 +1122,7 @@ function renderStepContent() {
             <div><input class="claim-input" value="${escapeHtml(claim)}" oninput="editClaim(${si}, ${ci}, this.value)"></div>
             <div class="row">
               ${claimCheckTag(claimId, current, 'correct', '正确')}
-              ${claimCheckTag(claimId, current, 'incorrect', '错误')}
+              ${claimCheckTag(claimId, current, 'incorrect', '修改')}
               ${claimCheckTag(claimId, current, 'delete', '删除')}
             </div>
           </div>
