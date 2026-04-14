@@ -1,0 +1,412 @@
+{
+  "annotator_id": "unknown",
+  "device_id": "dev-1774944777694-ra6k1l",
+  "case_id": "q-6",
+  "status": "in_progress",
+  "current_step": 3,
+  "current_workflow_state": {
+    "active_sample_idx": 0,
+    "sample_cursor": 0,
+    "workflow_state": "steps_segmented"
+  },
+  "current_annotations": {
+    "selected_solution_text": "Alternative Solution 1:\n\nLet the equally spaced points on \\(\\gamma\\) in circular order be\n\\[\nP_0,P_1,\\dots,P_{2021},\n\\]\nwith indices taken modulo \\(2022\\). Since the circumference is \\(2022\\), the arc length between adjacent points is \\(1\\).\n\nIf Bunbun hops from \\(P_i\\) to \\(P_j\\), and the circular distance in number of steps is \\(d\\), then the length she travels is\n\\[\n\\min(d,2022-d)\\le 1011.\n\\]\nSo every hop has length at most \\(1011\\).\n\nNow Bunbun makes \\(2022\\) hops total. Since the labels form a cycle\n\\[\nA_1\\to A_2\\to \\cdots \\to A_{2022}\\to A_1,\n\\]\nwe may separate the hops into the \\(1011\\) odd-even pairs\n\\[\n(A_1,A_2),(A_3,A_4),\\dots,(A_{2021},A_{2022})\n\\]\nand the \\(1011\\) even-odd pairs\n\\[\n(A_2,A_3),(A_4,A_5),\\dots,(A_{2022},A_1).\n\\]\n\nFor each \\(k\\), the two consecutive hops\n\\[\nA_{2k-1}\\to A_{2k},\\qquad A_{2k}\\to A_{2k+1}\n\\]\nhave total length at most the major arc from \\(A_{2k-1}\\) to \\(A_{2k+1}\\). Indeed, if the shorter arcs from \\(A_{2k-1}\\) to \\(A_{2k}\\) and from \\(A_{2k}\\) to \\(A_{2k+1}\\) are traversed, their union is one of the two arcs joining \\(A_{2k-1}\\) and \\(A_{2k+1}\\), so their sum cannot exceed the longer one. Hence\n\\[\n\\ell(A_{2k-1}A_{2k})+\\ell(A_{2k}A_{2k+1})\n\\le 2022-\\ell_{\\min}(A_{2k-1}A_{2k+1}),\n\\]\nwhere \\(\\ell_{\\min}(XY)\\) denotes the shorter arc between \\(X\\) and \\(Y\\).\n\nSumming over \\(k=1,\\dots,1011\\),\n\\[\nT\\le 1011\\cdot 2022-\\sum_{k=1}^{1011}\\ell_{\\min}(A_{2k-1}A_{2k+1}).\n\\]\nThus to maximize \\(T\\), we must minimize\n\\[\nS:=\\sum_{k=1}^{1011}\\ell_{\\min}(A_{2k-1}A_{2k+1}).\n\\]\n\nNow the odd-indexed labels \\(A_1,A_3,\\dots,A_{2021}\\) are \\(1011\\) distinct points on the circle. Connecting them cyclically gives a closed polygonal circuit on the circle, and the corresponding minor arcs between consecutive odd points cover a full tour around the circle except that one of the \\(1011\\) selected points is missing from each half if all odd points lie in one open semicircle. Therefore:\n\n- If the odd points are not all contained in one open semicircle, then the sum of these minor arcs is at least the full circumference \\(2022\\).\n- If they are all contained in one open semicircle, then because the points are distinct lattice points on the \\(2022\\)-gon and there are \\(1011\\) of them, the smallest possible sum of the cyclic gaps is achieved by taking \\(1011\\) consecutive points, for which the sum is\n\\[\n2(1010)=2020.\n\\]\n\nHence in all cases,\n\\[\nS\\ge 2020.\n\\]\nSo\n\\[\nT\\le 1011\\cdot 2022-2020=2042222.\n\\]\n\nIt remains to show this bound is attainable. Arrange the labels by alternating between nearly opposite points:\n\\[\nP_0,\\ P_{1011},\\ P_1,\\ P_{1012},\\ P_2,\\ P_{1013},\\ \\dots,\\ P_{1010},\\ P_{2021}.\n\\]\nThen each hop has length \\(1011\\) except for exactly two hops, which have length \\(1010\\). Therefore\n\\[\nT=2020\\cdot 1011+2\\cdot 1010=2042222.\n\\]\n\nVerification: The construction uses all \\(2022\\) points exactly once, and the computed total equals the upper bound, so the maximum is indeed attained.\n\nFinal Answer: \\(\\boxed{2042222}\\)",
+    "cut_points": [
+      1313
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "text": "Alternative Solution 1:\n\nLet the equally spaced points on \\(\\gamma\\) in circular order be\n\\[\nP_0,P_1,\\dots,P_{2021},\n\\]\nwith indices taken modulo \\(2022\\). Since the circumference is \\(2022\\), the arc length between adjacent points is \\(1\\).\n\nIf Bunbun hops from \\(P_i\\) to \\(P_j\\), and the circular distance in number of steps is \\(d\\), then the length she travels is\n\\[\n\\min(d,2022-d)\\le 1011.\n\\]\nSo every hop has length at most \\(1011\\).\n\nNow Bunbun makes \\(2022\\) hops total. Since the labels form a cycle\n\\[\nA_1\\to A_2\\to \\cdots \\to A_{2022}\\to A_1,\n\\]\nwe may separate the hops into the \\(1011\\) odd-even pairs\n\\[\n(A_1,A_2),(A_3,A_4),\\dots,(A_{2021},A_{2022})\n\\]\nand the \\(1011\\) even-odd pairs\n\\[\n(A_2,A_3),(A_4,A_5),\\dots,(A_{2022},A_1).\n\\]\n\nFor each \\(k\\), the two consecutive hops\n\\[\nA_{2k-1}\\to A_{2k},\\qquad A_{2k}\\to A_{2k+1}\n\\]\nhave total length at most the major arc from \\(A_{2k-1}\\) to \\(A_{2k+1}\\). Indeed, if the shorter arcs from \\(A_{2k-1}\\) to \\(A_{2k}\\) and from \\(A_{2k}\\) to \\(A_{2k+1}\\) are traversed, their union is one of the two arcs joining \\(A_{2k-1}\\) and \\(A_{2k+1}\\), so their sum cannot exceed the longer one. Hence\n\\[\n\\ell(A_{2k-1}A_{2k})+\\ell(A_{2k}A_{2k+1})\n\\le 2022-\\ell_{\\min}(A_{2k-1}A_{2k+1}),\n\\]\nwhere \\(\\ell_{\\min}(XY)\\) denotes the shorter arc between \\(X\\) and \\(Y\\)."
+      },
+      {
+        "id": "s2",
+        "text": "Summing over \\(k=1,\\dots,1011\\),\n\\[\nT\\le 1011\\cdot 2022-\\sum_{k=1}^{1011}\\ell_{\\min}(A_{2k-1}A_{2k+1}).\n\\]\nThus to maximize \\(T\\), we must minimize\n\\[\nS:=\\sum_{k=1}^{1011}\\ell_{\\min}(A_{2k-1}A_{2k+1}).\n\\]\n\nNow the odd-indexed labels \\(A_1,A_3,\\dots,A_{2021}\\) are \\(1011\\) distinct points on the circle. Connecting them cyclically gives a closed polygonal circuit on the circle, and the corresponding minor arcs between consecutive odd points cover a full tour around the circle except that one of the \\(1011\\) selected points is missing from each half if all odd points lie in one open semicircle. Therefore:\n\n- If the odd points are not all contained in one open semicircle, then the sum of these minor arcs is at least the full circumference \\(2022\\).\n- If they are all contained in one open semicircle, then because the points are distinct lattice points on the \\(2022\\)-gon and there are \\(1011\\) of them, the smallest possible sum of the cyclic gaps is achieved by taking \\(1011\\) consecutive points, for which the sum is\n\\[\n2(1010)=2020.\n\\]\n\nHence in all cases,\n\\[\nS\\ge 2020.\n\\]\nSo\n\\[\nT\\le 1011\\cdot 2022-2020=2042222.\n\\]\n\nIt remains to show this bound is attainable. Arrange the labels by alternating between nearly opposite points:\n\\[\nP_0,\\ P_{1011},\\ P_1,\\ P_{1012},\\ P_2,\\ P_{1013},\\ \\dots,\\ P_{1010},\\ P_{2021}.\n\\]\nThen each hop has length \\(1011\\) except for exactly two hops, which have length \\(1010\\). Therefore\n\\[\nT=2020\\cdot 1011+2\\cdot 1010=2042222.\n\\]\n\nVerification: The construction uses all \\(2022\\) points exactly once, and the computed total equals the upper bound, so the maximum is indeed attained.\n\nFinal Answer: \\(\\boxed{2042222}\\)"
+      }
+    ],
+    "presegmented_claims": [
+      {
+        "id": "p1",
+        "text": "Let the equally spaced points on \\(\\gamma\\) in circular order be \\(P_0,P_1,\\dots,P_{2021}\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p2",
+        "text": "The indices are taken modulo \\(2022\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p3",
+        "text": "The circumference is \\(2022\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p4",
+        "text": "The arc length between adjacent points is \\(1\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p5",
+        "text": "Bunbun hops from \\(P_i\\) to \\(P_j\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p6",
+        "text": "The circular distance in number of steps is \\(d\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p7",
+        "text": "The length she travels is \\(\\min(d,2022-d)\\le 1011\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p8",
+        "text": "Every hop has length at most \\(1011\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p9",
+        "text": "Bunbun makes \\(2022\\) hops total.",
+        "step_idx": null
+      },
+      {
+        "id": "p10",
+        "text": "The labels form a cycle \\(A_1\\to A_2\\to \\cdots \\to A_{2022}\\to A_1\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p11",
+        "text": "We may separate the hops into the \\(1011\\) odd-even pairs \\((A_1,A_2),(A_3,A_4),\\dots,(A_{2021},A_{2022})\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p12",
+        "text": "We may separate the hops into the \\(1011\\) even-odd pairs \\((A_2,A_3),(A_4,A_5),\\dots,(A_{2022},A_1)\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p13",
+        "text": "For each \\(k\\), the two consecutive hops \\(A_{2k-1}\\to A_{2k}\\) and \\(A_{2k}\\to A_{2k+1}\\) have total length at most the major arc from \\(A_{2k-1}\\) to \\(A_{2k+1}\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p14",
+        "text": "If the shorter arcs from \\(A_{2k-1}\\) to \\(A_{2k}\\) and from \\(A_{2k}\\) to \\(A_{2k+1}\\) are traversed, their union is one of the two arcs joining \\(A_{2k-1}\\) and \\(A_{2k+1}\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p15",
+        "text": "Their sum cannot exceed the longer one.",
+        "step_idx": null
+      },
+      {
+        "id": "p16",
+        "text": "\\(\\ell(A_{2k-1}A_{2k})+\\ell(A_{2k}A_{2k+1})\\le 2022-\\ell_{\\min}(A_{2k-1}A_{2k+1})\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p17",
+        "text": "\\(\\ell_{\\min}(XY)\\) denotes the shorter arc between \\(X\\) and \\(Y\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p18",
+        "text": "Summing over \\(k=1,\\dots,1011\\), \\(T\\le 1011\\cdot 2022-\\sum_{k=1}^{1011}\\ell_{\\min}(A_{2k-1}A_{2k+1})\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p19",
+        "text": "To maximize \\(T\\), we must minimize \\(S:=\\sum_{k=1}^{1011}\\ell_{\\min}(A_{2k-1}A_{2k+1})\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p20",
+        "text": "The odd-indexed labels \\(A_1,A_3,\\dots,A_{2021}\\) are \\(1011\\) distinct points on the circle.",
+        "step_idx": null
+      },
+      {
+        "id": "p21",
+        "text": "Connecting them cyclically gives a closed polygonal circuit on the circle.",
+        "step_idx": null
+      },
+      {
+        "id": "p22",
+        "text": "The corresponding minor arcs between consecutive odd points cover a full tour around the circle except that one of the \\(1011\\) selected points is missing from each half if all odd points lie in one open semicircle.",
+        "step_idx": null
+      },
+      {
+        "id": "p23",
+        "text": "If the odd points are not all contained in one open semicircle, then the sum of these minor arcs is at least the full circumference \\(2022\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p24",
+        "text": "If they are all contained in one open semicircle, then the points are distinct lattice points on the \\(2022\\)-gon.",
+        "step_idx": null
+      },
+      {
+        "id": "p25",
+        "text": "If they are all contained in one open semicircle, then there are \\(1011\\) of them.",
+        "step_idx": null
+      },
+      {
+        "id": "p26",
+        "text": "If they are all contained in one open semicircle, then the smallest possible sum of the cyclic gaps is achieved by taking \\(1011\\) consecutive points.",
+        "step_idx": null
+      },
+      {
+        "id": "p27",
+        "text": "For \\(1011\\) consecutive points, the sum is \\(2(1010)=2020\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p28",
+        "text": "In all cases, \\(S\\ge 2020\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p29",
+        "text": "\\(T\\le 1011\\cdot 2022-2020=2042222\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p30",
+        "text": "It remains to show this bound is attainable.",
+        "step_idx": null
+      },
+      {
+        "id": "p31",
+        "text": "Arrange the labels by alternating between nearly opposite points: \\(P_0,\\ P_{1011},\\ P_1,\\ P_{1012},\\ P_2,\\ P_{1013},\\ \\dots,\\ P_{1010},\\ P_{2021}\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p32",
+        "text": "Each hop has length \\(1011\\) except for exactly two hops.",
+        "step_idx": null
+      },
+      {
+        "id": "p33",
+        "text": "The two exceptional hops have length \\(1010\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p34",
+        "text": "\\(T=2020\\cdot 1011+2\\cdot 1010=2042222\\).",
+        "step_idx": null
+      }
+    ],
+    "claims": [],
+    "claim_checks": {},
+    "dependencies": {},
+    "step_dependencies": {},
+    "sample_annotations": {
+      "0": {
+        "selected_solution_text": "Alternative Solution 1:\n\nLet the equally spaced points on \\(\\gamma\\) in circular order be\n\\[\nP_0,P_1,\\dots,P_{2021},\n\\]\nwith indices taken modulo \\(2022\\). Since the circumference is \\(2022\\), the arc length between adjacent points is \\(1\\).\n\nIf Bunbun hops from \\(P_i\\) to \\(P_j\\), and the circular distance in number of steps is \\(d\\), then the length she travels is\n\\[\n\\min(d,2022-d)\\le 1011.\n\\]\nSo every hop has length at most \\(1011\\).\n\nNow Bunbun makes \\(2022\\) hops total. Since the labels form a cycle\n\\[\nA_1\\to A_2\\to \\cdots \\to A_{2022}\\to A_1,\n\\]\nwe may separate the hops into the \\(1011\\) odd-even pairs\n\\[\n(A_1,A_2),(A_3,A_4),\\dots,(A_{2021},A_{2022})\n\\]\nand the \\(1011\\) even-odd pairs\n\\[\n(A_2,A_3),(A_4,A_5),\\dots,(A_{2022},A_1).\n\\]\n\nFor each \\(k\\), the two consecutive hops\n\\[\nA_{2k-1}\\to A_{2k},\\qquad A_{2k}\\to A_{2k+1}\n\\]\nhave total length at most the major arc from \\(A_{2k-1}\\) to \\(A_{2k+1}\\). Indeed, if the shorter arcs from \\(A_{2k-1}\\) to \\(A_{2k}\\) and from \\(A_{2k}\\) to \\(A_{2k+1}\\) are traversed, their union is one of the two arcs joining \\(A_{2k-1}\\) and \\(A_{2k+1}\\), so their sum cannot exceed the longer one. Hence\n\\[\n\\ell(A_{2k-1}A_{2k})+\\ell(A_{2k}A_{2k+1})\n\\le 2022-\\ell_{\\min}(A_{2k-1}A_{2k+1}),\n\\]\nwhere \\(\\ell_{\\min}(XY)\\) denotes the shorter arc between \\(X\\) and \\(Y\\).\n\nSumming over \\(k=1,\\dots,1011\\),\n\\[\nT\\le 1011\\cdot 2022-\\sum_{k=1}^{1011}\\ell_{\\min}(A_{2k-1}A_{2k+1}).\n\\]\nThus to maximize \\(T\\), we must minimize\n\\[\nS:=\\sum_{k=1}^{1011}\\ell_{\\min}(A_{2k-1}A_{2k+1}).\n\\]\n\nNow the odd-indexed labels \\(A_1,A_3,\\dots,A_{2021}\\) are \\(1011\\) distinct points on the circle. Connecting them cyclically gives a closed polygonal circuit on the circle, and the corresponding minor arcs between consecutive odd points cover a full tour around the circle except that one of the \\(1011\\) selected points is missing from each half if all odd points lie in one open semicircle. Therefore:\n\n- If the odd points are not all contained in one open semicircle, then the sum of these minor arcs is at least the full circumference \\(2022\\).\n- If they are all contained in one open semicircle, then because the points are distinct lattice points on the \\(2022\\)-gon and there are \\(1011\\) of them, the smallest possible sum of the cyclic gaps is achieved by taking \\(1011\\) consecutive points, for which the sum is\n\\[\n2(1010)=2020.\n\\]\n\nHence in all cases,\n\\[\nS\\ge 2020.\n\\]\nSo\n\\[\nT\\le 1011\\cdot 2022-2020=2042222.\n\\]\n\nIt remains to show this bound is attainable. Arrange the labels by alternating between nearly opposite points:\n\\[\nP_0,\\ P_{1011},\\ P_1,\\ P_{1012},\\ P_2,\\ P_{1013},\\ \\dots,\\ P_{1010},\\ P_{2021}.\n\\]\nThen each hop has length \\(1011\\) except for exactly two hops, which have length \\(1010\\). Therefore\n\\[\nT=2020\\cdot 1011+2\\cdot 1010=2042222.\n\\]\n\nVerification: The construction uses all \\(2022\\) points exactly once, and the computed total equals the upper bound, so the maximum is indeed attained.\n\nFinal Answer: \\(\\boxed{2042222}\\)",
+        "cut_points": [
+          1313
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "text": "Alternative Solution 1:\n\nLet the equally spaced points on \\(\\gamma\\) in circular order be\n\\[\nP_0,P_1,\\dots,P_{2021},\n\\]\nwith indices taken modulo \\(2022\\). Since the circumference is \\(2022\\), the arc length between adjacent points is \\(1\\).\n\nIf Bunbun hops from \\(P_i\\) to \\(P_j\\), and the circular distance in number of steps is \\(d\\), then the length she travels is\n\\[\n\\min(d,2022-d)\\le 1011.\n\\]\nSo every hop has length at most \\(1011\\).\n\nNow Bunbun makes \\(2022\\) hops total. Since the labels form a cycle\n\\[\nA_1\\to A_2\\to \\cdots \\to A_{2022}\\to A_1,\n\\]\nwe may separate the hops into the \\(1011\\) odd-even pairs\n\\[\n(A_1,A_2),(A_3,A_4),\\dots,(A_{2021},A_{2022})\n\\]\nand the \\(1011\\) even-odd pairs\n\\[\n(A_2,A_3),(A_4,A_5),\\dots,(A_{2022},A_1).\n\\]\n\nFor each \\(k\\), the two consecutive hops\n\\[\nA_{2k-1}\\to A_{2k},\\qquad A_{2k}\\to A_{2k+1}\n\\]\nhave total length at most the major arc from \\(A_{2k-1}\\) to \\(A_{2k+1}\\). Indeed, if the shorter arcs from \\(A_{2k-1}\\) to \\(A_{2k}\\) and from \\(A_{2k}\\) to \\(A_{2k+1}\\) are traversed, their union is one of the two arcs joining \\(A_{2k-1}\\) and \\(A_{2k+1}\\), so their sum cannot exceed the longer one. Hence\n\\[\n\\ell(A_{2k-1}A_{2k})+\\ell(A_{2k}A_{2k+1})\n\\le 2022-\\ell_{\\min}(A_{2k-1}A_{2k+1}),\n\\]\nwhere \\(\\ell_{\\min}(XY)\\) denotes the shorter arc between \\(X\\) and \\(Y\\)."
+          },
+          {
+            "id": "s2",
+            "text": "Summing over \\(k=1,\\dots,1011\\),\n\\[\nT\\le 1011\\cdot 2022-\\sum_{k=1}^{1011}\\ell_{\\min}(A_{2k-1}A_{2k+1}).\n\\]\nThus to maximize \\(T\\), we must minimize\n\\[\nS:=\\sum_{k=1}^{1011}\\ell_{\\min}(A_{2k-1}A_{2k+1}).\n\\]\n\nNow the odd-indexed labels \\(A_1,A_3,\\dots,A_{2021}\\) are \\(1011\\) distinct points on the circle. Connecting them cyclically gives a closed polygonal circuit on the circle, and the corresponding minor arcs between consecutive odd points cover a full tour around the circle except that one of the \\(1011\\) selected points is missing from each half if all odd points lie in one open semicircle. Therefore:\n\n- If the odd points are not all contained in one open semicircle, then the sum of these minor arcs is at least the full circumference \\(2022\\).\n- If they are all contained in one open semicircle, then because the points are distinct lattice points on the \\(2022\\)-gon and there are \\(1011\\) of them, the smallest possible sum of the cyclic gaps is achieved by taking \\(1011\\) consecutive points, for which the sum is\n\\[\n2(1010)=2020.\n\\]\n\nHence in all cases,\n\\[\nS\\ge 2020.\n\\]\nSo\n\\[\nT\\le 1011\\cdot 2022-2020=2042222.\n\\]\n\nIt remains to show this bound is attainable. Arrange the labels by alternating between nearly opposite points:\n\\[\nP_0,\\ P_{1011},\\ P_1,\\ P_{1012},\\ P_2,\\ P_{1013},\\ \\dots,\\ P_{1010},\\ P_{2021}.\n\\]\nThen each hop has length \\(1011\\) except for exactly two hops, which have length \\(1010\\). Therefore\n\\[\nT=2020\\cdot 1011+2\\cdot 1010=2042222.\n\\]\n\nVerification: The construction uses all \\(2022\\) points exactly once, and the computed total equals the upper bound, so the maximum is indeed attained.\n\nFinal Answer: \\(\\boxed{2042222}\\)"
+          }
+        ],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "Let the equally spaced points on \\(\\gamma\\) in circular order be \\(P_0,P_1,\\dots,P_{2021}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p2",
+            "text": "The indices are taken modulo \\(2022\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p3",
+            "text": "The circumference is \\(2022\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p4",
+            "text": "The arc length between adjacent points is \\(1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p5",
+            "text": "Bunbun hops from \\(P_i\\) to \\(P_j\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p6",
+            "text": "The circular distance in number of steps is \\(d\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p7",
+            "text": "The length she travels is \\(\\min(d,2022-d)\\le 1011\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p8",
+            "text": "Every hop has length at most \\(1011\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p9",
+            "text": "Bunbun makes \\(2022\\) hops total.",
+            "step_idx": null
+          },
+          {
+            "id": "p10",
+            "text": "The labels form a cycle \\(A_1\\to A_2\\to \\cdots \\to A_{2022}\\to A_1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p11",
+            "text": "We may separate the hops into the \\(1011\\) odd-even pairs \\((A_1,A_2),(A_3,A_4),\\dots,(A_{2021},A_{2022})\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p12",
+            "text": "We may separate the hops into the \\(1011\\) even-odd pairs \\((A_2,A_3),(A_4,A_5),\\dots,(A_{2022},A_1)\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p13",
+            "text": "For each \\(k\\), the two consecutive hops \\(A_{2k-1}\\to A_{2k}\\) and \\(A_{2k}\\to A_{2k+1}\\) have total length at most the major arc from \\(A_{2k-1}\\) to \\(A_{2k+1}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p14",
+            "text": "If the shorter arcs from \\(A_{2k-1}\\) to \\(A_{2k}\\) and from \\(A_{2k}\\) to \\(A_{2k+1}\\) are traversed, their union is one of the two arcs joining \\(A_{2k-1}\\) and \\(A_{2k+1}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p15",
+            "text": "Their sum cannot exceed the longer one.",
+            "step_idx": null
+          },
+          {
+            "id": "p16",
+            "text": "\\(\\ell(A_{2k-1}A_{2k})+\\ell(A_{2k}A_{2k+1})\\le 2022-\\ell_{\\min}(A_{2k-1}A_{2k+1})\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p17",
+            "text": "\\(\\ell_{\\min}(XY)\\) denotes the shorter arc between \\(X\\) and \\(Y\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p18",
+            "text": "Summing over \\(k=1,\\dots,1011\\), \\(T\\le 1011\\cdot 2022-\\sum_{k=1}^{1011}\\ell_{\\min}(A_{2k-1}A_{2k+1})\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p19",
+            "text": "To maximize \\(T\\), we must minimize \\(S:=\\sum_{k=1}^{1011}\\ell_{\\min}(A_{2k-1}A_{2k+1})\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p20",
+            "text": "The odd-indexed labels \\(A_1,A_3,\\dots,A_{2021}\\) are \\(1011\\) distinct points on the circle.",
+            "step_idx": null
+          },
+          {
+            "id": "p21",
+            "text": "Connecting them cyclically gives a closed polygonal circuit on the circle.",
+            "step_idx": null
+          },
+          {
+            "id": "p22",
+            "text": "The corresponding minor arcs between consecutive odd points cover a full tour around the circle except that one of the \\(1011\\) selected points is missing from each half if all odd points lie in one open semicircle.",
+            "step_idx": null
+          },
+          {
+            "id": "p23",
+            "text": "If the odd points are not all contained in one open semicircle, then the sum of these minor arcs is at least the full circumference \\(2022\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p24",
+            "text": "If they are all contained in one open semicircle, then the points are distinct lattice points on the \\(2022\\)-gon.",
+            "step_idx": null
+          },
+          {
+            "id": "p25",
+            "text": "If they are all contained in one open semicircle, then there are \\(1011\\) of them.",
+            "step_idx": null
+          },
+          {
+            "id": "p26",
+            "text": "If they are all contained in one open semicircle, then the smallest possible sum of the cyclic gaps is achieved by taking \\(1011\\) consecutive points.",
+            "step_idx": null
+          },
+          {
+            "id": "p27",
+            "text": "For \\(1011\\) consecutive points, the sum is \\(2(1010)=2020\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p28",
+            "text": "In all cases, \\(S\\ge 2020\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p29",
+            "text": "\\(T\\le 1011\\cdot 2022-2020=2042222\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p30",
+            "text": "It remains to show this bound is attainable.",
+            "step_idx": null
+          },
+          {
+            "id": "p31",
+            "text": "Arrange the labels by alternating between nearly opposite points: \\(P_0,\\ P_{1011},\\ P_1,\\ P_{1012},\\ P_2,\\ P_{1013},\\ \\dots,\\ P_{1010},\\ P_{2021}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p32",
+            "text": "Each hop has length \\(1011\\) except for exactly two hops.",
+            "step_idx": null
+          },
+          {
+            "id": "p33",
+            "text": "The two exceptional hops have length \\(1010\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p34",
+            "text": "\\(T=2020\\cdot 1011+2\\cdot 1010=2042222\\).",
+            "step_idx": null
+          }
+        ],
+        "claims": [],
+        "claim_checks": {},
+        "dependencies": {},
+        "step_dependencies": {},
+        "workflow_state": "steps_segmented"
+      }
+    }
+  },
+  "sample_decisions": [
+    {
+      "class_name": "",
+      "is_correct": true,
+      "is_new_class": false,
+      "pipeline_status": "in_progress",
+      "summary": ""
+    }
+  ],
+  "correct_solutions": [],
+  "updated_at_utc": "2026-04-01T08:53:11.441494+00:00",
+  "created_at_utc": "2026-04-01T08:49:23.189032+00:00",
+  "content_hash": "b5074a7abbcd7d43e5f96e45b4a0c14f5c28853ac11e19157f14ff74417d6e1e"
+}

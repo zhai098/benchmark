@@ -1,0 +1,791 @@
+{
+  "annotator_id": "张璟旭",
+  "device_id": "dev-1775126623662-xze9d4",
+  "case_id": "q-25",
+  "status": "in_progress",
+  "current_step": 1,
+  "current_workflow_state": {
+    "active_sample_idx": null,
+    "sample_cursor": 5,
+    "workflow_state": "sample_selected",
+    "problem_quality_screening": {
+      "decision": "pass",
+      "reason": "",
+      "other_text": "",
+      "rejected_at": ""
+    }
+  },
+  "current_annotations": {
+    "selected_solution_text": "",
+    "cut_points": [],
+    "steps": [],
+    "presegmented_claims": [],
+    "claims": [],
+    "claim_checks": {},
+    "dependencies": {},
+    "step_dependencies": {},
+    "sample_annotations": {
+      "1": {
+        "selected_solution_text": "Alternative Solution 2:\n\nLet\n\\[\nR=\\frac{\\sum_{i=1}^n a_i(a_i+b_i)}{\\sum_{i=1}^n b_i(a_i+b_i)}.\n\\]\nAs in any homogeneous problem of degree \\(2\\), we may assume\n\\[\n\\sum_{i=1}^n a_i=\\sum_{i=1}^n b_i=1.\n\\]\nThen\n\\[\nR=\\frac{\\sum a_i^2+\\sum a_ib_i}{\\sum a_ib_i+\\sum b_i^2}.\n\\]\n\nWe will prove the inequality\n\\[\n\\sum_{i=1}^n a_i(a_i+b_i)\\le (n-1)\\sum_{i=1}^n b_i(a_i+b_i).\n\\]\nExpanding both sides, this is\n\\[\n\\sum a_i^2+\\sum a_ib_i\\le (n-1)\\sum a_ib_i+(n-1)\\sum b_i^2,\n\\]\nor equivalently\n\\[\n\\sum a_i^2-(n-2)\\sum a_ib_i-(n-1)\\sum b_i^2\\le 0.\n\\]\n\nNow consider\n\\[\n\\sum_{i=1}^n (a_i-(n-1)b_i)^2\\ge 0.\n\\]\nExpanding,\n\\[\n\\sum a_i^2-2(n-1)\\sum a_ib_i+(n-1)^2\\sum b_i^2\\ge 0.\n\\]\nHence\n\\[\n\\sum a_i^2 \\ge 2(n-1)\\sum a_ib_i-(n-1)^2\\sum b_i^2.\n\\]\nThis by itself gives a lower bound for \\(\\sum a_i^2\\), so it does not directly help. Instead we use the equal-sum condition:\n\\[\n\\left(\\sum_{i=1}^n a_i\\right)^2=\\left(\\sum_{i=1}^n b_i\\right)^2=1.\n\\]\nThus\n\\[\n\\sum a_i^2+2\\sum_{i<j}a_ia_j=1,\\qquad \\sum b_i^2+2\\sum_{i<j}b_ib_j=1.\n\\]\n\nNow compute\n\\[\n\\sum (a_i+b_i)^2=\\sum a_i^2+\\sum b_i^2+2\\sum a_ib_i.\n\\]\nAlso,\n\\[\n\\sum (a_i+b_i)=2.\n\\]\nBy Cauchy-Schwarz,\n\\[\n\\sum (a_i+b_i)^2\\ge \\frac{\\left(\\sum(a_i+b_i)\\right)^2}{n}=\\frac{4}{n}.\n\\]\nSo\n\\[\n\\sum a_i^2+\\sum b_i^2+2\\sum a_ib_i\\ge \\frac4n.\n\\]\n\nOn the other hand, since \\(\\sum a_i=1\\),\n\\[\n\\sum a_i^2\\le 1.\n\\]\nTherefore\n\\[\n\\sum a_i^2+\\sum a_ib_i\n\\le 1+\\sum a_ib_i.\n\\]\nSo it is enough to prove\n\\[\n1+\\sum a_ib_i \\le (n-1)\\left(\\sum a_ib_i+\\sum b_i^2\\right).\n\\]\nThat is,\n\\[\n1 \\le (n-2)\\sum a_ib_i+(n-1)\\sum b_i^2.\n\\]\n\nNow fix the \\(b_i\\)'s. Since \\(\\sum a_i=1\\) and \\(a_i\\ge 0\\), the quantity \\(\\sum a_ib_i\\) is a convex combination of \\(b_1,\\dots,b_n\\), hence\n\\[\n\\sum a_ib_i\\ge \\min_i b_i.\n\\]\nLet \\(m=\\min_i b_i\\). Then\n\\[\n(n-2)\\sum a_ib_i+(n-1)\\sum b_i^2\n\\ge (n-2)m+(n-1)\\sum b_i^2.\n\\]\nAlso, writing \\(b_i=m+c_i\\) with \\(c_i\\ge 0\\), we have\n\\[\n\\sum c_i = 1-nm.\n\\]\nThus\n\\[\n\\sum b_i^2=\\sum (m+c_i)^2 = nm^2+2m(1-nm)+\\sum c_i^2\n=2m-nm^2+\\sum c_i^2.\n\\]\nSince \\(\\sum c_i^2\\ge \\dfrac{(1-nm)^2}{n-1}\\) by Cauchy-Schwarz,\n\\[\n\\sum b_i^2\\ge 2m-nm^2+\\frac{(1-nm)^2}{n-1}.\n\\]\nTherefore\n\\[\n(n-2)m+(n-1)\\sum b_i^2\n\\ge (n-2)m+(n-1)\\left(2m-nm^2+\\frac{(1-nm)^2}{n-1}\\right).\n\\]\nSimplifying,\n\\[\n= (n-2)m+2(n-1)m-n(n-1)m^2+(1-nm)^2\n\\]\n\\[\n= 1+(n-4)m.\n\\]\nSince \\(m\\ge 0\\) and \\(n\\ge 4\\),\n\\[\n1+(n-4)m\\ge 1.\n\\]\nHence\n\\[\n(n-2)\\sum a_ib_i+(n-1)\\sum b_i^2\\ge 1,\n\\]\nwhich proves\n\\[\n\\sum a_i^2+\\sum a_ib_i\\le (n-1)\\left(\\sum a_ib_i+\\sum b_i^2\\right).\n\\]\nSo\n\\[\nR\\le n-1.\n\\]\n\nNow we find equality conditions. Take\n\\[\na_1=1,\\quad a_2=\\cdots=a_n=0,\n\\]\nand\n\\[\nb_1=0,\\quad b_2=\\cdots=b_n=\\frac1{n-1}.\n\\]\nThen\n\\[\n\\sum a_i(a_i+b_i)=1,\\qquad \\sum b_i(a_i+b_i)=\\frac1{n-1},\n\\]\nso\n\\[\nR=n-1.\n\\]\n\nVerification: the constructed example satisfies \\(\\sum a_i=\\sum b_i=1\\), all variables are nonnegative, and the ratio equals the upper bound \\(n-1\\).\n\nFinal Answer: \n\nn - 1",
+        "cut_points": [],
+        "steps": [],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "Alternative Solution 2.",
+            "step_idx": null
+          },
+          {
+            "id": "p2",
+            "text": "Let \\[ R=\\frac{\\sum_{i=1}^n a_i(a_i+b_i)}{\\sum_{i=1}^n b_i(a_i+b_i)}. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p3",
+            "text": "As in any homogeneous problem of degree \\(2\\), we may assume \\[ \\sum_{i=1}^n a_i=\\sum_{i=1}^n b_i=1. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p4",
+            "text": "Then \\[ R=\\frac{\\sum a_i^2+\\sum a_ib_i}{\\sum a_ib_i+\\sum b_i^2}. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p5",
+            "text": "We will prove the inequality \\[ \\sum_{i=1}^n a_i(a_i+b_i)\\le (n-1)\\sum_{i=1}^n b_i(a_i+b_i). \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p6",
+            "text": "Expanding both sides, this is \\[ \\sum a_i^2+\\sum a_ib_i\\le (n-1)\\sum a_ib_i+(n-1)\\sum b_i^2, \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p7",
+            "text": "or equivalently \\[ \\sum a_i^2-(n-2)\\sum a_ib_i-(n-1)\\sum b_i^2\\le 0. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p8",
+            "text": "Now consider \\[ \\sum_{i=1}^n (a_i-(n-1)b_i)^2\\ge 0. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p9",
+            "text": "Expanding, \\[ \\sum a_i^2-2(n-1)\\sum a_ib_i+(n-1)^2\\sum b_i^2\\ge 0. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p10",
+            "text": "Hence \\[ \\sum a_i^2 \\ge 2(n-1)\\sum a_ib_i-(n-1)^2\\sum b_i^2. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p11",
+            "text": "This by itself gives a lower bound for \\(\\sum a_i^2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p12",
+            "text": "This by itself does not directly help.",
+            "step_idx": null
+          },
+          {
+            "id": "p13",
+            "text": "Instead we use the equal-sum condition: \\[ \\left(\\sum_{i=1}^n a_i\\right)^2=\\left(\\sum_{i=1}^n b_i\\right)^2=1. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p14",
+            "text": "Thus \\[ \\sum a_i^2+2\\sum_{i<j}a_ia_j=1,\\qquad \\sum b_i^2+2\\sum_{i<j}b_ib_j=1. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p15",
+            "text": "Now compute \\[ \\sum (a_i+b_i)^2=\\sum a_i^2+\\sum b_i^2+2\\sum a_ib_i. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p16",
+            "text": "Also, \\[ \\sum (a_i+b_i)=2. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p17",
+            "text": "By Cauchy-Schwarz, \\[ \\sum (a_i+b_i)^2\\ge \\frac{\\left(\\sum(a_i+b_i)\\right)^2}{n}=\\frac{4}{n}. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p18",
+            "text": "So \\[ \\sum a_i^2+\\sum b_i^2+2\\sum a_ib_i\\ge \\frac4n. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p19",
+            "text": "On the other hand, since \\(\\sum a_i=1\\), \\[ \\sum a_i^2\\le 1. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p20",
+            "text": "Therefore \\[ \\sum a_i^2+\\sum a_ib_i \\le 1+\\sum a_ib_i. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p21",
+            "text": "So it is enough to prove \\[ 1+\\sum a_ib_i \\le (n-1)\\left(\\sum a_ib_i+\\sum b_i^2\\right). \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p22",
+            "text": "That is, \\[ 1 \\le (n-2)\\sum a_ib_i+(n-1)\\sum b_i^2. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p23",
+            "text": "Now fix the \\(b_i\\)'s.",
+            "step_idx": null
+          },
+          {
+            "id": "p24",
+            "text": "Since \\(\\sum a_i=1\\) and \\(a_i\\ge 0\\), the quantity \\(\\sum a_ib_i\\) is a convex combination of \\(b_1,\\dots,b_n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p25",
+            "text": "Hence \\[ \\sum a_ib_i\\ge \\min_i b_i. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p26",
+            "text": "Let \\(m=\\min_i b_i\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p27",
+            "text": "Then \\[ (n-2)\\sum a_ib_i+(n-1)\\sum b_i^2 \\ge (n-2)m+(n-1)\\sum b_i^2. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p28",
+            "text": "Also, writing \\(b_i=m+c_i\\) with \\(c_i\\ge 0\\), we have \\[ \\sum c_i = 1-nm. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p29",
+            "text": "Thus \\[ \\sum b_i^2=\\sum (m+c_i)^2 = nm^2+2m(1-nm)+\\sum c_i^2 =2m-nm^2+\\sum c_i^2. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p30",
+            "text": "Since \\(\\sum c_i^2\\ge \\dfrac{(1-nm)^2}{n-1}\\) by Cauchy-Schwarz, \\[ \\sum b_i^2\\ge 2m-nm^2+\\frac{(1-nm)^2}{n-1}. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p31",
+            "text": "Therefore \\[ (n-2)m+(n-1)\\sum b_i^2 \\ge (n-2)m+(n-1)\\left(2m-nm^2+\\frac{(1-nm)^2}{n-1}\\right). \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p32",
+            "text": "Simplifying, \\[ = (n-2)m+2(n-1)m-n(n-1)m^2+(1-nm)^2 \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p33",
+            "text": "Simplifying, \\[ = 1+(n-4)m. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p34",
+            "text": "Since \\(m\\ge 0\\) and \\(n\\ge 4\\), \\[ 1+(n-4)m\\ge 1. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p35",
+            "text": "Hence \\[ (n-2)\\sum a_ib_i+(n-1)\\sum b_i^2\\ge 1, \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p36",
+            "text": "which proves \\[ \\sum a_i^2+\\sum a_ib_i\\le (n-1)\\left(\\sum a_ib_i+\\sum b_i^2\\right). \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p37",
+            "text": "So \\[ R\\le n-1. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p38",
+            "text": "Now we find equality conditions.",
+            "step_idx": null
+          },
+          {
+            "id": "p39",
+            "text": "Take \\[ a_1=1,\\quad a_2=\\cdots=a_n=0, \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p40",
+            "text": "and \\[ b_1=0,\\quad b_2=\\cdots=b_n=\\frac1{n-1}. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p41",
+            "text": "Then \\[ \\sum a_i(a_i+b_i)=1,\\qquad \\sum b_i(a_i+b_i)=\\frac1{n-1}, \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p42",
+            "text": "so \\[ R=n-1. \\]",
+            "step_idx": null
+          }
+        ],
+        "claims": [],
+        "claim_checks": {},
+        "dependencies": {},
+        "step_dependencies": {},
+        "workflow_state": "sample_selected"
+      },
+      "3": {
+        "selected_solution_text": "Alternative Solution 1:\n\nLet\n\\[\nR=\\frac{\\sum_{i=1}^n a_i(a_i+b_i)}{\\sum_{i=1}^n b_i(a_i+b_i)}.\n\\]\nSince both numerator and denominator are homogeneous of degree \\(2\\), we may normalize\n\\[\n\\sum_{i=1}^n a_i=\\sum_{i=1}^n b_i=1.\n\\]\nThen\n\\[\nR=\\frac{\\sum a_i^2+\\sum a_ib_i}{\\sum b_i^2+\\sum a_ib_i}.\n\\]\nWrite\n\\[\nA=\\sum_{i=1}^n a_i^2,\\qquad B=\\sum_{i=1}^n b_i^2,\\qquad X=\\sum_{i=1}^n a_ib_i.\n\\]\nSo\n\\[\nR=\\frac{A+X}{B+X}.\n\\]\n\nWe now estimate the numerator and denominator separately.\n\nFirst, since \\(a_i\\ge 0\\) and \\(\\sum a_i=1\\), we have\n\\[\nA=\\sum a_i^2\\le \\left(\\sum a_i\\right)^2=1.\n\\]\nHence\n\\[\nA+X\\le 1+X.\n\\]\n\nNext, for fixed \\(a_1,\\dots,a_n\\) with \\(\\sum a_i=1\\), the quantity \\(X=\\sum a_ib_i\\) is a convex combination of the numbers \\(b_i\\), so\n\\[\nX\\ge \\min_i b_i.\n\\]\nLet \\(m=\\min_i b_i\\). Since \\(\\sum b_i=1\\), we also have\n\\[\n\\sum_{i=1}^n b_i^2\\ge (n-1)m^2+(1-(n-1)m)^2/(1)\n\\]\nbut a simpler lower bound is enough: among the \\(n\\) numbers \\(b_i\\), one equals \\(m\\), and the other \\(n-1\\) have sum \\(1-m\\). By Cauchy-Schwarz,\n\\[\n\\sum_{i=1}^n b_i^2\\ge m^2+\\frac{(1-m)^2}{n-1}.\n\\]\nTherefore\n\\[\nB+X\\ge m^2+\\frac{(1-m)^2}{n-1}+m.\n\\]\n\nCombining these bounds,\n\\[\nR=\\frac{A+X}{B+X}\\le \\frac{1+m}{m^2+\\frac{(1-m)^2}{n-1}+m}.\n\\]\nSo it remains to prove\n\\[\n\\frac{1+m}{m^2+\\frac{(1-m)^2}{n-1}+m}\\le n-1.\n\\]\nThis is equivalent to\n\\[\n1+m\\le (n-1)\\left(m^2+m+\\frac{(1-m)^2}{n-1}\\right),\n\\]\nthat is,\n\\[\n1+m\\le (n-1)m^2+(n-1)m+(1-2m+m^2),\n\\]\nor\n\\[\n0\\le nm^2+(n-4)m.\n\\]\nThis is true because \\(m\\ge 0\\) and \\(n\\ge 4\\).\n\nHence\n\\[\nR\\le n-1.\n\\]\n\nNow we show equality is attainable. Take\n\\[\na_1=1,\\quad a_2=\\cdots=a_n=0,\n\\]\nand\n\\[\nb_1=0,\\quad b_2=\\cdots=b_n=\\frac1{n-1}.\n\\]\nThen indeed\n\\[\n\\sum a_i=\\sum b_i=1,\n\\]\nand\n\\[\n\\sum a_i(a_i+b_i)=1,\\qquad \\sum b_i(a_i+b_i)=\\sum_{i=2}^n \\frac1{n-1}\\cdot \\frac1{n-1}=\\frac1{n-1}.\n\\]\nSo\n\\[\nR=\\frac{1}{1/(n-1)}=n-1.\n\\]\n\nVerification: we have proved \\(R\\le n-1\\) for all admissible \\(a_i,b_i\\), and the above choice gives \\(R=n-1\\), so the maximum is exactly \\(n-1\\).\n\nFinal Answer: \n\nn - 1",
+        "cut_points": [
+          295,
+          414,
+          473,
+          601,
+          762,
+          873,
+          1123,
+          1289,
+          1446,
+          1517,
+          1828,
+          1976
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "text": "Alternative Solution 1:\n\nLet\n\\[\nR=\\frac{\\sum_{i=1}^n a_i(a_i+b_i)}{\\sum_{i=1}^n b_i(a_i+b_i)}.\n\\]\nSince both numerator and denominator are homogeneous of degree \\(2\\), we may normalize\n\\[\n\\sum_{i=1}^n a_i=\\sum_{i=1}^n b_i=1.\n\\]\nThen\n\\[\nR=\\frac{\\sum a_i^2+\\sum a_ib_i}{\\sum b_i^2+\\sum a_ib_i}.\n\\]"
+          },
+          {
+            "id": "s2",
+            "text": "Write\n\\[\nA=\\sum_{i=1}^n a_i^2,\\qquad B=\\sum_{i=1}^n b_i^2,\\qquad X=\\sum_{i=1}^n a_ib_i.\n\\]\nSo\n\\[\nR=\\frac{A+X}{B+X}.\n\\]"
+          },
+          {
+            "id": "s3",
+            "text": "We now estimate the numerator and denominator separately."
+          },
+          {
+            "id": "s4",
+            "text": "First, since \\(a_i\\ge 0\\) and \\(\\sum a_i=1\\), we have\n\\[\nA=\\sum a_i^2\\le \\left(\\sum a_i\\right)^2=1.\n\\]\nHence\n\\[\nA+X\\le 1+X.\n\\]"
+          },
+          {
+            "id": "s5",
+            "text": "Next, for fixed \\(a_1,\\dots,a_n\\) with \\(\\sum a_i=1\\), the quantity \\(X=\\sum a_ib_i\\) is a convex combination of the numbers \\(b_i\\), so\n\\[\nX\\ge \\min_i b_i.\n\\]"
+          },
+          {
+            "id": "s6",
+            "text": "Let \\(m=\\min_i b_i\\). Since \\(\\sum b_i=1\\), we also have\n\\[\n\\sum_{i=1}^n b_i^2\\ge (n-1)m^2+(1-(n-1)m)^2/(1)\n\\]"
+          },
+          {
+            "id": "s7",
+            "text": "but a simpler lower bound is enough: among the \\(n\\) numbers \\(b_i\\), one equals \\(m\\), and the other \\(n-1\\) have sum \\(1-m\\). By Cauchy-Schwarz,\n\\[\n\\sum_{i=1}^n b_i^2\\ge m^2+\\frac{(1-m)^2}{n-1}.\n\\]\nTherefore\n\\[\nB+X\\ge m^2+\\frac{(1-m)^2}{n-1}+m.\n\\]"
+          },
+          {
+            "id": "s8",
+            "text": "Combining these bounds,\n\\[\nR=\\frac{A+X}{B+X}\\le \\frac{1+m}{m^2+\\frac{(1-m)^2}{n-1}+m}.\n\\]\nSo it remains to prove\n\\[\n\\frac{1+m}{m^2+\\frac{(1-m)^2}{n-1}+m}\\le n-1.\n\\]"
+          },
+          {
+            "id": "s9",
+            "text": "This is equivalent to\n\\[\n1+m\\le (n-1)\\left(m^2+m+\\frac{(1-m)^2}{n-1}\\right),\n\\]\nthat is,\n\\[\n1+m\\le (n-1)m^2+(n-1)m+(1-2m+m^2),\n\\]\nor\n\\[\n0\\le nm^2+(n-4)m.\n\\]"
+          },
+          {
+            "id": "s10",
+            "text": "This is true because \\(m\\ge 0\\) and \\(n\\ge 4\\).\n\nHence\n\\[\nR\\le n-1.\n\\]"
+          },
+          {
+            "id": "s11",
+            "text": "Now we show equality is attainable. Take\n\\[\na_1=1,\\quad a_2=\\cdots=a_n=0,\n\\]\nand\n\\[\nb_1=0,\\quad b_2=\\cdots=b_n=\\frac1{n-1}.\n\\]\nThen indeed\n\\[\n\\sum a_i=\\sum b_i=1,\n\\]\nand\n\\[\n\\sum a_i(a_i+b_i)=1,\\qquad \\sum b_i(a_i+b_i)=\\sum_{i=2}^n \\frac1{n-1}\\cdot \\frac1{n-1}=\\frac1{n-1}.\n\\]\nSo\n\\[\nR=\\frac{1}{1/(n-1)}=n-1.\n\\]"
+          },
+          {
+            "id": "s12",
+            "text": "Verification: we have proved \\(R\\le n-1\\) for all admissible \\(a_i,b_i\\), and the above choice gives \\(R=n-1\\), so the maximum is exactly \\(n-1\\)."
+          },
+          {
+            "id": "s13",
+            "text": "Final Answer: \n\nn - 1"
+          }
+        ],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "Let \\[ R=\\frac{\\sum_{i=1}^n a_i(a_i+b_i)}{\\sum_{i=1}^n b_i(a_i+b_i)}. \\]",
+            "step_idx": 0
+          },
+          {
+            "id": "p2",
+            "text": "Both numerator and denominator are homogeneous of degree \\(2\\).",
+            "step_idx": 0
+          },
+          {
+            "id": "p3",
+            "text": "We may normalize \\[ \\sum_{i=1}^n a_i=\\sum_{i=1}^n b_i=1. \\]",
+            "step_idx": 0
+          },
+          {
+            "id": "p4",
+            "text": "Then \\[ R=\\frac{\\sum a_i^2+\\sum a_ib_i}{\\sum b_i^2+\\sum a_ib_i}. \\]",
+            "step_idx": 0
+          },
+          {
+            "id": "p5",
+            "text": "Write \\[ A=\\sum_{i=1}^n a_i^2. \\]",
+            "step_idx": 1
+          },
+          {
+            "id": "p6",
+            "text": "Write \\[ B=\\sum_{i=1}^n b_i^2. \\]",
+            "step_idx": 1
+          },
+          {
+            "id": "p7",
+            "text": "Write \\[ X=\\sum_{i=1}^n a_ib_i. \\]",
+            "step_idx": 1
+          },
+          {
+            "id": "p8",
+            "text": "So \\[ R=\\frac{A+X}{B+X}. \\]",
+            "step_idx": 1
+          },
+          {
+            "id": "p9",
+            "text": "We now estimate the numerator and denominator separately.",
+            "step_idx": 2
+          },
+          {
+            "id": "p10",
+            "text": "\\(a_i\\ge 0\\).",
+            "step_idx": 3
+          },
+          {
+            "id": "p11",
+            "text": "\\(\\sum a_i=1\\).",
+            "step_idx": 3
+          },
+          {
+            "id": "p12",
+            "text": "\\[ A=\\sum a_i^2\\le \\left(\\sum a_i\\right)^2=1. \\]",
+            "step_idx": 3
+          },
+          {
+            "id": "p13",
+            "text": "Hence \\[ A+X\\le 1+X. \\]",
+            "step_idx": 3
+          },
+          {
+            "id": "p14",
+            "text": "For fixed \\(a_1,\\dots,a_n\\) with \\(\\sum a_i=1\\), the quantity \\(X=\\sum a_ib_i\\) is a convex combination of the numbers \\(b_i\\).",
+            "step_idx": 4
+          },
+          {
+            "id": "p15",
+            "text": "\\[ X\\ge \\min_i b_i. \\]",
+            "step_idx": 4
+          },
+          {
+            "id": "p16",
+            "text": "Let \\(m=\\min_i b_i\\).",
+            "step_idx": 5
+          },
+          {
+            "id": "p17",
+            "text": "\\(\\sum b_i=1\\).",
+            "step_idx": 5
+          },
+          {
+            "id": "p18",
+            "text": "\\[ \\sum_{i=1}^n b_i^2\\ge (n-1)m^2+(1-(n-1)m)^2/(1). \\]",
+            "step_idx": 5
+          },
+          {
+            "id": "p19",
+            "text": "A simpler lower bound is enough.",
+            "step_idx": 6
+          },
+          {
+            "id": "p20",
+            "text": "Among the \\(n\\) numbers \\(b_i\\), one equals \\(m\\).",
+            "step_idx": 6
+          },
+          {
+            "id": "p21",
+            "text": "The other \\(n-1\\) have sum \\(1-m\\).",
+            "step_idx": 6
+          },
+          {
+            "id": "p22",
+            "text": "By Cauchy-Schwarz, \\[ \\sum_{i=1}^n b_i^2\\ge m^2+\\frac{(1-m)^2}{n-1}. \\]",
+            "step_idx": 6
+          },
+          {
+            "id": "p23",
+            "text": "Therefore \\[ B+X\\ge m^2+\\frac{(1-m)^2}{n-1}+m. \\]",
+            "step_idx": 6
+          },
+          {
+            "id": "p24",
+            "text": "Combining these bounds, \\[ R=\\frac{A+X}{B+X}\\le \\frac{1+m}{m^2+\\frac{(1-m)^2}{n-1}+m}. \\]",
+            "step_idx": 7
+          },
+          {
+            "id": "p25",
+            "text": "So it remains to prove \\[ \\frac{1+m}{m^2+\\frac{(1-m)^2}{n-1}+m}\\le n-1. \\]",
+            "step_idx": 7
+          },
+          {
+            "id": "p26",
+            "text": "This is equivalent to \\[ 1+m\\le (n-1)\\left(m^2+m+\\frac{(1-m)^2}{n-1}\\right). \\]",
+            "step_idx": 8
+          },
+          {
+            "id": "p27",
+            "text": "That is, \\[ 1+m\\le (n-1)m^2+(n-1)m+(1-2m+m^2). \\]",
+            "step_idx": 8
+          },
+          {
+            "id": "p28",
+            "text": "Or \\[ 0\\le nm^2+(n-4)m. \\]",
+            "step_idx": 8
+          },
+          {
+            "id": "p29",
+            "text": "This is true because \\(m\\ge 0\\).",
+            "step_idx": 9
+          },
+          {
+            "id": "p30",
+            "text": "\\(n\\ge 4\\).",
+            "step_idx": 9
+          },
+          {
+            "id": "p31",
+            "text": "Hence \\[ R\\le n-1. \\]",
+            "step_idx": 9
+          },
+          {
+            "id": "p32",
+            "text": "Now we show equality is attainable.",
+            "step_idx": 10
+          },
+          {
+            "id": "p33",
+            "text": "Take \\[ a_1=1. \\]",
+            "step_idx": 10
+          },
+          {
+            "id": "p34",
+            "text": "Take \\[ a_2=\\cdots=a_n=0. \\]",
+            "step_idx": 10
+          },
+          {
+            "id": "p35",
+            "text": "Take \\[ b_1=0. \\]",
+            "step_idx": 10
+          },
+          {
+            "id": "p36",
+            "text": "Take \\[ b_2=\\cdots=b_n=\\frac1{n-1}. \\]",
+            "step_idx": 10
+          },
+          {
+            "id": "p37",
+            "text": "Then indeed \\[ \\sum a_i=\\sum b_i=1. \\]",
+            "step_idx": 10
+          },
+          {
+            "id": "p38",
+            "text": "\\[ \\sum a_i(a_i+b_i)=1. \\]",
+            "step_idx": 10
+          },
+          {
+            "id": "p39",
+            "text": "\\[ \\sum b_i(a_i+b_i)=\\sum_{i=2}^n \\frac1{n-1}\\cdot \\frac1{n-1}=\\frac1{n-1}. \\]",
+            "step_idx": 11
+          },
+          {
+            "id": "p40",
+            "text": "So \\[ R=\\frac{1}{1/(n-1)}=n-1. \\]",
+            "step_idx": 12
+          }
+        ],
+        "claims": [
+          {
+            "step_id": "s1",
+            "claims": [
+              "Let \\[ R=\\frac{\\sum_{i=1}^n a_i(a_i+b_i)}{\\sum_{i=1}^n b_i(a_i+b_i)}. \\]",
+              "Both numerator and denominator are homogeneous of degree \\(2\\).",
+              "We may normalize \\[ \\sum_{i=1}^n a_i=\\sum_{i=1}^n b_i=1. \\]",
+              "Then \\[ R=\\frac{\\sum a_i^2+\\sum a_ib_i}{\\sum b_i^2+\\sum a_ib_i}. \\]"
+            ]
+          },
+          {
+            "step_id": "s2",
+            "claims": [
+              "Write \\[ A=\\sum_{i=1}^n a_i^2. \\]",
+              "Write \\[ B=\\sum_{i=1}^n b_i^2. \\]",
+              "Write \\[ X=\\sum_{i=1}^n a_ib_i. \\]",
+              "So \\[ R=\\frac{A+X}{B+X}. \\]"
+            ]
+          },
+          {
+            "step_id": "s3",
+            "claims": [
+              "We now estimate the numerator and denominator separately."
+            ]
+          },
+          {
+            "step_id": "s4",
+            "claims": [
+              "\\(a_i\\ge 0\\).",
+              "\\(\\sum a_i=1\\).",
+              "\\[ A=\\sum a_i^2\\le \\left(\\sum a_i\\right)^2=1. \\]",
+              "Hence \\[ A+X\\le 1+X. \\]"
+            ]
+          },
+          {
+            "step_id": "s5",
+            "claims": [
+              "For fixed \\(a_1,\\dots,a_n\\) with \\(\\sum a_i=1\\), the quantity \\(X=\\sum a_ib_i\\) is a convex combination of the numbers \\(b_i\\).",
+              "\\[ X\\ge \\min_i b_i. \\]"
+            ]
+          },
+          {
+            "step_id": "s6",
+            "claims": [
+              "Let \\(m=\\min_i b_i\\).",
+              "\\(\\sum b_i=1\\).",
+              "\\[ \\sum_{i=1}^n b_i^2\\ge (n-1)m^2+(1-(n-1)m)^2/(1). \\]"
+            ]
+          },
+          {
+            "step_id": "s7",
+            "claims": [
+              "A simpler lower bound is enough.",
+              "Among the \\(n\\) numbers \\(b_i\\), one equals \\(m\\).",
+              "The other \\(n-1\\) have sum \\(1-m\\).",
+              "By Cauchy-Schwarz, \\[ \\sum_{i=1}^n b_i^2\\ge m^2+\\frac{(1-m)^2}{n-1}. \\]",
+              "Therefore \\[ B+X\\ge m^2+\\frac{(1-m)^2}{n-1}+m. \\]"
+            ]
+          },
+          {
+            "step_id": "s8",
+            "claims": [
+              "Combining these bounds, \\[ R=\\frac{A+X}{B+X}\\le \\frac{1+m}{m^2+\\frac{(1-m)^2}{n-1}+m}. \\]",
+              "So it remains to prove \\[ \\frac{1+m}{m^2+\\frac{(1-m)^2}{n-1}+m}\\le n-1. \\]"
+            ]
+          },
+          {
+            "step_id": "s9",
+            "claims": [
+              "This is equivalent to \\[ 1+m\\le (n-1)\\left(m^2+m+\\frac{(1-m)^2}{n-1}\\right). \\]",
+              "That is, \\[ 1+m\\le (n-1)m^2+(n-1)m+(1-2m+m^2). \\]",
+              "Or \\[ 0\\le nm^2+(n-4)m. \\]"
+            ]
+          },
+          {
+            "step_id": "s10",
+            "claims": [
+              "This is true because \\(m\\ge 0\\) and \\(n\\ge 4\\).",
+              "",
+              "Hence \\[ R\\le n-1. \\]"
+            ]
+          },
+          {
+            "step_id": "s11",
+            "claims": [
+              "Now we show equality is attainable.",
+              "Take \\[ a_1=1. \\],Take \\[ a_2=\\cdots=a_n=0. \\]",
+              "",
+              "Take \\[ b_1=0. \\].Take \\[ b_2=\\cdots=b_n=\\frac1{n-1}. \\]",
+              "",
+              "Then indeed \\[ \\sum a_i=\\sum b_i=1. \\]",
+              "\\[ \\sum a_i(a_i+b_i)=1. \\]",
+              "\\[ \\sum b_i(a_i+b_i)=\\sum_{i=2}^n \\frac1{n-1}\\cdot \\frac1{n-1}=\\frac1{n-1}. \\]",
+              "So \\[ R=\\frac{1}{1/(n-1)}=n-1. \\]"
+            ]
+          },
+          {
+            "step_id": "s12",
+            "claims": [
+              "Verification: we have proved \\(R\\le n-1\\) for all admissible \\(a_i,b_i\\), and the above choice gives \\(R=n-1\\), so the maximum is exactly \\(n-1\\)."
+            ]
+          },
+          {
+            "step_id": "s13",
+            "claims": [
+              "Final Answer:   n - 1"
+            ]
+          }
+        ],
+        "claim_checks": {
+          "s1c1": "correct",
+          "s1c2": "correct",
+          "s1c3": "correct",
+          "s1c4": "correct",
+          "s2c1": "correct",
+          "s2c2": "correct",
+          "s2c3": "correct",
+          "s2c4": "correct",
+          "s3c1": "correct",
+          "s4c1": "correct",
+          "s4c2": "correct",
+          "s4c3": "correct",
+          "s4c4": "correct",
+          "s5c1": "correct",
+          "s5c2": "correct",
+          "s6c1": "correct",
+          "s6c2": "correct",
+          "s6c3": "delete",
+          "s7c1": "delete",
+          "s7c2": "correct",
+          "s7c3": "correct",
+          "s7c4": "correct",
+          "s7c5": "correct",
+          "s8c1": "correct",
+          "s8c2": "correct",
+          "s9c1": "correct",
+          "s9c2": "correct",
+          "s9c3": "correct",
+          "s10c1": "correct",
+          "s10c2": "delete",
+          "s10c3": "correct",
+          "s11c1": "correct",
+          "s11c2": "correct",
+          "s11c3": "delete",
+          "s11c4": "correct",
+          "s11c5": "delete",
+          "s11c6": "correct",
+          "s11c7": "correct",
+          "s12c1": "correct",
+          "s13c1": "correct",
+          "s11c8": "correct",
+          "s11c9": "correct"
+        },
+        "dependencies": {},
+        "step_dependencies": {
+          "s2": [
+            "s1c4"
+          ],
+          "s3": [
+            "s2c4"
+          ],
+          "s4": [
+            "s3c1",
+            "s2c1",
+            "s1c3"
+          ],
+          "s5": [
+            "s3c1",
+            "s1c3",
+            "s2c3"
+          ],
+          "s6": [
+            "s1c3",
+            "s3c1"
+          ],
+          "s7": [
+            "s3c1",
+            "s1c3",
+            "s2c3",
+            "s2c2",
+            "s2c4"
+          ],
+          "s8": [
+            "s4c4",
+            "s2c4",
+            "s7c4"
+          ],
+          "s9": [
+            "s8c2"
+          ],
+          "s10": [
+            "s9c3"
+          ],
+          "s11": [
+            "s10c2",
+            "s1c1",
+            "s4c3",
+            "s7c1",
+            "s7c3"
+          ],
+          "s12": [
+            "s10c2",
+            "s11c1",
+            "s11c2",
+            "s11c3",
+            "s11c7"
+          ],
+          "s13": [
+            "s12c1"
+          ]
+        },
+        "workflow_state": "completed"
+      }
+    }
+  },
+  "sample_decisions": [
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": true,
+      "class_name": "1",
+      "is_new_class": true,
+      "summary": "",
+      "pipeline_status": "ready"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": true,
+      "class_name": "1",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "completed"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    }
+  ],
+  "correct_solutions": [
+    {
+      "sample_idx": 3,
+      "solution": "Alternative Solution 1:\n\nLet\n\\[\nR=\\frac{\\sum_{i=1}^n a_i(a_i+b_i)}{\\sum_{i=1}^n b_i(a_i+b_i)}.\n\\]\nSince both numerator and denominator are homogeneous of degree \\(2\\), we may normalize\n\\[\n\\sum_{i=1}^n a_i=\\sum_{i=1}^n b_i=1.\n\\]\nThen\n\\[\nR=\\frac{\\sum a_i^2+\\sum a_ib_i}{\\sum b_i^2+\\sum a_ib_i}.\n\\]\nWrite\n\\[\nA=\\sum_{i=1}^n a_i^2,\\qquad B=\\sum_{i=1}^n b_i^2,\\qquad X=\\sum_{i=1}^n a_ib_i.\n\\]\nSo\n\\[\nR=\\frac{A+X}{B+X}.\n\\]\n\nWe now estimate the numerator and denominator separately.\n\nFirst, since \\(a_i\\ge 0\\) and \\(\\sum a_i=1\\), we have\n\\[\nA=\\sum a_i^2\\le \\left(\\sum a_i\\right)^2=1.\n\\]\nHence\n\\[\nA+X\\le 1+X.\n\\]\n\nNext, for fixed \\(a_1,\\dots,a_n\\) with \\(\\sum a_i=1\\), the quantity \\(X=\\sum a_ib_i\\) is a convex combination of the numbers \\(b_i\\), so\n\\[\nX\\ge \\min_i b_i.\n\\]\nLet \\(m=\\min_i b_i\\). Since \\(\\sum b_i=1\\), we also have\n\\[\n\\sum_{i=1}^n b_i^2\\ge (n-1)m^2+(1-(n-1)m)^2/(1)\n\\]\nbut a simpler lower bound is enough: among the \\(n\\) numbers \\(b_i\\), one equals \\(m\\), and the other \\(n-1\\) have sum \\(1-m\\). By Cauchy-Schwarz,\n\\[\n\\sum_{i=1}^n b_i^2\\ge m^2+\\frac{(1-m)^2}{n-1}.\n\\]\nTherefore\n\\[\nB+X\\ge m^2+\\frac{(1-m)^2}{n-1}+m.\n\\]\n\nCombining these bounds,\n\\[\nR=\\frac{A+X}{B+X}\\le \\frac{1+m}{m^2+\\frac{(1-m)^2}{n-1}+m}.\n\\]\nSo it remains to prove\n\\[\n\\frac{1+m}{m^2+\\frac{(1-m)^2}{n-1}+m}\\le n-1.\n\\]\nThis is equivalent to\n\\[\n1+m\\le (n-1)\\left(m^2+m+\\frac{(1-m)^2}{n-1}\\right),\n\\]\nthat is,\n\\[\n1+m\\le (n-1)m^2+(n-1)m+(1-2m+m^2),\n\\]\nor\n\\[\n0\\le nm^2+(n-4)m.\n\\]\nThis is true because \\(m\\ge 0\\) and \\(n\\ge 4\\).\n\nHence\n\\[\nR\\le n-1.\n\\]\n\nNow we show equality is attainable. Take\n\\[\na_1=1,\\quad a_2=\\cdots=a_n=0,\n\\]\nand\n\\[\nb_1=0,\\quad b_2=\\cdots=b_n=\\frac1{n-1}.\n\\]\nThen indeed\n\\[\n\\sum a_i=\\sum b_i=1,\n\\]\nand\n\\[\n\\sum a_i(a_i+b_i)=1,\\qquad \\sum b_i(a_i+b_i)=\\sum_{i=2}^n \\frac1{n-1}\\cdot \\frac1{n-1}=\\frac1{n-1}.\n\\]\nSo\n\\[\nR=\\frac{1}{1/(n-1)}=n-1.\n\\]\n\nVerification: we have proved \\(R\\le n-1\\) for all admissible \\(a_i,b_i\\), and the above choice gives \\(R=n-1\\), so the maximum is exactly \\(n-1\\).\n\nFinal Answer: \n\nn - 1",
+      "completed_at": "2026-04-06T10:16:21.455Z"
+    }
+  ],
+  "updated_at_utc": "2026-04-06T10:16:25.879538+00:00",
+  "created_at_utc": "2026-04-06T09:29:48.953517+00:00",
+  "content_hash": "6d74deda962dfe7c04681519c979ce7df51d982b523cd8722e4bcd2b10799ca2"
+}

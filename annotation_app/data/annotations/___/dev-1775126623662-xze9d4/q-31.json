@@ -1,0 +1,77 @@
+{
+  "annotator_id": "张璟旭",
+  "device_id": "dev-1775126623662-xze9d4",
+  "case_id": "q-31",
+  "status": "in_progress",
+  "current_step": 1,
+  "current_workflow_state": {
+    "active_sample_idx": null,
+    "sample_cursor": 3,
+    "workflow_state": "sample_selected",
+    "problem_quality_screening": {
+      "decision": "pass",
+      "reason": "",
+      "other_text": "",
+      "rejected_at": ""
+    }
+  },
+  "current_annotations": {
+    "selected_solution_text": "",
+    "cut_points": [],
+    "steps": [],
+    "presegmented_claims": [],
+    "claims": [],
+    "claim_checks": {},
+    "dependencies": {},
+    "step_dependencies": {},
+    "sample_annotations": {}
+  },
+  "sample_decisions": [
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    }
+  ],
+  "correct_solutions": [],
+  "updated_at_utc": "2026-04-12T16:02:54.365459+00:00",
+  "created_at_utc": "2026-04-12T15:34:01.774079+00:00",
+  "content_hash": "978deeb3c2e83d249f4e6c8a7d0c829802845d00ba3522202c863df4858a85a5"
+}

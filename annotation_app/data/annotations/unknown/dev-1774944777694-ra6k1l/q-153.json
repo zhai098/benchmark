@@ -1,0 +1,34 @@
+{
+  "annotator_id": "unknown",
+  "device_id": "dev-1774944777694-ra6k1l",
+  "case_id": "q-153",
+  "status": "in_progress",
+  "current_step": 0,
+  "current_workflow_state": {
+    "active_sample_idx": null,
+    "sample_cursor": 0,
+    "workflow_state": "sample_selected",
+    "problem_quality_screening": {
+      "decision": null,
+      "reason": "",
+      "other_text": "",
+      "rejected_at": ""
+    }
+  },
+  "current_annotations": {
+    "selected_solution_text": "",
+    "cut_points": [],
+    "steps": [],
+    "presegmented_claims": [],
+    "claims": [],
+    "claim_checks": {},
+    "dependencies": {},
+    "step_dependencies": {},
+    "sample_annotations": {}
+  },
+  "sample_decisions": [],
+  "correct_solutions": [],
+  "updated_at_utc": "2026-04-13T05:12:07.016391+00:00",
+  "created_at_utc": "2026-04-13T05:12:07.016391+00:00",
+  "content_hash": "37786bda24394ee878f763ba9fd259821d3e11bdd4e8e01465d101fb0a404e50"
+}

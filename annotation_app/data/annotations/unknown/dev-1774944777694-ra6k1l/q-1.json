@@ -1,0 +1,579 @@
+{
+  "annotator_id": "unknown",
+  "device_id": "dev-1774944777694-ra6k1l",
+  "case_id": "q-1",
+  "status": "in_progress",
+  "current_step": 2,
+  "current_workflow_state": {
+    "active_sample_idx": 5,
+    "sample_cursor": 5,
+    "workflow_state": "steps_segmented",
+    "problem_quality_screening": {
+      "decision": "pass",
+      "other_text": "",
+      "reason": "",
+      "rejected_at": ""
+    }
+  },
+  "current_annotations": {
+    "selected_solution_text": "\n\nWork inside \\(\\triangle DEF\\). Since \\(D,E,F\\) are the feet of the altitudes of \\(\\triangle ABC\\), the orthocenter \\(H\\) of \\(\\triangle ABC\\) is the incenter of \\(\\triangle DEF\\), and \\(A\\) is the excenter opposite \\(D\\).\n\nThus the line through \\(Q\\) perpendicular to \\(EF\\) is the radius from the incenter to the touchpoint \\(Q\\) of the incircle with \\(EF\\), and the line through \\(P\\) perpendicular to \\(EF\\) is the radius from the excenter \\(A\\) to the touchpoint \\(P\\) of the \\(D\\)-excircle with \\(EF\\).\n\nNow use tangency lengths on \\(\\triangle DEF\\). Let\n\\[\nx=EQ,\\qquad y=FQ.\n\\]\nFor the incircle, the tangency point on \\(EF\\) divides the side as\n\\[\nEQ=s-e,\\qquad FQ=s-f,\n\\]\nwhere \\(e=DF,\\ f=DE\\), and \\(s\\) is the semiperimeter of \\(\\triangle DEF\\).\n\nFor the \\(D\\)-excircle, the touchpoint \\(P\\) on the line \\(EF\\) satisfies\n\\[\nEP=s-f,\\qquad FP=s-e.\n\\]\nHence\n\\[\nEP=FQ,\\qquad FP=EQ.\n\\]\nSo along the line \\(EF\\), the points \\(P\\) and \\(Q\\) are symmetric with respect to the midpoint of \\(EF\\).\n\nBecause \\(H\\) is the incenter, \\(HQ\\perp EF\\). Because \\(A\\) is the excenter, \\(AP\\perp EF\\). Therefore the quadrilateral formed by the two centers and the two touchpoints has parallel sides \\(HQ\\) and \\(AP\\), with \\(P\\) and \\(Q\\) symmetric on the base line \\(EF\\).\n\nNow consider the pencil of lines through \\(D\\). The line \\(DP\\) meets the perpendicular through \\(Q\\) at \\(R\\). Since \\(P\\) is the reflection-position of \\(Q\\) along the common tangent line \\(EF\\), and the incenter/excenter configuration preserves the corresponding contact structure, the point where \\(DP\\) cuts the perpendicular through \\(Q\\) is exactly the point opposite \\(Q\\) with respect to the center \\(H\\). In other words, \\(H\\) is the midpoint of \\(QR\\).\n\nTherefore\n\\[\nHR=HQ.\n\\]\nIt follows immediately that\n\\[\n\\frac{HQ}{HR}=1.\n\\]\n",
+    "cut_points": [
+      509
+    ],
+    "steps": [
+      {
+        "id": "s1",
+        "text": "Work inside \\(\\triangle DEF\\). Since \\(D,E,F\\) are the feet of the altitudes of \\(\\triangle ABC\\), the orthocenter \\(H\\) of \\(\\triangle ABC\\) is the incenter of \\(\\triangle DEF\\), and \\(A\\) is the excenter opposite \\(D\\).\n\nThus the line through \\(Q\\) perpendicular to \\(EF\\) is the radius from the incenter to the touchpoint \\(Q\\) of the incircle with \\(EF\\), and the line through \\(P\\) perpendicular to \\(EF\\) is the radius from the excenter \\(A\\) to the touchpoint \\(P\\) of the \\(D\\)-excircle with \\(EF\\)."
+      },
+      {
+        "id": "s2",
+        "text": "Now use tangency lengths on \\(\\triangle DEF\\). Let\n\\[\nx=EQ,\\qquad y=FQ.\n\\]\nFor the incircle, the tangency point on \\(EF\\) divides the side as\n\\[\nEQ=s-e,\\qquad FQ=s-f,\n\\]\nwhere \\(e=DF,\\ f=DE\\), and \\(s\\) is the semiperimeter of \\(\\triangle DEF\\).\n\nFor the \\(D\\)-excircle, the touchpoint \\(P\\) on the line \\(EF\\) satisfies\n\\[\nEP=s-f,\\qquad FP=s-e.\n\\]\nHence\n\\[\nEP=FQ,\\qquad FP=EQ.\n\\]\nSo along the line \\(EF\\), the points \\(P\\) and \\(Q\\) are symmetric with respect to the midpoint of \\(EF\\).\n\nBecause \\(H\\) is the incenter, \\(HQ\\perp EF\\). Because \\(A\\) is the excenter, \\(AP\\perp EF\\). Therefore the quadrilateral formed by the two centers and the two touchpoints has parallel sides \\(HQ\\) and \\(AP\\), with \\(P\\) and \\(Q\\) symmetric on the base line \\(EF\\).\n\nNow consider the pencil of lines through \\(D\\). The line \\(DP\\) meets the perpendicular through \\(Q\\) at \\(R\\). Since \\(P\\) is the reflection-position of \\(Q\\) along the common tangent line \\(EF\\), and the incenter/excenter configuration preserves the corresponding contact structure, the point where \\(DP\\) cuts the perpendicular through \\(Q\\) is exactly the point opposite \\(Q\\) with respect to the center \\(H\\). In other words, \\(H\\) is the midpoint of \\(QR\\).\n\nTherefore\n\\[\nHR=HQ.\n\\]\nIt follows immediately that\n\\[\n\\frac{HQ}{HR}=1.\n\\]"
+      }
+    ],
+    "presegmented_claims": [
+      {
+        "id": "p1",
+        "step_idx": null,
+        "text": "Work inside \\(\\triangle DEF\\)."
+      },
+      {
+        "id": "p2",
+        "step_idx": null,
+        "text": "\\(D,E,F\\) are the feet of the altitudes of \\(\\triangle ABC\\)."
+      },
+      {
+        "id": "p3",
+        "step_idx": null,
+        "text": "The orthocenter \\(H\\) of \\(\\triangle ABC\\) is the incenter of \\(\\triangle DEF\\)."
+      },
+      {
+        "id": "p4",
+        "step_idx": null,
+        "text": "\\(A\\) is the excenter opposite \\(D\\)."
+      },
+      {
+        "id": "p5",
+        "step_idx": null,
+        "text": "The line through \\(Q\\) perpendicular to \\(EF\\) is the radius from the incenter to the touchpoint \\(Q\\) of the incircle with \\(EF\\)."
+      },
+      {
+        "id": "p6",
+        "step_idx": null,
+        "text": "The line through \\(P\\) perpendicular to \\(EF\\) is the radius from the excenter \\(A\\) to the touchpoint \\(P\\) of the \\(D\\)-excircle with \\(EF\\)."
+      },
+      {
+        "id": "p7",
+        "step_idx": null,
+        "text": "Use tangency lengths on \\(\\triangle DEF\\)."
+      },
+      {
+        "id": "p8",
+        "step_idx": null,
+        "text": "Let \\(x=EQ\\)."
+      },
+      {
+        "id": "p9",
+        "step_idx": null,
+        "text": "Let \\(y=FQ\\)."
+      },
+      {
+        "id": "p10",
+        "step_idx": null,
+        "text": "For the incircle, the tangency point on \\(EF\\) divides the side as \\(EQ=s-e\\)."
+      },
+      {
+        "id": "p11",
+        "step_idx": null,
+        "text": "For the incircle, the tangency point on \\(EF\\) divides the side as \\(FQ=s-f\\)."
+      },
+      {
+        "id": "p12",
+        "step_idx": null,
+        "text": "\\(e=DF\\)."
+      },
+      {
+        "id": "p13",
+        "step_idx": null,
+        "text": "\\(f=DE\\)."
+      },
+      {
+        "id": "p14",
+        "step_idx": null,
+        "text": "\\(s\\) is the semiperimeter of \\(\\triangle DEF\\)."
+      },
+      {
+        "id": "p15",
+        "step_idx": null,
+        "text": "For the \\(D\\)-excircle, the touchpoint \\(P\\) on the line \\(EF\\) satisfies \\(EP=s-f\\)."
+      },
+      {
+        "id": "p16",
+        "step_idx": null,
+        "text": "For the \\(D\\)-excircle, the touchpoint \\(P\\) on the line \\(EF\\) satisfies \\(FP=s-e\\)."
+      },
+      {
+        "id": "p17",
+        "step_idx": null,
+        "text": "Hence \\(EP=FQ\\)."
+      },
+      {
+        "id": "p18",
+        "step_idx": null,
+        "text": "Hence \\(FP=EQ\\)."
+      },
+      {
+        "id": "p19",
+        "step_idx": null,
+        "text": "Along the line \\(EF\\), the points \\(P\\) and \\(Q\\) are symmetric with respect to the midpoint of \\(EF\\)."
+      },
+      {
+        "id": "p20",
+        "step_idx": null,
+        "text": "\\(H\\) is the incenter."
+      },
+      {
+        "id": "p21",
+        "step_idx": null,
+        "text": "\\(HQ\\perp EF\\)."
+      },
+      {
+        "id": "p22",
+        "step_idx": null,
+        "text": "\\(A\\) is the excenter."
+      },
+      {
+        "id": "p23",
+        "step_idx": null,
+        "text": "\\(AP\\perp EF\\)."
+      },
+      {
+        "id": "p24",
+        "step_idx": null,
+        "text": "The quadrilateral formed by the two centers and the two touchpoints has parallel sides \\(HQ\\) and \\(AP\\)."
+      },
+      {
+        "id": "p25",
+        "step_idx": null,
+        "text": "\\(P\\) and \\(Q\\) are symmetric on the base line \\(EF\\)."
+      },
+      {
+        "id": "p26",
+        "step_idx": null,
+        "text": "Consider the pencil of lines through \\(D\\)."
+      },
+      {
+        "id": "p27",
+        "step_idx": null,
+        "text": "The line \\(DP\\) meets the perpendicular through \\(Q\\) at \\(R\\)."
+      },
+      {
+        "id": "p28",
+        "step_idx": null,
+        "text": "\\(P\\) is the reflection-position of \\(Q\\) along the common tangent line \\(EF\\)."
+      },
+      {
+        "id": "p29",
+        "step_idx": null,
+        "text": "The incenter/excenter configuration preserves the corresponding contact structure."
+      },
+      {
+        "id": "p30",
+        "step_idx": null,
+        "text": "The point where \\(DP\\) cuts the perpendicular through \\(Q\\) is exactly the point opposite \\(Q\\) with respect to the center \\(H\\)."
+      },
+      {
+        "id": "p31",
+        "step_idx": null,
+        "text": "\\(H\\) is the midpoint of \\(QR\\)."
+      },
+      {
+        "id": "p32",
+        "step_idx": null,
+        "text": "Therefore \\(HR=HQ\\)."
+      },
+      {
+        "id": "p33",
+        "step_idx": null,
+        "text": "It follows immediately that \\(\\frac{HQ}{HR}=1\\)."
+      }
+    ],
+    "claims": [],
+    "claim_checks": {},
+    "dependencies": {},
+    "step_dependencies": {},
+    "sample_annotations": {
+      "2": {
+        "claim_checks": {
+          "s1c1": "incorrect",
+          "s1c2": "correct"
+        },
+        "claims": [
+          {
+            "claims": [
+              "We give a transformation-based argument.",
+              "ascda"
+            ],
+            "step_id": "s1"
+          },
+          {
+            "claims": [
+              "Consider triangle DEF."
+            ],
+            "step_id": "s2"
+          },
+          {
+            "claims": [],
+            "step_id": "s3"
+          },
+          {
+            "claims": [],
+            "step_id": "s4"
+          },
+          {
+            "claims": [],
+            "step_id": "s5"
+          },
+          {
+            "claims": [],
+            "step_id": "s6"
+          }
+        ],
+        "cut_points": [
+          173,
+          505,
+          833,
+          1293,
+          1810
+        ],
+        "dependencies": {},
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "step_idx": 0,
+            "text": "We give a transformation-based argument."
+          },
+          {
+            "id": "p2",
+            "step_idx": 1,
+            "text": "Consider triangle DEF."
+          },
+          {
+            "id": "p3",
+            "step_idx": null,
+            "text": "H is the incenter of triangle DEF."
+          },
+          {
+            "id": "p4",
+            "step_idx": null,
+            "text": "A is the excenter opposite D of triangle DEF."
+          },
+          {
+            "id": "p5",
+            "step_idx": null,
+            "text": "EF is tangent to the incircle centered at H."
+          },
+          {
+            "id": "p6",
+            "step_idx": null,
+            "text": "EF is tangent to the D-excircle centered at A."
+          },
+          {
+            "id": "p7",
+            "step_idx": null,
+            "text": "Q and P are feet of perpendiculars from H and A to EF."
+          },
+          {
+            "id": "p8",
+            "step_idx": null,
+            "text": "HQ=r and AP=r_D."
+          },
+          {
+            "id": "p9",
+            "step_idx": null,
+            "text": "r_D/r=s/(s-d), where d=EF and s is the semiperimeter."
+          },
+          {
+            "id": "p10",
+            "step_idx": null,
+            "text": "Therefore HQ/HR=1."
+          }
+        ],
+        "selected_solution_text": "Alternative Solution 3:\n\nWe give a transformation-based argument.\n\nConsider \\(\\triangle DEF\\). A standard fact for the orthic triangle of an acute triangle \\(ABC\\) is that:\n\n- \\(H\\) is the incenter of \\(\\triangle DEF\\), since \\(EH\\) bisects \\(\\angle DEF\\), \\(FH\\) bisects \\(\\angle DFE\\), and \\(DH\\) bisects \\(\\angle EDF\\).\n- \\(A\\) is the excenter opposite \\(D\\) of \\(\\triangle DEF\\), since \\(AE\\) and \\(AF\\) are external angle bisectors at \\(E\\) and \\(F\\), while \\(AD\\) is the internal bisector at \\(D\\).\n\nTherefore the line \\(EF\\) is tangent to both the incircle centered at \\(H\\) and the \\(D\\)-excircle centered at \\(A\\). Since \\(Q\\) and \\(P\\) are the feet of the perpendiculars from \\(H\\) and \\(A\\) to \\(EF\\), we have\n\\[\nHQ=r,\\qquad AP=r_D,\n\\]\nwhere \\(r\\) and \\(r_D\\) are the inradius and the \\(D\\)-exradius of \\(\\triangle DEF\\).\n\nNow use the well-known ratio\n\\[\n\\frac{r_D}{r}=\\frac{s}{s-d},\n\\]\nwhere \\(d=EF\\) and \\(s\\) is the semiperimeter of \\(\\triangle DEF\\). But for the orthic triangle, the angle at \\(D\\) is acute and the corresponding excenter \\(A\\) lies on the same angle bisector \\(AD\\). The homothety centered at \\(D\\) sending the incircle to the \\(D\\)-excircle has factor\n\\[\n-\\frac{r_D}{r},\n\\]\nthe negative sign indicating that the image circle is on the opposite side of \\(D\\).\n\nUnder this homothety:\n\n- the incircle center \\(H\\) maps to the excircle center \\(A\\),\n- the tangency point \\(Q\\in EF\\) of the incircle maps to the tangency point \\(P\\in EF\\) of the excircle,\n- hence line \\(DQ\\) maps to line \\(DP\\).\n\nSo the image of the line \\(QH\\) is the line through \\(P\\) parallel to \\(QH\\). But \\(QH\\perp EF\\) and \\(AP\\perp EF\\), so this image line is exactly \\(AP\\). Therefore the image of the point \\(R=DP\\cap QH\\) under the same homothety lies on\n\\[\nDP \\cap AP=P.\n\\]\nThus \\(R\\) maps to \\(P\\).\n\nSince \\(Q\\) also maps to \\(P\\), and the homothety center is \\(D\\), the points \\(D,Q,R\\) must be arranged so that \\(H\\) is the midpoint of \\(QR\\). Equivalently, \\(R\\) is the reflection of \\(Q\\) across \\(H\\). Hence\n\\[\nHR=HQ.\n\\]\n\nTherefore\n\\[\n\\frac{HQ}{HR}=1.\n\\]\n",
+        "steps": [
+          {
+            "id": "s1",
+            "text": "Alternative Solution 3:\n\nWe give a transformation-based argument.\n\nConsider \\(\\triangle DEF\\). A standard fact for the orthic triangle of an acute triangle \\(ABC\\) is that:"
+          },
+          {
+            "id": "s2",
+            "text": "- \\(H\\) is the incenter of \\(\\triangle DEF\\), since \\(EH\\) bisects \\(\\angle DEF\\), \\(FH\\) bisects \\(\\angle DFE\\), and \\(DH\\) bisects \\(\\angle EDF\\).\n- \\(A\\) is the excenter opposite \\(D\\) of \\(\\triangle DEF\\), since \\(AE\\) and \\(AF\\) are external angle bisectors at \\(E\\) and \\(F\\), while \\(AD\\) is the internal bisector at \\(D\\)."
+          },
+          {
+            "id": "s3",
+            "text": "Therefore the line \\(EF\\) is tangent to both the incircle centered at \\(H\\) and the \\(D\\)-excircle centered at \\(A\\). Since \\(Q\\) and \\(P\\) are the feet of the perpendiculars from \\(H\\) and \\(A\\) to \\(EF\\), we have\n\\[\nHQ=r,\\qquad AP=r_D,\n\\]\nwhere \\(r\\) and \\(r_D\\) are the inradius and the \\(D\\)-exradius of \\(\\triangle DEF\\)."
+          },
+          {
+            "id": "s4",
+            "text": "Now use the well-known ratio\n\\[\n\\frac{r_D}{r}=\\frac{s}{s-d},\n\\]\nwhere \\(d=EF\\) and \\(s\\) is the semiperimeter of \\(\\triangle DEF\\). But for the orthic triangle, the angle at \\(D\\) is acute and the corresponding excenter \\(A\\) lies on the same angle bisector \\(AD\\). The homothety centered at \\(D\\) sending the incircle to the \\(D\\)-excircle has factor\n\\[\n-\\frac{r_D}{r},\n\\]\nthe negative sign indicating that the image circle is on the opposite side of \\(D\\)."
+          },
+          {
+            "id": "s5",
+            "text": "Under this homothety:\n\n- the incircle center \\(H\\) maps to the excircle center \\(A\\),\n- the tangency point \\(Q\\in EF\\) of the incircle maps to the tangency point \\(P\\in EF\\) of the excircle,\n- hence line \\(DQ\\) maps to line \\(DP\\).\n\nSo the image of the line \\(QH\\) is the line through \\(P\\) parallel to \\(QH\\). But \\(QH\\perp EF\\) and \\(AP\\perp EF\\), so this image line is exactly \\(AP\\). Therefore the image of the point \\(R=DP\\cap QH\\) under the same homothety lies on\n\\[\nDP \\cap AP=P.\n\\]\nThus \\(R\\) maps to \\(P\\)."
+          },
+          {
+            "id": "s6",
+            "text": "Since \\(Q\\) also maps to \\(P\\), and the homothety center is \\(D\\), the points \\(D,Q,R\\) must be arranged so that \\(H\\) is the midpoint of \\(QR\\). Equivalently, \\(R\\) is the reflection of \\(Q\\) across \\(H\\). Hence\n\\[\nHR=HQ.\n\\]\n\nTherefore\n\\[\n\\frac{HQ}{HR}=1.\n\\]"
+          }
+        ],
+        "workflow_state": "completed"
+      },
+      "5": {
+        "claim_checks": {},
+        "claims": [],
+        "cut_points": [
+          509
+        ],
+        "dependencies": {},
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "step_idx": null,
+            "text": "Work inside \\(\\triangle DEF\\)."
+          },
+          {
+            "id": "p2",
+            "step_idx": null,
+            "text": "\\(D,E,F\\) are the feet of the altitudes of \\(\\triangle ABC\\)."
+          },
+          {
+            "id": "p3",
+            "step_idx": null,
+            "text": "The orthocenter \\(H\\) of \\(\\triangle ABC\\) is the incenter of \\(\\triangle DEF\\)."
+          },
+          {
+            "id": "p4",
+            "step_idx": null,
+            "text": "\\(A\\) is the excenter opposite \\(D\\)."
+          },
+          {
+            "id": "p5",
+            "step_idx": null,
+            "text": "The line through \\(Q\\) perpendicular to \\(EF\\) is the radius from the incenter to the touchpoint \\(Q\\) of the incircle with \\(EF\\)."
+          },
+          {
+            "id": "p6",
+            "step_idx": null,
+            "text": "The line through \\(P\\) perpendicular to \\(EF\\) is the radius from the excenter \\(A\\) to the touchpoint \\(P\\) of the \\(D\\)-excircle with \\(EF\\)."
+          },
+          {
+            "id": "p7",
+            "step_idx": null,
+            "text": "Use tangency lengths on \\(\\triangle DEF\\)."
+          },
+          {
+            "id": "p8",
+            "step_idx": null,
+            "text": "Let \\(x=EQ\\)."
+          },
+          {
+            "id": "p9",
+            "step_idx": null,
+            "text": "Let \\(y=FQ\\)."
+          },
+          {
+            "id": "p10",
+            "step_idx": null,
+            "text": "For the incircle, the tangency point on \\(EF\\) divides the side as \\(EQ=s-e\\)."
+          },
+          {
+            "id": "p11",
+            "step_idx": null,
+            "text": "For the incircle, the tangency point on \\(EF\\) divides the side as \\(FQ=s-f\\)."
+          },
+          {
+            "id": "p12",
+            "step_idx": null,
+            "text": "\\(e=DF\\)."
+          },
+          {
+            "id": "p13",
+            "step_idx": null,
+            "text": "\\(f=DE\\)."
+          },
+          {
+            "id": "p14",
+            "step_idx": null,
+            "text": "\\(s\\) is the semiperimeter of \\(\\triangle DEF\\)."
+          },
+          {
+            "id": "p15",
+            "step_idx": null,
+            "text": "For the \\(D\\)-excircle, the touchpoint \\(P\\) on the line \\(EF\\) satisfies \\(EP=s-f\\)."
+          },
+          {
+            "id": "p16",
+            "step_idx": null,
+            "text": "For the \\(D\\)-excircle, the touchpoint \\(P\\) on the line \\(EF\\) satisfies \\(FP=s-e\\)."
+          },
+          {
+            "id": "p17",
+            "step_idx": null,
+            "text": "Hence \\(EP=FQ\\)."
+          },
+          {
+            "id": "p18",
+            "step_idx": null,
+            "text": "Hence \\(FP=EQ\\)."
+          },
+          {
+            "id": "p19",
+            "step_idx": null,
+            "text": "Along the line \\(EF\\), the points \\(P\\) and \\(Q\\) are symmetric with respect to the midpoint of \\(EF\\)."
+          },
+          {
+            "id": "p20",
+            "step_idx": null,
+            "text": "\\(H\\) is the incenter."
+          },
+          {
+            "id": "p21",
+            "step_idx": null,
+            "text": "\\(HQ\\perp EF\\)."
+          },
+          {
+            "id": "p22",
+            "step_idx": null,
+            "text": "\\(A\\) is the excenter."
+          },
+          {
+            "id": "p23",
+            "step_idx": null,
+            "text": "\\(AP\\perp EF\\)."
+          },
+          {
+            "id": "p24",
+            "step_idx": null,
+            "text": "The quadrilateral formed by the two centers and the two touchpoints has parallel sides \\(HQ\\) and \\(AP\\)."
+          },
+          {
+            "id": "p25",
+            "step_idx": null,
+            "text": "\\(P\\) and \\(Q\\) are symmetric on the base line \\(EF\\)."
+          },
+          {
+            "id": "p26",
+            "step_idx": null,
+            "text": "Consider the pencil of lines through \\(D\\)."
+          },
+          {
+            "id": "p27",
+            "step_idx": null,
+            "text": "The line \\(DP\\) meets the perpendicular through \\(Q\\) at \\(R\\)."
+          },
+          {
+            "id": "p28",
+            "step_idx": null,
+            "text": "\\(P\\) is the reflection-position of \\(Q\\) along the common tangent line \\(EF\\)."
+          },
+          {
+            "id": "p29",
+            "step_idx": null,
+            "text": "The incenter/excenter configuration preserves the corresponding contact structure."
+          },
+          {
+            "id": "p30",
+            "step_idx": null,
+            "text": "The point where \\(DP\\) cuts the perpendicular through \\(Q\\) is exactly the point opposite \\(Q\\) with respect to the center \\(H\\)."
+          },
+          {
+            "id": "p31",
+            "step_idx": null,
+            "text": "\\(H\\) is the midpoint of \\(QR\\)."
+          },
+          {
+            "id": "p32",
+            "step_idx": null,
+            "text": "Therefore \\(HR=HQ\\)."
+          },
+          {
+            "id": "p33",
+            "step_idx": null,
+            "text": "It follows immediately that \\(\\frac{HQ}{HR}=1\\)."
+          }
+        ],
+        "selected_solution_text": "\n\nWork inside \\(\\triangle DEF\\). Since \\(D,E,F\\) are the feet of the altitudes of \\(\\triangle ABC\\), the orthocenter \\(H\\) of \\(\\triangle ABC\\) is the incenter of \\(\\triangle DEF\\), and \\(A\\) is the excenter opposite \\(D\\).\n\nThus the line through \\(Q\\) perpendicular to \\(EF\\) is the radius from the incenter to the touchpoint \\(Q\\) of the incircle with \\(EF\\), and the line through \\(P\\) perpendicular to \\(EF\\) is the radius from the excenter \\(A\\) to the touchpoint \\(P\\) of the \\(D\\)-excircle with \\(EF\\).\n\nNow use tangency lengths on \\(\\triangle DEF\\). Let\n\\[\nx=EQ,\\qquad y=FQ.\n\\]\nFor the incircle, the tangency point on \\(EF\\) divides the side as\n\\[\nEQ=s-e,\\qquad FQ=s-f,\n\\]\nwhere \\(e=DF,\\ f=DE\\), and \\(s\\) is the semiperimeter of \\(\\triangle DEF\\).\n\nFor the \\(D\\)-excircle, the touchpoint \\(P\\) on the line \\(EF\\) satisfies\n\\[\nEP=s-f,\\qquad FP=s-e.\n\\]\nHence\n\\[\nEP=FQ,\\qquad FP=EQ.\n\\]\nSo along the line \\(EF\\), the points \\(P\\) and \\(Q\\) are symmetric with respect to the midpoint of \\(EF\\).\n\nBecause \\(H\\) is the incenter, \\(HQ\\perp EF\\). Because \\(A\\) is the excenter, \\(AP\\perp EF\\). Therefore the quadrilateral formed by the two centers and the two touchpoints has parallel sides \\(HQ\\) and \\(AP\\), with \\(P\\) and \\(Q\\) symmetric on the base line \\(EF\\).\n\nNow consider the pencil of lines through \\(D\\). The line \\(DP\\) meets the perpendicular through \\(Q\\) at \\(R\\). Since \\(P\\) is the reflection-position of \\(Q\\) along the common tangent line \\(EF\\), and the incenter/excenter configuration preserves the corresponding contact structure, the point where \\(DP\\) cuts the perpendicular through \\(Q\\) is exactly the point opposite \\(Q\\) with respect to the center \\(H\\). In other words, \\(H\\) is the midpoint of \\(QR\\).\n\nTherefore\n\\[\nHR=HQ.\n\\]\nIt follows immediately that\n\\[\n\\frac{HQ}{HR}=1.\n\\]\n",
+        "step_dependencies": {},
+        "steps": [
+          {
+            "id": "s1",
+            "text": "Work inside \\(\\triangle DEF\\). Since \\(D,E,F\\) are the feet of the altitudes of \\(\\triangle ABC\\), the orthocenter \\(H\\) of \\(\\triangle ABC\\) is the incenter of \\(\\triangle DEF\\), and \\(A\\) is the excenter opposite \\(D\\).\n\nThus the line through \\(Q\\) perpendicular to \\(EF\\) is the radius from the incenter to the touchpoint \\(Q\\) of the incircle with \\(EF\\), and the line through \\(P\\) perpendicular to \\(EF\\) is the radius from the excenter \\(A\\) to the touchpoint \\(P\\) of the \\(D\\)-excircle with \\(EF\\)."
+          },
+          {
+            "id": "s2",
+            "text": "Now use tangency lengths on \\(\\triangle DEF\\). Let\n\\[\nx=EQ,\\qquad y=FQ.\n\\]\nFor the incircle, the tangency point on \\(EF\\) divides the side as\n\\[\nEQ=s-e,\\qquad FQ=s-f,\n\\]\nwhere \\(e=DF,\\ f=DE\\), and \\(s\\) is the semiperimeter of \\(\\triangle DEF\\).\n\nFor the \\(D\\)-excircle, the touchpoint \\(P\\) on the line \\(EF\\) satisfies\n\\[\nEP=s-f,\\qquad FP=s-e.\n\\]\nHence\n\\[\nEP=FQ,\\qquad FP=EQ.\n\\]\nSo along the line \\(EF\\), the points \\(P\\) and \\(Q\\) are symmetric with respect to the midpoint of \\(EF\\).\n\nBecause \\(H\\) is the incenter, \\(HQ\\perp EF\\). Because \\(A\\) is the excenter, \\(AP\\perp EF\\). Therefore the quadrilateral formed by the two centers and the two touchpoints has parallel sides \\(HQ\\) and \\(AP\\), with \\(P\\) and \\(Q\\) symmetric on the base line \\(EF\\).\n\nNow consider the pencil of lines through \\(D\\). The line \\(DP\\) meets the perpendicular through \\(Q\\) at \\(R\\). Since \\(P\\) is the reflection-position of \\(Q\\) along the common tangent line \\(EF\\), and the incenter/excenter configuration preserves the corresponding contact structure, the point where \\(DP\\) cuts the perpendicular through \\(Q\\) is exactly the point opposite \\(Q\\) with respect to the center \\(H\\). In other words, \\(H\\) is the midpoint of \\(QR\\).\n\nTherefore\n\\[\nHR=HQ.\n\\]\nIt follows immediately that\n\\[\n\\frac{HQ}{HR}=1.\n\\]"
+          }
+        ],
+        "workflow_state": "steps_segmented"
+      }
+    }
+  },
+  "sample_decisions": [
+    {
+      "class_name": "",
+      "is_correct": false,
+      "is_new_class": false,
+      "pipeline_status": "discarded",
+      "summary": ""
+    },
+    {
+      "class_name": "",
+      "is_correct": false,
+      "is_new_class": false,
+      "pipeline_status": "discarded",
+      "summary": ""
+    },
+    {
+      "class_name": "",
+      "is_correct": true,
+      "is_new_class": false,
+      "pipeline_status": "completed",
+      "summary": ""
+    },
+    {
+      "class_name": "",
+      "is_correct": false,
+      "is_new_class": false,
+      "pipeline_status": "discarded",
+      "pre_screening": {
+        "decision": null,
+        "other_text": "",
+        "reason": ""
+      },
+      "summary": ""
+    },
+    {
+      "class_name": "",
+      "is_correct": null,
+      "is_new_class": false,
+      "pipeline_status": "not_started",
+      "summary": ""
+    },
+    {
+      "class_name": "",
+      "is_correct": true,
+      "is_new_class": false,
+      "pipeline_status": "in_progress",
+      "summary": ""
+    }
+  ],
+  "correct_solutions": [
+    {
+      "completed_at": "2026-04-01T07:19:16.295Z",
+      "sample_idx": 2,
+      "solution": "Alternative Solution 3:\n\nWe give a transformation-based argument.\n\nConsider \\(\\triangle DEF\\). A standard fact for the orthic triangle of an acute triangle \\(ABC\\) is that:\n\n- \\(H\\) is the incenter of \\(\\triangle DEF\\), since \\(EH\\) bisects \\(\\angle DEF\\), \\(FH\\) bisects \\(\\angle DFE\\), and \\(DH\\) bisects \\(\\angle EDF\\).\n- \\(A\\) is the excenter opposite \\(D\\) of \\(\\triangle DEF\\), since \\(AE\\) and \\(AF\\) are external angle bisectors at \\(E\\) and \\(F\\), while \\(AD\\) is the internal bisector at \\(D\\).\n\nTherefore the line \\(EF\\) is tangent to both the incircle centered at \\(H\\) and the \\(D\\)-excircle centered at \\(A\\). Since \\(Q\\) and \\(P\\) are the feet of the perpendiculars from \\(H\\) and \\(A\\) to \\(EF\\), we have\n\\[\nHQ=r,\\qquad AP=r_D,\n\\]\nwhere \\(r\\) and \\(r_D\\) are the inradius and the \\(D\\)-exradius of \\(\\triangle DEF\\).\n\nNow use the well-known ratio\n\\[\n\\frac{r_D}{r}=\\frac{s}{s-d},\n\\]\nwhere \\(d=EF\\) and \\(s\\) is the semiperimeter of \\(\\triangle DEF\\). But for the orthic triangle, the angle at \\(D\\) is acute and the corresponding excenter \\(A\\) lies on the same angle bisector \\(AD\\). The homothety centered at \\(D\\) sending the incircle to the \\(D\\)-excircle has factor\n\\[\n-\\frac{r_D}{r},\n\\]\nthe negative sign indicating that the image circle is on the opposite side of \\(D\\).\n\nUnder this homothety:\n\n- the incircle center \\(H\\) maps to the excircle center \\(A\\),\n- the tangency point \\(Q\\in EF\\) of the incircle maps to the tangency point \\(P\\in EF\\) of the excircle,\n- hence line \\(DQ\\) maps to line \\(DP\\).\n\nSo the image of the line \\(QH\\) is the line through \\(P\\) parallel to \\(QH\\). But \\(QH\\perp EF\\) and \\(AP\\perp EF\\), so this image line is exactly \\(AP\\). Therefore the image of the point \\(R=DP\\cap QH\\) under the same homothety lies on\n\\[\nDP \\cap AP=P.\n\\]\nThus \\(R\\) maps to \\(P\\).\n\nSince \\(Q\\) also maps to \\(P\\), and the homothety center is \\(D\\), the points \\(D,Q,R\\) must be arranged so that \\(H\\) is the midpoint of \\(QR\\). Equivalently, \\(R\\) is the reflection of \\(Q\\) across \\(H\\). Hence\n\\[\nHR=HQ.\n\\]\n\nTherefore\n\\[\n\\frac{HQ}{HR}=1.\n\\]\n"
+    }
+  ],
+  "updated_at_utc": "2026-04-12T08:34:13.902302+00:00",
+  "created_at_utc": "2026-03-31T08:13:12.918278+00:00",
+  "content_hash": "eaf1439fa61cf5f357db1dbdedbf6b3e4c5c7f00dd0de358fd098854cf00de0e"
+}

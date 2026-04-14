@@ -1,0 +1,506 @@
+{
+  "annotator_id": "张璟旭",
+  "device_id": "dev-1775126623662-xze9d4",
+  "case_id": "q-1",
+  "status": "in_progress",
+  "current_step": 1,
+  "current_workflow_state": {
+    "active_sample_idx": 0,
+    "sample_cursor": 0,
+    "workflow_state": "sample_selected",
+    "problem_quality_screening": {
+      "decision": "pass",
+      "other_text": "",
+      "reason": "",
+      "rejected_at": ""
+    }
+  },
+  "current_annotations": {
+    "selected_solution_text": "Alternative Solution 1:\n\nLet us work inside \\(\\triangle DEF\\).\n\nBecause \\(BE \\perp AC\\) and \\(CF \\perp AB\\), we have\n\\[\n\\angle AEH=\\angle AFH=90^\\circ.\n\\]\nHence \\(A,E,H,F\\) are concyclic with diameter \\(AH\\). From this circle,\n\\[\n\\angle HEF=\\angle HAF,\\qquad \\angle HFE=\\angle HAE.\n\\]\nNow \\(AF\\subset AB\\) and \\(AH\\perp BC\\), so\n\\[\n\\angle HAF=90^\\circ-\\angle B.\n\\]\nAlso \\(AE\\subset AC\\), so\n\\[\n\\angle HAE=90^\\circ-\\angle C.\n\\]\nThus in \\(\\triangle EHF\\),\n\\[\n\\angle HEF=90^\\circ-\\angle B,\\qquad \\angle HFE=90^\\circ-\\angle C.\n\\]\nTherefore\n\\[\n\\angle EHF=180^\\circ-(90^\\circ-\\angle B)-(90^\\circ-\\angle C)=\\angle B+\\angle C=180^\\circ-\\angle A.\n\\]\n\nOn the other hand, since \\(DE\\subset AC\\) and \\(DF\\subset AB\\),\n\\[\n\\angle EDF=\\angle A.\n\\]\nSo\n\\[\n\\angle EHF+\\angle EDF=180^\\circ,\n\\]\nwhich shows that \\(D,E,H,F\\) are concyclic.\n\nNow \\(Q\\) is the foot from \\(H\\) to \\(EF\\), and \\(P\\) is the foot from \\(A\\) to \\(EF\\). Since \\(D,E,H,F\\) are concyclic, the power of \\(Q\\) with respect to this circle is\n\\[\nQE\\cdot QF=QH\\cdot QD.\n\\]\nAlso, since \\(A,E,H,F\\) are cyclic, the power of \\(Q\\) with respect to that circle is\n\\[\nQE\\cdot QF=QH\\cdot QA.\n\\]\nHence\n\\[\nQH\\cdot QD=QH\\cdot QA,\n\\]\nand because \\(QH\\neq 0\\), we get\n\\[\nQD=QA.\n\\]\n\nNow \\(QH\\perp EF\\) and \\(AP\\perp EF\\), so \\(QH\\parallel AP\\). Since \\(R=DP\\cap QH\\), in \\(\\triangle DPA\\) the line through \\(Q\\) parallel to \\(AP\\) meets \\(DP\\) at \\(R\\). By similarity of triangles \\(\\triangle DQR\\) and \\(\\triangle DAP\\),\n\\[\n\\frac{DR}{DP}=\\frac{DQ}{DA}.\n\\]\nBut \\(Q\\) lies on \\(EF\\), and \\(P\\) is the foot from \\(A\\) to \\(EF\\), so in right triangles with common acute angles along \\(EF\\), the equality \\(QD=QA\\) implies that \\(Q\\) is the midpoint of the segment cut on the line through \\(A,H\\) parallel to \\(AP\\); equivalently along the line \\(QH\\) we obtain\n\\[\nQR=QH.\n\\]\nSince \\(R,H,Q\\) are collinear and \\(R\\) lies beyond \\(H\\) on line \\(QH\\),\n\\[\nHR=HQ.\n\\]\n\nVerification: the conclusion \\(HR=HQ\\) means \\(H\\) is the midpoint of \\(QR\\), consistent with the cyclic power relation giving \\(QD=QA\\) and the parallel-line similarity above. Therefore\n\\[\n\\frac{HQ}{HR}=1.\n\\]\n\nFinal Answer: \\(\\boxed{1}\\)",
+    "cut_points": [],
+    "steps": [],
+    "presegmented_claims": [
+      {
+        "id": "p1",
+        "text": "Let us work inside \\(\\triangle DEF\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p2",
+        "text": "\\(BE \\perp AC\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p3",
+        "text": "\\(CF \\perp AB\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p4",
+        "text": "\\(\\angle AEH=90^\\circ\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p5",
+        "text": "\\(\\angle AFH=90^\\circ\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p6",
+        "text": "\\(A,E,H,F\\) are concyclic with diameter \\(AH\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p7",
+        "text": "\\(\\angle HEF=\\angle HAF\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p8",
+        "text": "\\(\\angle HFE=\\angle HAE\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p9",
+        "text": "\\(AF\\subset AB\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p10",
+        "text": "\\(AH\\perp BC\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p11",
+        "text": "\\(\\angle HAF=90^\\circ-\\angle B\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p12",
+        "text": "\\(AE\\subset AC\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p13",
+        "text": "\\(\\angle HAE=90^\\circ-\\angle C\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p14",
+        "text": "In \\(\\triangle EHF\\), \\(\\angle HEF=90^\\circ-\\angle B\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p15",
+        "text": "In \\(\\triangle EHF\\), \\(\\angle HFE=90^\\circ-\\angle C\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p16",
+        "text": "\\(\\angle EHF=180^\\circ-(90^\\circ-\\angle B)-(90^\\circ-\\angle C)\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p17",
+        "text": "\\(\\angle EHF=\\angle B+\\angle C\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p18",
+        "text": "\\(\\angle EHF=180^\\circ-\\angle A\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p19",
+        "text": "\\(DE\\subset AC\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p20",
+        "text": "\\(DF\\subset AB\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p21",
+        "text": "\\(\\angle EDF=\\angle A\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p22",
+        "text": "\\(\\angle EHF+\\angle EDF=180^\\circ\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p23",
+        "text": "\\(D,E,H,F\\) are concyclic.",
+        "step_idx": null
+      },
+      {
+        "id": "p24",
+        "text": "\\(Q\\) is the foot from \\(H\\) to \\(EF\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p25",
+        "text": "\\(P\\) is the foot from \\(A\\) to \\(EF\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p26",
+        "text": "The power of \\(Q\\) with respect to the circle through \\(D,E,H,F\\) is \\(QE\\cdot QF=QH\\cdot QD\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p27",
+        "text": "\\(A,E,H,F\\) are cyclic.",
+        "step_idx": null
+      },
+      {
+        "id": "p28",
+        "text": "The power of \\(Q\\) with respect to the circle through \\(A,E,H,F\\) is \\(QE\\cdot QF=QH\\cdot QA\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p29",
+        "text": "\\(QH\\cdot QD=QH\\cdot QA\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p30",
+        "text": "\\(QH\\neq 0\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p31",
+        "text": "\\(QD=QA\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p32",
+        "text": "\\(QH\\perp EF\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p33",
+        "text": "\\(AP\\perp EF\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p34",
+        "text": "\\(QH\\parallel AP\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p35",
+        "text": "\\(R=DP\\cap QH\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p36",
+        "text": "In \\(\\triangle DPA\\), the line through \\(Q\\) parallel to \\(AP\\) meets \\(DP\\) at \\(R\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p37",
+        "text": "\\(\\triangle DQR\\) and \\(\\triangle DAP\\) are similar.",
+        "step_idx": null
+      },
+      {
+        "id": "p38",
+        "text": "\\(\\frac{DR}{DP}=\\frac{DQ}{DA}\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p39",
+        "text": "\\(Q\\) lies on \\(EF\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p40",
+        "text": "\\(P\\) is the foot from \\(A\\) to \\(EF\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p41",
+        "text": "In right triangles with common acute angles along \\(EF\\), the equality \\(QD=QA\\) implies that \\(Q\\) is the midpoint of the segment cut on the line through \\(A,H\\) parallel to \\(AP\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p42",
+        "text": "Equivalently along the line \\(QH\\) we obtain \\(QR=QH\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p43",
+        "text": "\\(R,H,Q\\) are collinear.",
+        "step_idx": null
+      },
+      {
+        "id": "p44",
+        "text": "\\(R\\) lies beyond \\(H\\) on line \\(QH\\).",
+        "step_idx": null
+      },
+      {
+        "id": "p45",
+        "text": "\\(HR=HQ\\).",
+        "step_idx": null
+      }
+    ],
+    "claims": [],
+    "claim_checks": {},
+    "dependencies": {},
+    "step_dependencies": {},
+    "sample_annotations": {
+      "0": {
+        "selected_solution_text": "Alternative Solution 1:\n\nLet us work inside \\(\\triangle DEF\\).\n\nBecause \\(BE \\perp AC\\) and \\(CF \\perp AB\\), we have\n\\[\n\\angle AEH=\\angle AFH=90^\\circ.\n\\]\nHence \\(A,E,H,F\\) are concyclic with diameter \\(AH\\). From this circle,\n\\[\n\\angle HEF=\\angle HAF,\\qquad \\angle HFE=\\angle HAE.\n\\]\nNow \\(AF\\subset AB\\) and \\(AH\\perp BC\\), so\n\\[\n\\angle HAF=90^\\circ-\\angle B.\n\\]\nAlso \\(AE\\subset AC\\), so\n\\[\n\\angle HAE=90^\\circ-\\angle C.\n\\]\nThus in \\(\\triangle EHF\\),\n\\[\n\\angle HEF=90^\\circ-\\angle B,\\qquad \\angle HFE=90^\\circ-\\angle C.\n\\]\nTherefore\n\\[\n\\angle EHF=180^\\circ-(90^\\circ-\\angle B)-(90^\\circ-\\angle C)=\\angle B+\\angle C=180^\\circ-\\angle A.\n\\]\n\nOn the other hand, since \\(DE\\subset AC\\) and \\(DF\\subset AB\\),\n\\[\n\\angle EDF=\\angle A.\n\\]\nSo\n\\[\n\\angle EHF+\\angle EDF=180^\\circ,\n\\]\nwhich shows that \\(D,E,H,F\\) are concyclic.\n\nNow \\(Q\\) is the foot from \\(H\\) to \\(EF\\), and \\(P\\) is the foot from \\(A\\) to \\(EF\\). Since \\(D,E,H,F\\) are concyclic, the power of \\(Q\\) with respect to this circle is\n\\[\nQE\\cdot QF=QH\\cdot QD.\n\\]\nAlso, since \\(A,E,H,F\\) are cyclic, the power of \\(Q\\) with respect to that circle is\n\\[\nQE\\cdot QF=QH\\cdot QA.\n\\]\nHence\n\\[\nQH\\cdot QD=QH\\cdot QA,\n\\]\nand because \\(QH\\neq 0\\), we get\n\\[\nQD=QA.\n\\]\n\nNow \\(QH\\perp EF\\) and \\(AP\\perp EF\\), so \\(QH\\parallel AP\\). Since \\(R=DP\\cap QH\\), in \\(\\triangle DPA\\) the line through \\(Q\\) parallel to \\(AP\\) meets \\(DP\\) at \\(R\\). By similarity of triangles \\(\\triangle DQR\\) and \\(\\triangle DAP\\),\n\\[\n\\frac{DR}{DP}=\\frac{DQ}{DA}.\n\\]\nBut \\(Q\\) lies on \\(EF\\), and \\(P\\) is the foot from \\(A\\) to \\(EF\\), so in right triangles with common acute angles along \\(EF\\), the equality \\(QD=QA\\) implies that \\(Q\\) is the midpoint of the segment cut on the line through \\(A,H\\) parallel to \\(AP\\); equivalently along the line \\(QH\\) we obtain\n\\[\nQR=QH.\n\\]\nSince \\(R,H,Q\\) are collinear and \\(R\\) lies beyond \\(H\\) on line \\(QH\\),\n\\[\nHR=HQ.\n\\]\n\nVerification: the conclusion \\(HR=HQ\\) means \\(H\\) is the midpoint of \\(QR\\), consistent with the cyclic power relation giving \\(QD=QA\\) and the parallel-line similarity above. Therefore\n\\[\n\\frac{HQ}{HR}=1.\n\\]\n\nFinal Answer: \\(\\boxed{1}\\)",
+        "cut_points": [],
+        "steps": [],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "Let us work inside \\(\\triangle DEF\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p2",
+            "text": "\\(BE \\perp AC\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p3",
+            "text": "\\(CF \\perp AB\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p4",
+            "text": "\\(\\angle AEH=90^\\circ\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p5",
+            "text": "\\(\\angle AFH=90^\\circ\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p6",
+            "text": "\\(A,E,H,F\\) are concyclic with diameter \\(AH\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p7",
+            "text": "\\(\\angle HEF=\\angle HAF\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p8",
+            "text": "\\(\\angle HFE=\\angle HAE\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p9",
+            "text": "\\(AF\\subset AB\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p10",
+            "text": "\\(AH\\perp BC\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p11",
+            "text": "\\(\\angle HAF=90^\\circ-\\angle B\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p12",
+            "text": "\\(AE\\subset AC\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p13",
+            "text": "\\(\\angle HAE=90^\\circ-\\angle C\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p14",
+            "text": "In \\(\\triangle EHF\\), \\(\\angle HEF=90^\\circ-\\angle B\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p15",
+            "text": "In \\(\\triangle EHF\\), \\(\\angle HFE=90^\\circ-\\angle C\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p16",
+            "text": "\\(\\angle EHF=180^\\circ-(90^\\circ-\\angle B)-(90^\\circ-\\angle C)\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p17",
+            "text": "\\(\\angle EHF=\\angle B+\\angle C\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p18",
+            "text": "\\(\\angle EHF=180^\\circ-\\angle A\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p19",
+            "text": "\\(DE\\subset AC\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p20",
+            "text": "\\(DF\\subset AB\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p21",
+            "text": "\\(\\angle EDF=\\angle A\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p22",
+            "text": "\\(\\angle EHF+\\angle EDF=180^\\circ\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p23",
+            "text": "\\(D,E,H,F\\) are concyclic.",
+            "step_idx": null
+          },
+          {
+            "id": "p24",
+            "text": "\\(Q\\) is the foot from \\(H\\) to \\(EF\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p25",
+            "text": "\\(P\\) is the foot from \\(A\\) to \\(EF\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p26",
+            "text": "The power of \\(Q\\) with respect to the circle through \\(D,E,H,F\\) is \\(QE\\cdot QF=QH\\cdot QD\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p27",
+            "text": "\\(A,E,H,F\\) are cyclic.",
+            "step_idx": null
+          },
+          {
+            "id": "p28",
+            "text": "The power of \\(Q\\) with respect to the circle through \\(A,E,H,F\\) is \\(QE\\cdot QF=QH\\cdot QA\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p29",
+            "text": "\\(QH\\cdot QD=QH\\cdot QA\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p30",
+            "text": "\\(QH\\neq 0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p31",
+            "text": "\\(QD=QA\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p32",
+            "text": "\\(QH\\perp EF\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p33",
+            "text": "\\(AP\\perp EF\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p34",
+            "text": "\\(QH\\parallel AP\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p35",
+            "text": "\\(R=DP\\cap QH\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p36",
+            "text": "In \\(\\triangle DPA\\), the line through \\(Q\\) parallel to \\(AP\\) meets \\(DP\\) at \\(R\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p37",
+            "text": "\\(\\triangle DQR\\) and \\(\\triangle DAP\\) are similar.",
+            "step_idx": null
+          },
+          {
+            "id": "p38",
+            "text": "\\(\\frac{DR}{DP}=\\frac{DQ}{DA}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p39",
+            "text": "\\(Q\\) lies on \\(EF\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p40",
+            "text": "\\(P\\) is the foot from \\(A\\) to \\(EF\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p41",
+            "text": "In right triangles with common acute angles along \\(EF\\), the equality \\(QD=QA\\) implies that \\(Q\\) is the midpoint of the segment cut on the line through \\(A,H\\) parallel to \\(AP\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p42",
+            "text": "Equivalently along the line \\(QH\\) we obtain \\(QR=QH\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p43",
+            "text": "\\(R,H,Q\\) are collinear.",
+            "step_idx": null
+          },
+          {
+            "id": "p44",
+            "text": "\\(R\\) lies beyond \\(H\\) on line \\(QH\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p45",
+            "text": "\\(HR=HQ\\).",
+            "step_idx": null
+          }
+        ],
+        "claims": [],
+        "claim_checks": {},
+        "dependencies": {},
+        "step_dependencies": {},
+        "workflow_state": "sample_selected"
+      }
+    }
+  },
+  "sample_decisions": [
+    {
+      "class_name": "",
+      "is_correct": true,
+      "is_new_class": false,
+      "pipeline_status": "in_progress",
+      "summary": ""
+    }
+  ],
+  "correct_solutions": [],
+  "updated_at_utc": "2026-04-08T02:40:32.438659+00:00",
+  "created_at_utc": "2026-04-06T03:30:34.072982+00:00",
+  "content_hash": "5086d28180cf42b7b3f997488bf049ba1f0dd8fba2efea8f63c550e71aab45d8"
+}
