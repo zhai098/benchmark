@@ -1,14 +1,23 @@
 from config import Config
-from transformers import AutoTokenizer
-from runner import VLLMRunner
 import json
 import os
+from typing import TYPE_CHECKING, Any
 from data_process import safe_json_loads, extract_last_score_part, extract_prefix  # 文件顶部集中导入一次
 
+try:
+    from transformers import AutoTokenizer
+except ImportError:  # pragma: no cover - allows prompt packing without transformers installed
+    AutoTokenizer = None
+
+if TYPE_CHECKING:
+    from runner import VLLMRunner
+else:  # pragma: no cover - runtime fallback for environments without runner deps
+    VLLMRunner = Any
+
 class PromptBuilder:
-    def __init__(self, model: VLLMRunner):
+    def __init__(self, model: Any):
         self.model_name = model.model_name
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=True)
+        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, use_fast=True) if AutoTokenizer else None
 
     def make_chat_prompt(self, system: str, user: str, add_generation_prompt=True, continue_final_message=False,
 ):
@@ -16,7 +25,7 @@ class PromptBuilder:
         if system:
             messages.append({"role": "system", "content": system})
         messages.append({"role": "user", "content": user})
-        if hasattr(self.tokenizer, 'chat_template'):
+        if self.tokenizer is not None and hasattr(self.tokenizer, 'chat_template'):
             text = self.tokenizer.apply_chat_template(messages, tokenize=False, 
                                                       add_generation_prompt=add_generation_prompt,
                                                       continue_final_message=continue_final_message)
@@ -32,7 +41,7 @@ class Generate_Prompt:
     Simplified class that uses PromptBuilder for prompt construction,
     mimickiguong the structure of Pairwise_Prompt.
     """
-    def __init__(self, model: VLLMRunner, query: str = None):
+    def __init__(self, model: Any, query: str = None):
         self.query = query or ""
         self.model = model
         #self.promptbuilder = PromptBuilder(model)
@@ -87,7 +96,7 @@ class Generate_Prompt:
         return out
 
 class Pairwise_Prompt:
-    def __init__(self, model: VLLMRunner):
+    def __init__(self, model: Any):
         self.model = model
         self.user_message = ""
         self.system_message = self.system_message = (
@@ -95,13 +104,13 @@ class Pairwise_Prompt:
 
         ## Role
 
-        You are tasked with determining whether the next step in a mathematical reasoning chain (GEN) **violates or distorts** the logic, assumptions, or conclusions established in the reference step (REF_STEP). This evaluation will help to identify contradictions, hallucinations, or inconsistencies that may arise between two adjacent reasoning steps.
+        You are tasked with determining whether the next step in a mathematical reasoning chain (GEN) **violates or distorts** the logic, assumptions, or conclusions established in the reference claim (REF_STEP). This evaluation will help to identify contradictions, hallucinations, or inconsistencies that may arise between the current reasoning step and the dependency claims it relies on.
 
         You are given three texts:
 
         - GLOBAL_PREFIX: The entire set of steps that precede GEN in the reasoning process. This is provided **for context only**, and should only be used to verify contradictions if necessary. It should **not** be used as a constraint when judging the validity of GEN in isolation.
         
-        - REF_STEP: A specific step extracted from GLOBAL_PREFIX. This serves as your **local anchor** for comparison. The key task is to determine whether GEN violates, distorts, or contradicts this step.
+        - REF_STEP: A specific prior dependency claim extracted from GLOBAL_PREFIX. This serves as your **local anchor** for comparison. The key task is to determine whether GEN violates, distorts, or contradicts this claim.
 
         - GEN: The candidate next step, which you must evaluate for consistency against REF_STEP.
 
@@ -252,14 +261,14 @@ class Pairwise_Prompt:
             "## GLOBAL_PREFIX (background only; DO NOT use it as a source of constraints)\n"
             f"{prefix}\n\n"
             "## Task\n"
-            "- Perform a **pairwise contradiction / hallucination check** between the current step **GEN** and the single prior step **REF_STEP**.\n"
+            "- Perform a **pairwise contradiction / hallucination check** between the current step **GEN** and the single prior dependency claim **REF_STEP**.\n"
             "- Treat **REF_STEP as your only normative local context for judging inconsistency**.\n"
             "- You may read GLOBAL_PREFIX only to understand notation, but you MUST NOT use it as extra evidence of conflict.\n"
             "- When uncertain whether there is a conflict based on REF_STEP alone, treat GEN as **consistent** and choose the **higher score**.\n"
             "\n"
-            "## REF_STEP (local anchor)\n"
+            "## REF_STEP (local dependency-claim anchor)\n"
             f"{ref_text}\n\n"
-            "## GEN (immediate next step)\n"
+            "## GEN (current step)\n"
             f"{gen_text}\n\n"
             "## Output Requirements\n"
             "- Output a single strict JSON object: `{{\"score\": k}}` where `k ∈ {{0,1,2,3,4,5}}`.\n"
@@ -280,7 +289,7 @@ class Pairwise_Prompt:
     def run(self, gen_claim: str, ref: list[str], prefix: str | None = None) -> dict:
         """
         gen_claim: 当前要评估的 GEN（完整一步或前缀）
-        ref:       多个 REF_STEP，逐个和 GEN 做 pairwise 检查
+        ref:       多个 REF_STEP（依赖 claim 文本），逐个和 GEN 做 pairwise 检查
         prefix:    整段 GLOBAL_PREFIX（通常就是完整的已有解答前缀）
                     - 可以传入；如果为 None，则使用 self.global_prefix
         """
@@ -310,7 +319,7 @@ class Pairwise_Prompt:
 
 
 class Holistic_Prompt:
-    def __init__(self, model: VLLMRunner):
+    def __init__(self, model: Any):
         self.model = model
         self.user_message = ""
         self.system_message = (
@@ -466,21 +475,21 @@ class Holistic_Prompt:
         """Returns a dict with the structural continuation score and raw model output."""
         self.build_user(gen_claim, ref_claim)
         prompt = self.return_prompt()
-        resp = self.model.generate([prompt], None)
-        reasonings = resp.get("reasoning", "")
-        outs = resp.get("content", "")
-        score = extract_last_score_part(outs)
+        reasonings, outs = self.model.generate([prompt], None)
+        reasoning = reasonings[0] if reasonings else ""
+        output = outs[0] if outs else ""
+        score = extract_last_score_part(output)
         return {
             "score": score,
-            "raw_output": outs,
-            "reasoning_output": reasonings,
+            "raw_output": output,
+            "reasoning_output": reasoning,
             "gen": gen_claim,
             "ref": ref_claim,
         }
 
     
 class SelfJudge_Prompt:
-    def __init__(self, model: VLLMRunner):
+    def __init__(self, model: Any):
         self.model = model
         #self.promptbuilder = PromptBuilder(model)
         self.user_message = ""
@@ -544,7 +553,7 @@ class SelfJudge_Prompt:
             "additionalProperties": False
         }
         
-    def build_user(self, gen_text: str) -> str:
+    def build_user_without_reference(self, gen_text: str) -> None:
         self.user_message = (
             "Task: Reference-free evaluation of GEN’s internal mathematical correctness and self-consistency.\n"
             "Check symbol definitions, domain/constraint compatibility, legality of operations, sign/inequality directions, "
@@ -553,6 +562,20 @@ class SelfJudge_Prompt:
             "Output strictly JSON: {{\"score\": k}} where k ∈ {{0,1,2,3,4,5}}.\n"
             "GEN:\n"
             f"{gen_text}\n"
+            "Valid outputs: 0,1,2,3,4,5."
+        )
+
+    def build_user_with_reference(self, gen_text: str, ref_claim_text: str, step_label: str | None = None) -> None:
+        label = step_label or "same reference step"
+        self.user_message = (
+            "Task: Evaluate GEN against one claim from the matching reference step.\n"
+            "Use the reference claim as a local anchor for support, contradiction, and omission checking.\n"
+            "Do not use claims from other steps. Do not use outside knowledge.\n"
+            "If GEN conflicts with the reference claim, lower the score. If GEN is merely under-justified, score conservatively.\n"
+            "Output strictly JSON: {{\"score\": k}} where k ∈ {{0,1,2,3,4,5}}.\n"
+            f"REFERENCE_STEP_LABEL:\n{label}\n"
+            f"REFERENCE_CLAIM:\n{ref_claim_text}\n"
+            f"GEN:\n{gen_text}\n"
             "Valid outputs: 0,1,2,3,4,5."
         )
 
@@ -565,21 +588,51 @@ class SelfJudge_Prompt:
             ]
         }
     
-    def run(self, gen_claim: str) -> dict:
-        """Returns a strict JSON: {score: float, label: str, justification: str}"""
-        self.build_user(gen_claim)
+    def run_without_reference(self, gen_claim: str) -> dict:
+        self.build_user_without_reference(gen_claim)
         prompt = self.return_prompt()
-        out = self.model.generate(prompt, None)
-        score = extract_last_score_part(out[0])
+        reasonings, outs = self.model.generate([prompt], None)
+        output = outs[0] if outs else ""
+        reasoning = reasonings[0] if reasonings else ""
+        score = extract_last_score_part(output)
         return {
+            "mode": "without_reference",
             "score": score,
-            "raw_output": out,
+            "raw_output": output,
+            "reasoning_output": reasoning,
             "gen": gen_claim,
             "prompt": prompt,
         }
+
+    def run_with_reference(self, gen_claim: str, ref_claims: list[str], step_label: str | None = None) -> dict:
+        prompts = []
+        for ref_claim in ref_claims:
+            self.build_user_with_reference(gen_claim, ref_claim, step_label=step_label)
+            prompts.append(self.return_prompt())
+
+        if prompts:
+            reasonings, outs = self.model.generate(prompts, None)
+        else:
+            reasonings, outs = [], []
+        scores = [extract_last_score_part(item) for item in outs]
+        score = sum(scores) / len(scores) if scores else -1
+        return {
+            "mode": "with_reference",
+            "score": score,
+            "scores": scores,
+            "raw_output": outs,
+            "reasoning_output": reasonings,
+            "gen": gen_claim,
+            "refs": ref_claims,
+            "step_label": step_label,
+            "prompts": prompts,
+        }
+
+    def run(self, gen_claim: str) -> dict:
+        return self.run_without_reference(gen_claim)
     
 class Judge_Prompt:
-    def __init__(self, model: VLLMRunner):
+    def __init__(self, model: Any):
         self.user_message = ""
         self.system_message = (
             """

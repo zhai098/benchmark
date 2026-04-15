@@ -1,49 +1,20 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
-"""
-Build per-case prompt files in a *cache-optimal* request order (DeepSeek Context Caching friendly).
-
-Input:  stage1 gen jsonl (same schema judge.py consumes), each line like:
-  {
-    "ref_steps": [...],
-    "gen_output": [...],
-    ... optional fields ...
-  }
-
-Output:
-  <out_dir>/case_<case_id>.cache.jsonl     # one file per case, requests already ordered for cache
-  <out_dir>/ALL.cache.jsonl                # (optional) concatenation of all case requests in cache-optimal order
-
-Cache-optimal ordering strategy (prefix cache friendly):
-    1) Within each case:
-         - Emit ALL pairwise requests first, grouped by idx (step index), then by ref_idx.
-         - Then emit all holistic requests, grouped by idx.
-         - Then emit all selfjudge requests, grouped by idx.
-  2) Across cases: keep input order (you can optionally sort; see --sort_cases).
-
-Why this helps:
-  - Pairwise prompts share the same long system prompt and a growing GLOBAL_PREFIX (REF prefix),
-    so sending them in monotone-prefix order maximizes cache hits.
-  - Holistic has a different system prompt, so it is best separated from pairwise.
-
-NOTE: This script only writes prompts. To exploit cache fully at runtime, execute requests
-      sequentially (or low concurrency) in the order written.
-"""
 
 from __future__ import annotations
 
 import argparse
 import json
 import os
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Tuple
 
 from config import Config
 from data_process import Processor, _normalize_generation_input
-from prompt import Pairwise_Prompt, Holistic_Prompt, SelfJudge_Prompt
+from log_reference import claims_for_step, dependency_claims_for_step, step_id_at_index
+from prompt import Holistic_Prompt, Pairwise_Prompt, SelfJudge_Prompt
 
 
 class _NullModel:
-    """Just enough to satisfy prompt classes' __init__ signatures. No generation happens here."""
     model_name = "deepseek-reasoner"
 
 
@@ -51,24 +22,143 @@ processor = Processor()
 
 
 def _safe_case_id(rec: Dict[str, Any], fallback_i: int) -> str:
-    for k in ("case_id", "id", "uid", "qid", "uuid"):
-        v = rec.get(k)
-        if v is None:
+    for key in ("case_id", "id", "uid", "qid", "uuid"):
+        value = rec.get(key)
+        if value is None:
             continue
-        s = str(v).strip()
-        if s:
-            return s
+        text = str(value).strip()
+        if text:
+            return text
     return f"{fallback_i:06d}"
 
 
 def _build_gen_prefix(gen_output_item: str) -> str:
-    """Exactly match judge.py's prefix extraction behavior."""
     current_output = _normalize_generation_input(gen_output_item)
     gen_sents_all = processor.sentence_split_en(current_output)
-    # judge.py: K = max(1, min(Config["max prefix_num"], len(gen_sents_all)))
-    K = max(1, min(Config["max prefix_num"], len(gen_sents_all)))
-    gen_sents = gen_sents_all[:K]
-    return " ".join(gen_sents).strip()
+    k = max(1, min(Config["max prefix_num"], len(gen_sents_all)))
+    return " ".join(gen_sents_all[:k]).strip()
+
+
+def _reference_step_text(record: Dict[str, Any], idx: int) -> str:
+    steps = record.get("steps", [])
+    if idx < len(steps) and isinstance(steps[idx], dict):
+        return str(steps[idx].get("text", "")).strip()
+    return ""
+
+
+def _prior_reference_text(record: Dict[str, Any], idx: int) -> str:
+    steps = []
+    for prior_idx in range(idx + 1):
+        text = _reference_step_text(record, prior_idx)
+        if text:
+            steps.append(text)
+    return "\n".join(steps).strip()
+
+
+def _pairwise_requests(
+    rec: Dict[str, Any],
+    idx: int,
+    gen_prefix: str,
+    pairwise: Pairwise_Prompt,
+) -> List[Dict[str, Any]]:
+    requests: List[Dict[str, Any]] = []
+    prior_ref = _prior_reference_text(rec, idx)
+    dependency_claims = dependency_claims_for_step(rec, idx)
+    step_label = step_id_at_index(rec, idx) or f"s{idx + 1}"
+
+    for dep_idx, claim in enumerate(dependency_claims):
+        pairwise.build_user(gen_prefix, claim["text"], prefix=prior_ref)
+        requests.append(
+            {
+                "request_id": f"pairwise_i{idx:04d}_d{dep_idx:04d}",
+                "route": "pairwise",
+                "idx": idx,
+                "ref_idx": dep_idx,
+                "prompt": pairwise.return_prompt(),
+                "schema": pairwise.output_schema,
+                "meta": {
+                    "step_id": step_label,
+                    "dependency_claim_id": claim["id"],
+                    "dependency_claim_text": claim["text"],
+                    "prior_ref_len_chars": len(prior_ref),
+                    "gen_prefix_len_chars": len(gen_prefix),
+                },
+            }
+        )
+    return requests
+
+
+def _holistic_request(
+    rec: Dict[str, Any],
+    idx: int,
+    gen_prefix: str,
+    holistic: Holistic_Prompt,
+) -> Dict[str, Any]:
+    prior_ref = _prior_reference_text(rec, idx)
+    step_label = step_id_at_index(rec, idx) or f"s{idx + 1}"
+    holistic.build_user(gen_prefix, prior_ref)
+    return {
+        "request_id": f"holistic_i{idx:04d}",
+        "route": "holistic",
+        "idx": idx,
+        "ref_idx": None,
+        "prompt": holistic.return_prompt(),
+        "schema": holistic.output_schema,
+        "meta": {
+            "step_id": step_label,
+            "prior_ref_len_chars": len(prior_ref),
+            "gen_prefix_len_chars": len(gen_prefix),
+        },
+    }
+
+
+def _selfjudge_without_reference_request(
+    rec: Dict[str, Any],
+    idx: int,
+    gen_prefix: str,
+    selfjudge: SelfJudge_Prompt,
+) -> Dict[str, Any]:
+    step_label = step_id_at_index(rec, idx) or f"s{idx + 1}"
+    selfjudge.build_user_without_reference(gen_prefix)
+    return {
+        "request_id": f"selfjudge_without_reference_i{idx:04d}",
+        "route": "selfjudge_without_reference",
+        "idx": idx,
+        "ref_idx": None,
+        "prompt": selfjudge.return_prompt(),
+        "schema": selfjudge.output_schema,
+        "meta": {"step_id": step_label, "gen_prefix_len_chars": len(gen_prefix)},
+    }
+
+
+def _selfjudge_with_reference_requests(
+    rec: Dict[str, Any],
+    idx: int,
+    gen_prefix: str,
+    selfjudge: SelfJudge_Prompt,
+) -> List[Dict[str, Any]]:
+    requests: List[Dict[str, Any]] = []
+    step_claims = claims_for_step(rec, idx)
+    step_label = step_id_at_index(rec, idx) or f"s{idx + 1}"
+    for claim_idx, claim in enumerate(step_claims):
+        selfjudge.build_user_with_reference(gen_prefix, claim["text"], step_label=step_label)
+        requests.append(
+            {
+                "request_id": f"selfjudge_with_reference_i{idx:04d}_c{claim_idx:04d}",
+                "route": "selfjudge_with_reference",
+                "idx": idx,
+                "ref_idx": claim_idx,
+                "prompt": selfjudge.return_prompt(),
+                "schema": selfjudge.output_schema,
+                "meta": {
+                    "reference_step": step_label,
+                    "reference_claim_id": claim["id"],
+                    "reference_claim_text": claim["text"],
+                    "gen_prefix_len_chars": len(gen_prefix),
+                },
+            }
+        )
+    return requests
 
 
 def _iter_case_requests_cache_optimal(
@@ -77,156 +167,89 @@ def _iter_case_requests_cache_optimal(
     holistic: Holistic_Prompt,
     selfjudge: SelfJudge_Prompt,
 ) -> List[Dict[str, Any]]:
-    """
-    Return ordered request objects for a single case.
-    Each entry:
-            {
-                "request_id": str,
-                "route": "pairwise"|"holistic"|"selfjudge",
-        "idx": int,
-        "ref_idx": int|None,
-        "prompt": {"messages":[...]},
-        "schema": { ...json schema... },
-        "meta": {...}
-      }
-    """
-    ref_steps: List[str] = rec["ref_steps"]
     gen_output: List[str] = rec["gen_output"]
-
     requests: List[Dict[str, Any]] = []
 
-    # --- Pairwise first (maximizes reuse of pairwise system prompt + growing prefix)
-    for idx in range(len(gen_output)):
-        gen_prefix = _build_gen_prefix(gen_output[idx])
+    for idx, item in enumerate(gen_output):
+        gen_prefix = _build_gen_prefix(item)
         if not gen_prefix:
             continue
+        requests.extend(_pairwise_requests(rec, idx, gen_prefix, pairwise))
 
-        ref_slice = ref_steps[: idx + 1]
-        prior_ref = "\n".join(ref_slice) if ref_slice else ""
-
-        # Build each REF_STEP prompt in increasing order (ref_idx)
-        for ref_idx, ref_step in enumerate(ref_slice):
-            pairwise.build_user(gen_prefix, ref_step, prefix=prior_ref)
-            p = pairwise.return_prompt()
-            requests.append(
-                {
-                    "request_id": f"pairwise_i{idx:04d}_r{ref_idx:04d}",
-                    "route": "pairwise",
-                    "idx": idx,
-                    "ref_idx": ref_idx,
-                    "prompt": p,
-                    "schema": pairwise.output_schema,
-                    "meta": {
-                        "gen_prefix_len_chars": len(gen_prefix),
-                        "prior_ref_len_chars": len(prior_ref),
-                    },
-                }
-            )
-
-    # --- Then Holistic (different system prompt; keep grouped so cache isn't thrashed)
-    for idx in range(len(gen_output)):
-        gen_prefix = _build_gen_prefix(gen_output[idx])
+    for idx, item in enumerate(gen_output):
+        gen_prefix = _build_gen_prefix(item)
         if not gen_prefix:
             continue
+        requests.append(_holistic_request(rec, idx, gen_prefix, holistic))
 
-        prior_ref = "\n".join(ref_steps[: idx + 1]) if ref_steps else ""
-        holistic.build_user(gen_prefix, prior_ref)
-        p = holistic.return_prompt()
-        requests.append(
-            {
-                "request_id": f"holistic_i{idx:04d}",
-                "route": "holistic",
-                "idx": idx,
-                "ref_idx": None,
-                "prompt": p,
-                "schema": holistic.output_schema,
-                "meta": {
-                    "gen_prefix_len_chars": len(gen_prefix),
-                    "prior_ref_len_chars": len(prior_ref),
-                },
-            }
-        )
-
-    # --- Then SelfJudge (reference-free, distinct system prompt)
-    for idx in range(len(gen_output)):
-        gen_prefix = _build_gen_prefix(gen_output[idx])
+    for idx, item in enumerate(gen_output):
+        gen_prefix = _build_gen_prefix(item)
         if not gen_prefix:
             continue
+        requests.append(_selfjudge_without_reference_request(rec, idx, gen_prefix, selfjudge))
 
-        selfjudge.build_user(gen_prefix)
-        p = selfjudge.return_prompt()
-        requests.append(
-            {
-                "request_id": f"selfjudge_i{idx:04d}",
-                "route": "selfjudge",
-                "idx": idx,
-                "ref_idx": None,
-                "prompt": p,
-                "schema": selfjudge.output_schema,
-                "meta": {
-                    "gen_prefix_len_chars": len(gen_prefix),
-                },
-            }
-        )
+    for idx, item in enumerate(gen_output):
+        gen_prefix = _build_gen_prefix(item)
+        if not gen_prefix:
+            continue
+        requests.extend(_selfjudge_with_reference_requests(rec, idx, gen_prefix, selfjudge))
 
     return requests
 
 
 def _write_jsonl(path: str, rows: List[Dict[str, Any]]) -> None:
     os.makedirs(os.path.dirname(path), exist_ok=True)
-    with open(path, "w", encoding="utf-8") as f:
-        for r in rows:
-            f.write(json.dumps(r, ensure_ascii=False) + "\n")
+    with open(path, "w", encoding="utf-8") as handle:
+        for row in rows:
+            handle.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--gen_file", type=str, required=True, help="stage1 生成的 gen_only.jsonl 路径（judge.py 同款输入）")
-    ap.add_argument("--out_dir", type=str, default=None, help="输出目录（默认: <gen_file_dir>/cache_prompts）")
-    ap.add_argument("--max_cases", type=int, default=None, help="只处理前 N 个 case（调试用）")
-    ap.add_argument("--write_all", action="store_true", help="额外写一个 ALL_cache.jsonl（把所有 case 的请求拼起来）")
-    args = ap.parse_args()
+def main() -> None:
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--gen_file", type=str, required=True, help="stage1 generation jsonl path")
+    parser.add_argument("--out_dir", type=str, default=None, help="Output directory")
+    parser.add_argument("--max_cases", type=int, default=None, help="Only package the first N cases")
+    parser.add_argument("--write_all", action="store_true", help="Also write a concatenated ALL_cache.jsonl")
+    args = parser.parse_args()
 
     gen_file = os.path.abspath(args.gen_file)
-    out_dir = os.path.join(args.out_dir, "cache_prompts") if args.out_dir else os.path.join(os.path.dirname(gen_file), "cache_prompts")
+    out_dir = (
+        os.path.join(args.out_dir, "cache_prompts")
+        if args.out_dir
+        else os.path.join(os.path.dirname(gen_file), "cache_prompts")
+    )
     os.makedirs(out_dir, exist_ok=True)
 
-    # Instantiate prompt builders (no actual generation in this script)
     dummy = _NullModel()
     pairwise = Pairwise_Prompt(dummy)
     holistic = Holistic_Prompt(dummy)
     selfjudge = SelfJudge_Prompt(dummy)
 
     cases: List[Tuple[str, Dict[str, Any]]] = []
-    with open(gen_file, "r", encoding="utf-8") as fin:
-        for i, line in enumerate(fin):
+    with open(gen_file, "r", encoding="utf-8") as handle:
+        for i, line in enumerate(handle):
             if not line.strip():
                 continue
-            rec = json.loads(line)
-            case_id = _safe_case_id(rec, i)
-            cases.append((case_id, rec))
+            record = json.loads(line)
+            case_id = _safe_case_id(record, i)
+            cases.append((case_id, record))
             if args.max_cases is not None and len(cases) >= args.max_cases:
                 break
 
-
     all_rows: List[Dict[str, Any]] = []
-
-    for i, (case_id, rec) in enumerate(cases):
-        reqs = _iter_case_requests_cache_optimal(rec, pairwise, holistic, selfjudge)
-
-        # per-case file
+    for idx, (case_id, record) in enumerate(cases, start=1):
+        requests = _iter_case_requests_cache_optimal(record, pairwise, holistic, selfjudge)
         case_path = os.path.join(out_dir, f"case_{case_id}_cache.jsonl")
-        _write_jsonl(case_path, reqs)
+        _write_jsonl(case_path, requests)
 
         if args.write_all:
-            # add case_id into each row for the global file
-            for r in reqs:
-                r2 = dict(r)
-                r2["case_id"] = case_id
-                all_rows.append(r2)
+            for row in requests:
+                merged = dict(row)
+                merged["case_id"] = case_id
+                all_rows.append(merged)
 
-        if (i + 1) % 50 == 0:
-            print(f"[INFO] wrote {i+1} cases...")
+        if idx % 50 == 0:
+            print(f"[INFO] wrote {idx} cases...")
 
     if args.write_all:
         all_path = os.path.join(out_dir, "ALL_cache.jsonl")
