@@ -26,5 +26,7 @@ The Next.js app is intentionally a thin shell that forwards product routes to th
 You can override the backend target:
 
 ```bash
-BACKEND_URL=http://127.0.0.1:5000 npm run dev
+BACKEND_URL=http://127.0.0.1:5050 npm run dev
 ```
+
+For production-style local proxy runs, the repo helper binds `next start` to `127.0.0.1:3001` by default so that `cloudflared` and local smoke checks use the same loopback origin.

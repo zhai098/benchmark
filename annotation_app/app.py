@@ -1,15 +1,17 @@
 from __future__ import annotations
 
 import json
+import os
 import re
 import hashlib
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 from urllib.parse import quote
 from urllib.request import urlopen
 
-from flask import Flask, abort, jsonify, render_template, request, send_file, session
+from flask import Flask, abort, g, jsonify, render_template, request, send_file, session
 
 BASE_DIR = Path(__file__).resolve().parent
 DATA_DIR = BASE_DIR / "data"
@@ -20,6 +22,41 @@ FRONTEND_OUT_DIR = BASE_DIR.parent / "frontend" / "out"
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = "annotation-app-dev-secret"
+
+
+def logs_dir() -> Path:
+    return DATA_DIR / "logs"
+
+
+def configure_app_logging() -> None:
+    if app.config.get("_logging_configured"):
+        return
+
+    log_dir = logs_dir()
+    log_dir.mkdir(parents=True, exist_ok=True)
+    app.config["app_log_path"] = log_dir / "app.log"
+    app.config["access_log_path"] = log_dir / "access.log"
+    app.config["_logging_configured"] = True
+
+
+def write_json_log(logger_name: str, event: str, **fields: Any) -> None:
+    configure_app_logging()
+    payload = {"ts_utc": now_utc_iso(), "event": event, **fields}
+    config_key = {"app_logger": "app_log_path", "access_logger": "access_log_path"}[logger_name]
+    path = app.config[config_key]
+    line = json.dumps(payload, ensure_ascii=False, sort_keys=True) + "\n"
+    fd = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o644)
+    try:
+        os.write(fd, line.encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+def client_ip() -> str:
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip()
+    return request.remote_addr or ""
 
 
 
@@ -37,6 +74,7 @@ def ensure_dirs() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     RECORDS_DIR.mkdir(parents=True, exist_ok=True)
     ANNOTATIONS_DIR.mkdir(parents=True, exist_ok=True)
+    logs_dir().mkdir(parents=True, exist_ok=True)
     if not GUIDE_PATH.exists():
         GUIDE_PATH.write_text(
             "# 标注指南\n\n"
@@ -156,6 +194,44 @@ def split_by_cut_points(text: str, cut_points: list[int]) -> list[str]:
     if last:
         out.append(last)
     return out
+
+
+@app.before_request
+def start_request_timer() -> None:
+    g.request_started_at = time.perf_counter()
+
+
+@app.after_request
+def log_access(response):
+    duration_ms = round((time.perf_counter() - getattr(g, "request_started_at", time.perf_counter())) * 1000, 2)
+    write_json_log(
+        "access_logger",
+        "request.completed",
+        method=request.method,
+        path=request.path,
+        query=request.query_string.decode("utf-8", errors="ignore"),
+        status_code=response.status_code,
+        duration_ms=duration_ms,
+        client_ip=client_ip(),
+        annotator_id=request.args.get("annotator_id") or "",
+        user_agent=request.headers.get("User-Agent", ""),
+    )
+    return response
+
+
+@app.teardown_request
+def log_request_exception(exc: BaseException | None) -> None:
+    if exc is None:
+        return
+    write_json_log(
+        "app_logger",
+        "request.exception",
+        path=request.path,
+        method=request.method,
+        client_ip=client_ip(),
+        error_type=type(exc).__name__,
+        error=str(exc),
+    )
 
 
 @app.get("/")
@@ -282,6 +358,16 @@ def save_progress():
     ensure_dirs()
     payload = parse_request_json()
     result = persist_progress_payload(payload, default_status="in_progress")
+    write_json_log(
+        "app_logger",
+        "progress.saved",
+        annotator_id=str(payload.get("annotator_id") or payload.get("annotator") or "unknown"),
+        device_id=str(payload.get("device_id") or "device"),
+        case_id=str(payload.get("case_id") or "unknown"),
+        ok=bool(result.get("ok")),
+        unchanged=bool(result.get("unchanged", False)),
+        content_hash=str(result.get("content_hash") or ""),
+    )
     return jsonify(result)
 
 
@@ -306,6 +392,16 @@ def save_record():
     payload = parse_request_json()
     payload.setdefault("status", "completed")
     result = persist_progress_payload(payload, default_status="completed")
+    write_json_log(
+        "app_logger",
+        "record.saved",
+        annotator_id=str(payload.get("annotator_id") or payload.get("annotator") or "unknown"),
+        device_id=str(payload.get("device_id") or "device"),
+        case_id=str(payload.get("case_id") or "unknown"),
+        ok=bool(result.get("ok")),
+        unchanged=bool(result.get("unchanged", False)),
+        content_hash=str(result.get("content_hash") or ""),
+    )
     return jsonify(result)
 
 
@@ -366,4 +462,9 @@ def split_steps_api():
 
 if __name__ == "__main__":
     ensure_dirs()
-    app.run(host="0.0.0.0", port=5000, debug=True)
+    configure_app_logging()
+    host = os.environ.get("ANNOTATION_APP_HOST", "0.0.0.0")
+    port = int(os.environ.get("ANNOTATION_APP_PORT", "5000"))
+    debug = os.environ.get("ANNOTATION_APP_DEBUG", "").strip() == "1"
+    write_json_log("app_logger", "server.start", host=host, port=port, debug=debug)
+    app.run(host=host, port=port, debug=debug)

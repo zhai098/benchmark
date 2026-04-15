@@ -3,7 +3,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 import json
 
-from annotation_app.app import app, progress_path, split_by_cut_points
+from annotation_app.app import app, ensure_dirs, progress_path, split_by_cut_points
 
 
 
@@ -97,6 +97,41 @@ def test_save_progress_reports_unchanged_for_noop(tmp_path, monkeypatch):
     assert second.get_json()['unchanged'] is True
 
 
+def test_ensure_dirs_creates_logs_dir(tmp_path, monkeypatch):
+    monkeypatch.setattr('annotation_app.app.DATA_DIR', tmp_path)
+    monkeypatch.setattr('annotation_app.app.GUIDE_PATH', tmp_path / 'guideline.md')
+    monkeypatch.setattr('annotation_app.app.ANNOTATIONS_DIR', tmp_path / 'annotations')
+    monkeypatch.setattr('annotation_app.app.RECORDS_DIR', tmp_path / 'records')
+    app.config.pop('_logging_configured', None)
+
+    ensure_dirs()
+
+    assert (tmp_path / 'logs').exists()
+
+
+def test_save_progress_writes_local_logs(tmp_path, monkeypatch):
+    monkeypatch.setattr('annotation_app.app.DATA_DIR', tmp_path)
+    monkeypatch.setattr('annotation_app.app.GUIDE_PATH', tmp_path / 'guideline.md')
+    monkeypatch.setattr('annotation_app.app.ANNOTATIONS_DIR', tmp_path / 'annotations')
+    monkeypatch.setattr('annotation_app.app.RECORDS_DIR', tmp_path / 'records')
+    app.config.pop('_logging_configured', None)
+    client = app.test_client()
+
+    payload = {
+        'annotator_id': 'u5',
+        'device_id': 'd5',
+        'case_id': 'c5',
+        'current_annotations': {'selected_solution_text': '$w$'},
+    }
+    res = client.put('/api/save_progress', json=payload)
+    assert res.status_code == 200
+
+    access_log = (tmp_path / 'logs' / 'access.log').read_text(encoding='utf-8')
+    app_log = (tmp_path / 'logs' / 'app.log').read_text(encoding='utf-8')
+    assert 'request.completed' in access_log
+    assert 'progress.saved' in app_log
+
+
 def test_review_records_reads_new_layout(tmp_path, monkeypatch):
     ann = tmp_path / 'annotations/u1/d1'
     ann.mkdir(parents=True)
@@ -136,9 +171,12 @@ def test_root_route_shows_home_entry():
 def test_frontend_has_katex_and_copy_ui():
     tpl = Path('annotation_app/templates/annotator.html').read_text(encoding='utf-8')
     js = Path('annotation_app/static/app.js').read_text(encoding='utf-8')
-    assert 'katex' in tpl.lower()
+    assert 'vendor/katex/katex.min.css' in tpl
+    assert 'vendor/katex/katex.min.js' in tpl
+    assert 'vendor/katex/auto-render.min.js' in tpl
+    assert 'jsdelivr' not in tpl
     assert 'copySolutionRaw' in js
-    assert 'Copied' in js
+    assert '已复制' in js
 
 def test_frontend_pipeline_isolation_rules_present():
     js = Path('annotation_app/static/app.js').read_text(encoding='utf-8')

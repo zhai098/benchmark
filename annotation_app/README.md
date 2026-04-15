@@ -12,8 +12,14 @@ python annotation_app/app.py
 - http://127.0.0.1:5000/annotator （标注工作台）
 - http://127.0.0.1:5000/review （Reviewer 面板，需要 reviewer key）
 
+正式部署请不要直接使用 Flask 开发服务器。生产运行方式见：
+
+- `annotation_app/DEPLOYMENT.md`
+- `annotation_app/wsgi.py`
+- `annotation_app/gunicorn.conf.py`
+
 ## 当前核心能力
-- LaTeX 公式渲染（KaTeX，支持行内与块级，异常表达式自动降级为原文展示）。
+- LaTeX 公式渲染（KaTeX，本地静态资源托管，支持行内与块级，异常表达式自动降级为原文展示）。
 - 一键复制 solution 原始文本（复制的是原始字符串而不是渲染后的 DOM）。
 - 自动保存（防抖）+ 手动保存 + 提交时最终保存 + 刷新前 `sendBeacon` 保存。
 - 登录后自动按 `annotator_id + device_id + case_id` 恢复完整状态。
@@ -35,6 +41,13 @@ python annotation_app/app.py
 - sample_decisions
 - correct_solutions
 - created_at_utc / updated_at_utc
+
+运行日志路径：
+
+- `annotation_app/data/logs/access.log`
+- `annotation_app/data/logs/app.log`
+
+这些日志仅用于部署排障与访问留痕，不改变现有记录格式。
 
 ## 兼容性/迁移
 - 新逻辑写入 `data/annotations/...`。
