@@ -33,14 +33,20 @@ async function loadRecords() {
 
   const summary = {
     total: records.length,
-    completed: records.filter(r => r.raw.status === 'completed').length,
+    completed: records.filter(r => r.status === 'completed').length,
     annotators: new Set(records.map(r => r.annotator)).size,
+    completedSamples: records.reduce((acc, r) => acc + (r.completed_samples || 0), 0),
   };
-  document.getElementById('summary').textContent = `记录数: ${summary.total}，已完成: ${summary.completed}，标注者数: ${summary.annotators}`;
+  document.getElementById('summary').textContent = `记录数: ${summary.total}，已完成 case: ${summary.completed}，已完成样本: ${summary.completedSamples}，标注者数: ${summary.annotators}`;
 
   records.forEach((r) => {
     const tr = document.createElement('tr');
-    tr.innerHTML = `<td>${r.file}</td><td>${r.annotator}</td><td>${r.case_id}</td><td>${r.sample_valid_count}</td><td>${r.step_count}</td><td>${r.claim_count}</td><td>${r.dependency_count}</td><td>${r.saved_at_utc}</td>`;
+    if (r.load_error) tr.style.background = '#fff0f0';
+    const progress = `${r.completed_samples || 0}/${r.total_samples || 0}`;
+    const status = r.load_error
+      ? `异常: ${r.error_type || 'ReadError'}`
+      : (r.latest_workflow_state || r.status || '');
+    tr.innerHTML = `<td>${r.file}</td><td>${r.annotator}</td><td>${r.case_id}</td><td>${r.sample_valid_count}</td><td>${progress}</td><td>${r.step_count}</td><td>${r.claim_count}</td><td>${r.dependency_count}</td><td>${status}</td><td>${r.saved_at_utc}</td>`;
     tr.onclick = () => { document.getElementById('detail').textContent = JSON.stringify(r.raw, null, 2); };
     tb.appendChild(tr);
   });
