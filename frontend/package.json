@@ -3,9 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "next dev -H ${HOSTNAME:-127.0.0.1} -p ${PORT:-3000}",
     "build": "next build",
-    "start": "next start",
+    "start": "next start -H ${HOSTNAME:-127.0.0.1} -p ${PORT:-3001}",
     "start:prod": "next start -H ${HOSTNAME:-127.0.0.1} -p ${PORT:-3001}",
     "lint": "next lint"
   },
