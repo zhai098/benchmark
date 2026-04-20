@@ -384,6 +384,15 @@ def test_frontend_pipeline_isolation_rules_present():
     assert "Step 1：单样本验证入口（严格串行）" in js
 
 
+def test_frontend_claim_preview_uses_math_fallback_rendering():
+    js = Path("annotation_app/static/app.js").read_text(encoding="utf-8")
+    css = Path("annotation_app/static/styles.css").read_text(encoding="utf-8")
+    assert "function renderMathPreviewBlock" in js
+    assert "${renderMathPreviewBlock(cl.text || '', '当前 Claim 为空')}" in js
+    assert "${renderMathPreviewBlock(step.text || '', '当前 Step 暂无内容')}" in js
+    assert ".compact-rendered-math" in css
+
+
 def test_annotator_cannot_access_reviewer_apis():
     client = app.test_client()
     res = client.get("/api/review_records")

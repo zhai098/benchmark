@@ -286,6 +286,28 @@ pre { margin: 0; padding: 12px; white-space: pre-wrap; background: #f9fbff; }
 .curr-claim { background: #edf2ff; border: 1px solid #c2cff4; border-radius: 10px; padding: 8px; }
 .prev-steps details { border: 1px solid var(--line); border-radius: 8px; padding: 6px; margin-bottom: 6px; background: #f8faff; }
 .dep-option { display: block; margin: 4px 0; }
+.compact-rendered-math {
+  max-height: 220px;
+  overflow: auto;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #dbe6fb;
+  background: #fcfdff;
+}
+.compact-rendered-math pre {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+.compact-table td .compact-rendered-math,
+.curr-claim .compact-rendered-math,
+.dep-option .compact-rendered-math {
+  margin-top: 6px;
+}
+.compact-rendered-math .katex-display {
+  overflow-x: auto;
+}
 
 .save-state { border-radius: 999px; padding: 6px 12px; font-size: 12px; border: 1px solid #b3c8f0; background: #edf3ff; color: #244ea8; }
 .save-state.saving { background: #fff7df; border-color: #e6c978; color: #996300; }

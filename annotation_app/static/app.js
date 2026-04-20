@@ -174,6 +174,14 @@ function renderSolutionCard(solution, sampleIdx = null) {
   `;
 }
 
+function renderMathPreviewBlock(rawText, emptyText = '暂无内容') {
+  const text = String(rawText || '').trim();
+  if (!text) {
+    return `<div class="muted-note">${escapeHtml(emptyText)}</div>`;
+  }
+  return `<div class="rendered-math compact-rendered-math">${renderLatexWithFallback(text)}</div>`;
+}
+
 function getClaimCheckStats(st) {
   const wa = getWorkingAnnotation(st);
   const total = (wa.claims || []).reduce((acc, x) => acc + (x.claims || []).length, 0);
@@ -636,7 +644,7 @@ function buildDependencyView() {
     candidateHtml += `<details open><summary>Step ${si + 1}</summary>`;
     step.claims.forEach((cand) => {
       const checked = selectedDeps.includes(cand.id) ? 'checked' : '';
-      candidateHtml += `<label class="dep-option"><input type="checkbox" ${checked} onchange="updateStepDependency(${st.ui.depStepIdx}, '${cand.id}', this.checked)"> <span>${cand.id}</span> ${escapeHtml(cand.text)}</label>`;
+      candidateHtml += `<label class="dep-option"><input type="checkbox" ${checked} onchange="updateStepDependency(${st.ui.depStepIdx}, '${cand.id}', this.checked)"> <span>${cand.id}</span>${renderMathPreviewBlock(cand.text, '当前 Claim 为空')}</label>`;
     });
     candidateHtml += '</details>';
   }
@@ -650,7 +658,7 @@ function buildDependencyView() {
         <span class="pill">已选依赖 ${selectedDeps.length}</span>
       </div>
       <h4>当前 Step 内容</h4>
-      <div class="curr-claim">${escapeHtml(targetStep.text || '') || '<span class="muted-note">当前 Step 暂无内容</span>'}</div>
+      <div class="curr-claim">${renderMathPreviewBlock(targetStep.text || '', '当前 Step 暂无内容')}</div>
     </div>
     <div class="dep-section">
       <h4>可选前序 claims（仅来自之前的 Step）</h4>
@@ -775,7 +783,7 @@ function buildStepContextPanel(steps = []) {
     <article class="step-context-card">
       <details open>
         <summary>Step ${i + 1}</summary>
-        <textarea class="step-context-text" readonly>${escapeHtml(step.text || '')}</textarea>
+        ${renderMathPreviewBlock(step.text || '', '当前 Step 暂无内容')}
       </details>
     </article>
   `).join('') || '<p class="muted-note">尚未生成 Step 内容。</p>';
@@ -794,7 +802,7 @@ function buildClaimPreviewPanel(claims = []) {
   const rows = (claims || []).map((cl, i) => `
     <tr>
       <td>${cl.id || `p${i + 1}`}</td>
-      <td>${escapeHtml(cl.text || '')}</td>
+      <td>${renderMathPreviewBlock(cl.text || '', '当前 Claim 为空')}</td>
       <td>#${i + 1}</td>
     </tr>
   `).join('');
