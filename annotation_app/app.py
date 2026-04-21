@@ -14,7 +14,7 @@ from urllib.request import urlopen
 from flask import Flask, abort, g, jsonify, render_template, request, send_file, session
 
 BASE_DIR = Path(__file__).resolve().parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Path(os.environ.get("ANNOTATION_APP_DATA_DIR", str(BASE_DIR / "data"))).resolve()
 RECORDS_DIR = DATA_DIR / "records"
 ANNOTATIONS_DIR = DATA_DIR / "annotations"
 GUIDE_PATH = DATA_DIR / "guideline.md"
