@@ -272,6 +272,67 @@ test.describe('annotator flow', () => {
     await expect(page.locator('#saveState')).toContainText('已恢复本地草稿（服务器恢复失败）');
   });
 
+  test('repairs corrupted restored presegmented claims from the original sample source', async ({ page }) => {
+    const annotatorId = `ann-corrupt-claims-${Date.now()}`;
+    const deviceId = 'browser-corrupt';
+    const caseId = 'case-valid';
+    const detailDir = path.join(e2eDataDir, 'annotations', annotatorId, deviceId);
+    await fs.mkdir(detailDir, { recursive: true });
+
+    const detailPayload = {
+      schema_version: 2,
+      annotator_id: annotatorId,
+      device_id: deviceId,
+      case_id: caseId,
+      client_revision: 77,
+      status: 'in_progress',
+      current_step: 3,
+      current_workflow_state: {
+        active_sample_idx: 0,
+        sample_cursor: 0,
+        workflow_state: 'claims_assigned',
+        problem_quality_screening: { decision: 'pass' },
+      },
+      sample_decisions: [{ is_correct: true, pipeline_status: 'in_progress' }],
+      correct_solutions: [],
+      sample_annotations: {
+        '0': {
+          selected_solution_text: 'Recovered broken solution',
+          cut_points: [],
+          steps: [{ id: 's1', text: 'Recovered broken step' }],
+          presegmented_claims: [
+            "{'id': 'p1', 'text': 'The equation $x+y=3$ is given.', 'step_idx': None}",
+            '',
+            "{'id': 'p3', 'text': 'Therefore the value is $3$.', 'step_idx': None}",
+          ],
+          claims: [],
+          claim_checks: {},
+          dependencies: {},
+          step_dependencies: {},
+          workflow_state: 'claims_assigned',
+        },
+      },
+      created_at_utc: '2026-04-22T00:00:00Z',
+      updated_at_utc: '2026-04-22T00:00:00Z',
+      detail_content_hash: 'corrupt-test',
+    };
+
+    await fs.writeFile(path.join(detailDir, `${caseId}.detail.json`), JSON.stringify(detailPayload), 'utf-8');
+
+    await page.addInitScript((savedDeviceId) => {
+      window.localStorage.setItem('annotation_device_id', savedDeviceId);
+    }, deviceId);
+    await loadFixtureDataset(page, annotatorId);
+    await openCase(page, caseId);
+
+    await expect(page.getByText('Step 3：按顺序为每个 Step 标注 Claim 连续区间')).toBeVisible();
+    await expect(page.locator('.compact-table tbody tr')).toHaveCount(3);
+    await expect(page.getByText('The equation', { exact: false })).toBeVisible();
+    await expect(page.getByText('The requested value is', { exact: false })).toBeVisible();
+    await expect(page.getByText('Therefore the value is', { exact: false })).toBeVisible();
+    await expect(page.getByText('当前 Claim 为空')).toHaveCount(0);
+  });
+
   test('surfaces save failures without crashing the annotator flow', async ({ page }) => {
     await page.route('**/api/save_progress', async (route) => {
       await route.abort('failed');

@@ -5,6 +5,7 @@ from pathlib import Path
 sys.path.append(str(Path(__file__).resolve().parents[2]))
 
 from annotation_app.app import (
+    _normalize_presegmented_claims,
     app,
     ensure_dirs,
     progress_detail_path,
@@ -76,6 +77,57 @@ def test_save_and_restore_progress_writes_summary_and_detail(tmp_path, monkeypat
     assert body["progress"]["current_step"] == 3
     assert body["progress"]["current_annotations"]["selected_solution_text"] == "$x^2$"
     assert body["progress"]["current_annotations"]["sample_annotations"]["0"]["selected_solution_text"] == "$x^2$"
+
+
+def test_presegmented_claims_are_preserved_as_structured_records(tmp_path, monkeypatch):
+    monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
+    monkeypatch.setattr("annotation_app.app.RECORDS_DIR", tmp_path / "records")
+    client = app.test_client()
+
+    payload = {
+        "annotator_id": "u1",
+        "device_id": "d1",
+        "case_id": "claims-1",
+        "status": "in_progress",
+        "current_step": 3,
+        "current_workflow_state": {"active_sample_idx": 0, "sample_cursor": 0, "workflow_state": "claims_assigned"},
+        "current_annotations": {
+            "sample_annotations": {
+                "0": {
+                    "selected_solution_text": "sol",
+                    "presegmented_claims": [
+                        {"id": "p1", "text": "Claim A", "step_idx": None},
+                        {"id": "p2", "text": "Claim B", "step_idx": 1},
+                    ],
+                }
+            }
+        },
+        "sample_decisions": [{"is_correct": True, "pipeline_status": "in_progress"}],
+    }
+
+    assert client.put("/api/save_progress", json=payload).status_code == 200
+    restored = client.get("/api/load_progress", query_string={"annotator_id": "u1", "device_id": "d1", "case_id": "claims-1"})
+    assert restored.status_code == 200
+    claims = restored.get_json()["progress"]["current_annotations"]["sample_annotations"]["0"]["presegmented_claims"]
+    assert claims == [
+        {"id": "p1", "text": "Claim A", "step_idx": None},
+        {"id": "p2", "text": "Claim B", "step_idx": 1},
+    ]
+
+
+def test_presegmented_claims_normalizer_repairs_legacy_stringified_claim_objects():
+    claims = _normalize_presegmented_claims(
+        [
+            "{'id': 'p1', 'text': 'Claim A', 'step_idx': None}",
+            '{"id": "p2", "text": "Claim B", "step_idx": 2}',
+            "Claim C",
+        ]
+    )
+    assert claims == [
+        {"id": "p1", "text": "Claim A", "step_idx": None},
+        {"id": "p2", "text": "Claim B", "step_idx": 2},
+        {"id": "p3", "text": "Claim C", "step_idx": None},
+    ]
 
 
 def test_save_progress_accepts_sendbeacon_text_payload(tmp_path, monkeypatch):
@@ -441,8 +493,10 @@ def test_frontend_has_katex_and_copy_ui():
     tpl = Path("annotation_app/templates/annotator.html").read_text(encoding="utf-8")
     js = Path("annotation_app/static/app.js").read_text(encoding="utf-8")
     assert "vendor/katex/katex.min.css" in tpl
+    assert "styles.css', v='20260422a'" in tpl
     assert "vendor/katex/katex.min.js" in tpl
     assert "vendor/katex/auto-render.min.js" in tpl
+    assert "app.js', v='20260422a'" in tpl
     assert "jsdelivr" not in tpl
     assert "copySolutionRaw" in js
     assert "已复制" in js
@@ -463,6 +517,17 @@ def test_frontend_claim_preview_uses_math_fallback_rendering():
     assert "${renderMathPreviewBlock(cl.text || '', '当前 Claim 为空')}" in js
     assert "${renderMathPreviewBlock(step.text || '', '当前 Step 暂无内容')}" in js
     assert ".compact-rendered-math" in css
+
+
+def test_frontend_repairs_restored_presegmented_claims_from_sample_source():
+    js = Path("annotation_app/static/app.js").read_text(encoding="utf-8")
+    assert "function normalizePresegmentedClaims" in js
+    assert "isLikelySerializedClaimRecord" in js
+    assert "normalized.length !== sourceClaims.length" in js
+    assert "serializedCount > 0" in js
+    assert "emptyTextCount > 0" in js
+    assert "normalizePresegmentedClaims(savedAnn.presegmented_claims, sample)" in js
+    assert "normalizePresegmentedClaims(savedAnnotations.presegmented_claims || [], sample)" in js
 
 
 def test_frontend_restore_logic_uses_local_draft_fallback_before_resetting_case_state():
@@ -486,6 +551,17 @@ def test_frontend_case_list_shows_progress_percent_and_status_colors():
     assert "task-status-done" in css
     assert "task-status-active" in css
     assert "task-status-rejected" in css
+
+
+def test_frontend_compacts_context_panels_when_both_sidebars_reduce_workspace_width():
+    js = Path("annotation_app/static/app.js").read_text(encoding="utf-8")
+    css = Path("annotation_app/static/styles.css").read_text(encoding="utf-8")
+    assert "function shouldStackContextPanels" in js
+    assert "context-compact" in js
+    assert "clampContextSideWidth" in js
+    assert "minmax(0, 1fr)" in css
+    assert ".context-split.context-compact" in css
+    assert ".context-split-3.context-compact" in css
 
 
 def test_annotator_cannot_access_reviewer_apis():

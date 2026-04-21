@@ -83,7 +83,7 @@ function getDefaultWorkingAnnotation(sample = {}) {
     selected_solution_text: sample.solution || '',
     cut_points: [],
     steps: [],
-    presegmented_claims: extractPresegmentedClaims(sample),
+    presegmented_claims: normalizePresegmentedClaims(extractPresegmentedClaims(sample), sample),
     claims: [],
     claim_checks: {},
     dependencies: {},
@@ -178,6 +178,27 @@ function getWorkingAnnotation(st) {
 
 function selectedCase() { return dataset[currentCaseIndex]; }
 
+function getWorkspaceMainWidth() {
+  return document.querySelector('.workspace-main')?.clientWidth || window.innerWidth || 0;
+}
+
+function shouldStackContextPanels(auxCount = 1) {
+  const mainWidth = getWorkspaceMainWidth();
+  const minMainWidth = auxCount > 1 ? 360 : 420;
+  const minSideWidth = 260;
+  const handleWidth = auxCount * 10;
+  return mainWidth > 0 && mainWidth < (minMainWidth + handleWidth + (minSideWidth * auxCount));
+}
+
+function clampContextSideWidth(desiredWidth, auxCount = 1) {
+  const mainWidth = getWorkspaceMainWidth();
+  if (!mainWidth) return desiredWidth;
+  const minMainWidth = auxCount > 1 ? 360 : 420;
+  const handleWidth = auxCount * 10;
+  const maxByLayout = Math.floor((mainWidth - minMainWidth - handleWidth) / auxCount);
+  return Math.max(260, Math.min(desiredWidth, maxByLayout > 0 ? maxByLayout : desiredWidth));
+}
+
 function draftCacheKey(caseId, annotator = annotatorId()) {
   return `${draftCachePrefix}:${annotator}:${caseId}`;
 }
@@ -252,6 +273,8 @@ function hasMeaningfulProgress(progress) {
 
 function applyRestoredProgress(caseId, progress, source = '') {
   const st = resetCaseState(caseId);
+  const c = selectedCase();
+  const caseSamples = Array.isArray(c?.samples) ? c.samples : [];
   st.restore_source = source;
   st.current_step = progress.current_step || 0;
   currentStep = st.current_step;
@@ -263,13 +286,25 @@ function applyRestoredProgress(caseId, progress, source = '') {
   st.active_sample_idx = progress.current_workflow_state?.active_sample_idx ?? null;
   st.client_revision = Number(progress.client_revision || 0) || 0;
   const savedAnnotations = progress.current_annotations || {};
-  st.sample_annotations = savedAnnotations.sample_annotations || {};
+  const rawSampleAnnotations = savedAnnotations.sample_annotations && typeof savedAnnotations.sample_annotations === 'object'
+    ? savedAnnotations.sample_annotations
+    : {};
+  st.sample_annotations = {};
+  Object.entries(rawSampleAnnotations).forEach(([sampleIdx, ann]) => {
+    const sample = caseSamples[Number(sampleIdx)] || {};
+    const savedAnn = ann && typeof ann === 'object' ? ann : {};
+    st.sample_annotations[sampleIdx] = {
+      ...savedAnn,
+      presegmented_claims: normalizePresegmentedClaims(savedAnn.presegmented_claims, sample),
+    };
+  });
   if (st.active_sample_idx !== null && !st.sample_annotations[st.active_sample_idx]) {
+    const sample = caseSamples[st.active_sample_idx] || {};
     st.sample_annotations[st.active_sample_idx] = {
       selected_solution_text: savedAnnotations.selected_solution_text || '',
       cut_points: savedAnnotations.cut_points || [],
       steps: savedAnnotations.steps || [],
-      presegmented_claims: savedAnnotations.presegmented_claims || [],
+      presegmented_claims: normalizePresegmentedClaims(savedAnnotations.presegmented_claims || [], sample),
       claims: savedAnnotations.claims || [],
       claim_checks: savedAnnotations.claim_checks || {},
       dependencies: savedAnnotations.dependencies || {},
@@ -705,6 +740,90 @@ function extractPresegmentedClaims(sample) {
   return out;
 }
 
+function isLikelySerializedClaimRecord(value) {
+  const text = String(value || '').trim();
+  return text.startsWith('{') && text.includes('id') && text.includes('text');
+}
+
+function claimNeedsSourceRepair(claim, source, sourceClaimsPresent) {
+  if (!sourceClaimsPresent) return false;
+  if (!source) return !claim.text;
+  if (!claim.text) return true;
+  if (claim.serialized_like) return true;
+  return false;
+}
+
+function normalizePresegmentedClaims(rawClaims, sample = {}) {
+  const sourceClaims = extractPresegmentedClaims(sample);
+  if (!Array.isArray(rawClaims) || !rawClaims.length) return sourceClaims;
+
+  const normalized = rawClaims.map((item, index) => {
+    if (item && typeof item === 'object' && !Array.isArray(item)) {
+      const stepIdx = Number.isInteger(item.step_idx)
+        ? item.step_idx
+        : Number.isInteger(item.step_index)
+          ? item.step_index
+          : null;
+      return {
+        id: String(item.id || `p${index + 1}`),
+        text: String(item.text || item.claim || '').trim(),
+        step_idx: stepIdx,
+        serialized_like: false,
+      };
+    }
+    if (typeof item === 'string') {
+      const text = item.trim();
+      return {
+        id: `p${index + 1}`,
+        text,
+        step_idx: null,
+        serialized_like: isLikelySerializedClaimRecord(text),
+      };
+    }
+    return {
+      id: `p${index + 1}`,
+      text: '',
+      step_idx: null,
+      serialized_like: false,
+    };
+  });
+
+  const sourceClaimsPresent = sourceClaims.length > 0;
+  const emptyTextCount = normalized.filter((claim) => !claim.text).length;
+  const serializedCount = normalized.filter((claim) => claim.serialized_like).length;
+  const mismatchedCount = sourceClaimsPresent && normalized.length !== sourceClaims.length;
+  const needsSourceRepair = sourceClaimsPresent && (
+    mismatchedCount
+    || serializedCount > 0
+    || emptyTextCount > 0
+    || normalized.some((claim, index) => claimNeedsSourceRepair(claim, sourceClaims[index], sourceClaimsPresent))
+  );
+
+  const repaired = (needsSourceRepair ? (
+    mismatchedCount
+      ? sourceClaims.map((source, index) => {
+        const claim = normalized[index] || {};
+        return {
+          id: source.id || claim.id || `p${index + 1}`,
+          text: String(source.text || '').trim(),
+          step_idx: Number.isInteger(claim.step_idx) ? claim.step_idx : (Number.isInteger(source.step_idx) ? source.step_idx : null),
+        };
+      })
+      : Array.from({ length: sourceClaims.length }, (_, index) => {
+    const claim = normalized[index] || {};
+    const source = sourceClaims[index] || {};
+    return {
+      id: claim.id || source.id || `p${index + 1}`,
+      text: (claim.text && !claim.serialized_like) ? claim.text : String(source.text || '').trim(),
+      step_idx: Number.isInteger(claim.step_idx) ? claim.step_idx : (Number.isInteger(source.step_idx) ? source.step_idx : null),
+    };
+  })
+  ) : normalized.map(({ serialized_like, ...claim }) => claim))
+    .filter((claim) => claim.text);
+
+  return repaired.length ? repaired : sourceClaims;
+}
+
 function addCutPoint() {
   const c = selectedCase();
   const st = getCaseState(c.id);
@@ -1044,16 +1163,18 @@ function buildClaimPreviewPanel(claims = []) {
 function withContextSplit(mainHtml, contextHtml, panelType = 'step') {
   const c = selectedCase(); if (!c) return mainHtml;
   const st = getCaseState(c.id);
-  const width = panelType === 'raw'
+  const compact = shouldStackContextPanels(1);
+  const desiredWidth = panelType === 'raw'
     ? Math.max(300, Math.min(680, st.ui.rawPanelWidth || 360))
     : Math.max(300, Math.min(620, st.ui.stepContextWidth || 360));
+  const width = compact ? null : clampContextSideWidth(desiredWidth, 1);
   const splitId = panelType === 'raw' ? 'rawSplit' : 'stepSplit';
   const handleId = panelType === 'raw' ? 'rawSplitHandle' : 'stepSplitHandle';
   return `
-    <div id="${splitId}" class="context-split">
+    <div id="${splitId}" class="context-split${compact ? ' context-compact' : ''}">
       <section class="context-main">${mainHtml}</section>
       <div id="${handleId}" class="inline-resize-handle" aria-hidden="true"></div>
-      <section class="context-side" style="width:${width}px">${contextHtml}</section>
+      <section class="context-side"${width ? ` style="width:${width}px"` : ''}>${contextHtml}</section>
     </div>
   `;
 }
@@ -1061,15 +1182,16 @@ function withContextSplit(mainHtml, contextHtml, panelType = 'step') {
 function withDualContextSplit(mainHtml, middleHtml, rightHtml) {
   const c = selectedCase(); if (!c) return mainHtml;
   const st = getCaseState(c.id);
-  const middleWidth = Math.max(300, Math.min(640, st.ui.claimPreviewWidth || 360));
-  const rightWidth = Math.max(300, Math.min(620, st.ui.stepContextWidth || 360));
+  const compact = shouldStackContextPanels(2);
+  const middleWidth = compact ? null : clampContextSideWidth(Math.max(300, Math.min(640, st.ui.claimPreviewWidth || 360)), 2);
+  const rightWidth = compact ? null : clampContextSideWidth(Math.max(300, Math.min(620, st.ui.stepContextWidth || 360)), 2);
   return `
-    <div id="stepClaimSplit" class="context-split context-split-3">
+    <div id="stepClaimSplit" class="context-split context-split-3${compact ? ' context-compact' : ''}">
       <section class="context-main">${mainHtml}</section>
       <div id="claimSplitHandle" class="inline-resize-handle" aria-hidden="true"></div>
-      <section class="context-side" style="width:${middleWidth}px">${middleHtml}</section>
+      <section class="context-side"${middleWidth ? ` style="width:${middleWidth}px"` : ''}>${middleHtml}</section>
       <div id="stepSplitHandleDual" class="inline-resize-handle" aria-hidden="true"></div>
-      <section class="context-side" style="width:${rightWidth}px">${rightHtml}</section>
+      <section class="context-side"${rightWidth ? ` style="width:${rightWidth}px"` : ''}>${rightHtml}</section>
     </div>
   `;
 }
@@ -1399,6 +1521,11 @@ function buildProgressPayload(status = 'in_progress', clientRevision = null) {
   if (!c) return null;
   const st = getCaseState(c.id);
   const wa = getWorkingAnnotation(st);
+  Object.entries(st.sample_annotations || {}).forEach(([sampleIdx, ann]) => {
+    if (!ann || typeof ann !== 'object') return;
+    const sample = (c.samples || [])[Number(sampleIdx)] || {};
+    ann.presegmented_claims = normalizePresegmentedClaims(ann.presegmented_claims, sample);
+  });
   const laterStageData = getClaimsForLaterStages(wa);
   const workflowState = deriveCaseWorkflowState(st);
   return {
@@ -1418,7 +1545,10 @@ function buildProgressPayload(status = 'in_progress', clientRevision = null) {
       selected_solution_text: wa.selected_solution_text,
       cut_points: wa.cut_points,
       steps: wa.steps,
-      presegmented_claims: wa.presegmented_claims,
+      presegmented_claims: normalizePresegmentedClaims(
+        wa.presegmented_claims,
+        st.active_sample_idx !== null ? ((c.samples || [])[st.active_sample_idx] || {}) : {},
+      ),
       claims: laterStageData.claims,
       claim_checks: laterStageData.claim_checks,
       dependencies: wa.dependencies,
@@ -1684,7 +1814,7 @@ function applyLayoutPrefs() {
   const left = Math.max(240, Math.min(360, layoutPrefs.leftWidth || 280));
   const right = Math.max(320, Math.min(700, layoutPrefs.rightWidth || 380));
   const reserved = (layoutPrefs.leftCollapsed ? 28 : left) + (layoutPrefs.rightCollapsed ? 28 : right) + 20;
-  const minCenter = 720;
+  const minCenter = 540;
   if (viewport - reserved < minCenter) {
     layoutPrefs.leftCollapsed = true;
     layoutPrefs.rightCollapsed = false;
@@ -1693,7 +1823,7 @@ function applyLayoutPrefs() {
   const leftRestoreCol = layoutPrefs.leftCollapsed ? '28px' : '0px';
   const rightCol = layoutPrefs.rightCollapsed ? '0px' : `${right}px`;
   const rightRestoreCol = layoutPrefs.rightCollapsed ? '28px' : '0px';
-  layout.style.gridTemplateColumns = `${leftCol} 10px ${leftRestoreCol} minmax(720px, 1fr) ${rightRestoreCol} 10px ${rightCol}`;
+  layout.style.gridTemplateColumns = `${leftCol} 10px ${leftRestoreCol} minmax(0, 1fr) ${rightRestoreCol} 10px ${rightCol}`;
   const casePanel = document.getElementById('casePanel');
   const refPanel = document.getElementById('referencePanel');
   const leftHandle = document.getElementById('leftResizeHandle');

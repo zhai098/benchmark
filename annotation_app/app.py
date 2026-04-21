@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ast
 import hashlib
 import json
 import os
@@ -292,6 +293,98 @@ def _normalize_claim_groups(raw: Any) -> list[dict[str, Any]]:
     return out
 
 
+def _normalize_optional_step_idx(value: Any, fallback_step_id: Any = None) -> int | None:
+    if value is not None:
+        try:
+            out = int(value)
+        except (TypeError, ValueError):
+            out = None
+        if out is not None and out >= 0:
+            return out
+    step_text = _normalize_string(fallback_step_id, "")
+    if not step_text:
+        return None
+    digits = re.sub(r"[^\d]", "", step_text)
+    if not digits:
+        return None
+    try:
+        parsed = int(digits)
+    except ValueError:
+        return None
+    return parsed - 1 if parsed > 0 else None
+
+
+def _parse_maybe_serialized_claim(value: str) -> Any | None:
+    text = _normalize_string(value, "")
+    if not text or text[:1] not in "{[":
+        return None
+    try:
+        return json.loads(text)
+    except Exception:
+        pass
+    try:
+        return ast.literal_eval(text)
+    except Exception:
+        return None
+
+
+def _normalize_presegmented_claims(raw: Any) -> list[dict[str, Any]]:
+    if not isinstance(raw, list):
+        return []
+    out: list[dict[str, Any]] = []
+
+    def _append_item(item: Any, default_id: str) -> None:
+        if isinstance(item, str):
+            parsed = _parse_maybe_serialized_claim(item)
+            if parsed is not None:
+                if isinstance(parsed, list):
+                    for parsed_idx, parsed_item in enumerate(parsed):
+                        _append_item(parsed_item, f"{default_id}_{parsed_idx + 1}")
+                else:
+                    _append_item(parsed, default_id)
+                return
+            text = _normalize_string(item, "")
+            if text:
+                out.append({"id": default_id, "text": text, "step_idx": None})
+            return
+
+        if not isinstance(item, dict):
+            return
+
+        if isinstance(item.get("claims"), list):
+            step_idx = _normalize_optional_step_idx(item.get("step_index"), item.get("step_id"))
+            for claim_idx, claim in enumerate(item.get("claims", [])):
+                text = _normalize_string(claim, "")
+                if text:
+                    out.append(
+                        {
+                            "id": f"{default_id}_{claim_idx + 1}",
+                            "text": text,
+                            "step_idx": step_idx,
+                        }
+                    )
+            return
+
+        text = _normalize_string(item.get("text") or item.get("claim"), "")
+        if not text:
+            return
+        out.append(
+            {
+                "id": _normalize_string(item.get("id"), default_id),
+                "text": text,
+                "step_idx": _normalize_optional_step_idx(
+                    item.get("step_idx") if "step_idx" in item else item.get("step_index"),
+                    item.get("step_id"),
+                ),
+            }
+        )
+
+    for idx, item in enumerate(raw):
+        _append_item(item, f"p{idx + 1}")
+
+    return out
+
+
 def _normalize_str_list(raw: Any) -> list[str]:
     if not isinstance(raw, list):
         return []
@@ -354,7 +447,7 @@ def _normalize_sample_annotation(raw: Any, *, default_workflow_state: str = "sam
         "selected_solution_text": _normalize_string(obj.get("selected_solution_text"), ""),
         "cut_points": sorted(set(cut_points)),
         "steps": _normalize_str_list(obj.get("steps")),
-        "presegmented_claims": _normalize_str_list(obj.get("presegmented_claims")),
+        "presegmented_claims": _normalize_presegmented_claims(obj.get("presegmented_claims")),
         "claims": _normalize_claim_groups(obj.get("claims")),
         "claim_checks": _normalize_claim_checks(obj.get("claim_checks")),
         "dependencies": _normalize_mapping_of_str_lists(obj.get("dependencies")),
