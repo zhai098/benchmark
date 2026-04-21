@@ -6,10 +6,9 @@ let deviceId = '';
 let autosaveTimer = null;
 let saveBadgeTimer = null;
 let saveRequestSeq = 0;
-let lastAppliedSaveSeq = 0;
-let lastSavedHash = '';
-let lastSavedFingerprint = '';
 let referenceTab = 'problem';
+const draftCacheVersion = 1;
+const draftCachePrefix = 'annotation_draft_v1';
 const layoutPrefs = {
   leftWidth: 280,
   rightWidth: 360,
@@ -93,32 +92,77 @@ function getDefaultWorkingAnnotation(sample = {}) {
   };
 }
 
+function createDefaultCaseState() {
+  return {
+    current_step: 0,
+    active_sample_idx: null,
+    sample_cursor: 0,
+    client_revision: 0,
+    problem_quality_screening: {
+      decision: null,
+      reason: '',
+      other_text: '',
+      rejected_at: '',
+    },
+    sample_validation: [],
+    sample_annotations: {},
+    correct_solutions: [],
+    ui: {
+      showRawText: false,
+      pinRawText: false,
+      rawPanelWidth: 360,
+      claimPreviewWidth: 360,
+      stepContextWidth: 360,
+      depStepIdx: 0,
+    },
+    last_applied_save_seq: 0,
+    last_saved_hash: '',
+    last_saved_fingerprint: '',
+    draft_cached_at_utc: '',
+    restore_source: '',
+  };
+}
+
+function resetCaseState(caseId) {
+  stateByCase[caseId] = createDefaultCaseState();
+  return stateByCase[caseId];
+}
+
 function getCaseState(caseId) {
   if (!stateByCase[caseId]) {
-    stateByCase[caseId] = {
-      current_step: 0,
-      active_sample_idx: null,
-      sample_cursor: 0,
-      problem_quality_screening: {
-        decision: null,
-        reason: '',
-        other_text: '',
-        rejected_at: '',
-      },
-      sample_validation: [],
-      sample_annotations: {},
-      correct_solutions: [],
-      ui: {
-        showRawText: false,
-        pinRawText: false,
-        rawPanelWidth: 360,
-        claimPreviewWidth: 360,
-        stepContextWidth: 360,
-        depStepIdx: 0,
-      },
-    };
+    stateByCase[caseId] = createDefaultCaseState();
   }
   return stateByCase[caseId];
+}
+
+function deriveCaseWorkflowState(st) {
+  const order = {
+    sample_selected: 0,
+    steps_segmented: 1,
+    claims_assigned: 2,
+    claims_checked: 3,
+    dependencies_labeled: 4,
+    completed: 5,
+  };
+  const states = [];
+  if (st.active_sample_idx !== null) {
+    states.push(getWorkingAnnotation(st).workflow_state || 'sample_selected');
+  }
+  Object.values(st.sample_annotations || {}).forEach((ann) => {
+    if (ann?.workflow_state) states.push(ann.workflow_state);
+  });
+  const statuses = (st.sample_validation || []).map((item) => item?.pipeline_status);
+  if (statuses.length && statuses.every((status) => status === 'completed' || status === 'discarded')) {
+    states.push('completed');
+  }
+  if (!states.length) return 'sample_selected';
+  return states.reduce((best, state) => ((order[state] ?? -1) > (order[best] ?? -1) ? state : best), 'sample_selected');
+}
+
+function nextClientRevision(st) {
+  const now = Date.now();
+  st.client_revision = Math.max(now, (st.client_revision || 0) + 1);
+  return st.client_revision;
 }
 
 function getWorkingAnnotation(st) {
@@ -133,6 +177,116 @@ function getWorkingAnnotation(st) {
 }
 
 function selectedCase() { return dataset[currentCaseIndex]; }
+
+function draftCacheKey(caseId, annotator = annotatorId()) {
+  return `${draftCachePrefix}:${annotator}:${caseId}`;
+}
+
+function buildDraftCacheEnvelope(caseId, payload) {
+  return {
+    schema_version: draftCacheVersion,
+    annotator_id: annotatorId(),
+    device_id: deviceId,
+    case_id: caseId,
+    cached_at_utc: new Date().toISOString(),
+    progress: payload,
+  };
+}
+
+function writeDraftCache(caseId, payload) {
+  if (!caseId || !payload) return;
+  try {
+    const envelope = buildDraftCacheEnvelope(caseId, payload);
+    localStorage.setItem(draftCacheKey(caseId), JSON.stringify(envelope));
+    const st = getCaseState(caseId);
+    st.draft_cached_at_utc = envelope.cached_at_utc;
+  } catch (_) {
+    // Ignore quota/private-mode issues; server persistence remains primary.
+  }
+}
+
+function readDraftCache(caseId) {
+  if (!caseId) return null;
+  try {
+    const raw = localStorage.getItem(draftCacheKey(caseId));
+    if (!raw) return null;
+    const envelope = JSON.parse(raw);
+    if (!envelope || typeof envelope !== 'object') return null;
+    if (String(envelope.annotator_id || '') !== annotatorId()) return null;
+    if (String(envelope.case_id || '') !== String(caseId)) return null;
+    if (!envelope.progress || typeof envelope.progress !== 'object') return null;
+    return envelope;
+  } catch (_) {
+    return null;
+  }
+}
+
+function hasMeaningfulProgress(progress) {
+  if (!progress || typeof progress !== 'object') return false;
+  const workflow = progress.current_workflow_state || {};
+  const annotations = progress.current_annotations || {};
+  const screening = workflow.problem_quality_screening || {};
+  const decisions = Array.isArray(progress.sample_decisions) ? progress.sample_decisions : [];
+  const correctSolutions = Array.isArray(progress.correct_solutions) ? progress.correct_solutions : [];
+  const sampleAnnotations = annotations.sample_annotations && typeof annotations.sample_annotations === 'object'
+    ? annotations.sample_annotations
+    : {};
+  return Boolean(
+    (progress.current_step || 0) > 0
+    || workflow.active_sample_idx !== null
+    || (workflow.sample_cursor || 0) > 0
+    || screening.decision
+    || decisions.some((item) => item && (
+      item.is_correct !== null
+      || item.pipeline_status && item.pipeline_status !== 'not_started'
+      || item.class_name
+      || item.summary
+    ))
+    || correctSolutions.length > 0
+    || Object.keys(sampleAnnotations).length > 0
+    || annotations.selected_solution_text
+    || (Array.isArray(annotations.steps) && annotations.steps.length > 0)
+    || (Array.isArray(annotations.claims) && annotations.claims.length > 0)
+  );
+}
+
+function applyRestoredProgress(caseId, progress, source = '') {
+  const st = resetCaseState(caseId);
+  st.restore_source = source;
+  st.current_step = progress.current_step || 0;
+  currentStep = st.current_step;
+  st.problem_quality_screening = progress.current_workflow_state?.problem_quality_screening || {
+    decision: null, reason: '', other_text: '', rejected_at: '',
+  };
+  st.sample_validation = progress.sample_decisions || [];
+  st.correct_solutions = progress.correct_solutions || [];
+  st.active_sample_idx = progress.current_workflow_state?.active_sample_idx ?? null;
+  st.client_revision = Number(progress.client_revision || 0) || 0;
+  const savedAnnotations = progress.current_annotations || {};
+  st.sample_annotations = savedAnnotations.sample_annotations || {};
+  if (st.active_sample_idx !== null && !st.sample_annotations[st.active_sample_idx]) {
+    st.sample_annotations[st.active_sample_idx] = {
+      selected_solution_text: savedAnnotations.selected_solution_text || '',
+      cut_points: savedAnnotations.cut_points || [],
+      steps: savedAnnotations.steps || [],
+      presegmented_claims: savedAnnotations.presegmented_claims || [],
+      claims: savedAnnotations.claims || [],
+      claim_checks: savedAnnotations.claim_checks || {},
+      dependencies: savedAnnotations.dependencies || {},
+      step_dependencies: savedAnnotations.step_dependencies || {},
+      workflow_state: progress.current_workflow_state?.workflow_state || 'sample_selected',
+    };
+  }
+  st.sample_cursor = Number.isInteger(progress.current_workflow_state?.sample_cursor)
+    ? progress.current_workflow_state.sample_cursor
+    : (st.sample_cursor || 0);
+  const qualityPassed = st.problem_quality_screening?.decision === 'pass';
+  if (!qualityPassed) {
+    st.current_step = 0;
+    currentStep = 0;
+  }
+  return st;
+}
 function escapeHtml(s) {
   return String(s || '').replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
 }
@@ -219,15 +373,80 @@ function renderCaseList() {
   ul.innerHTML = '';
   dataset.forEach((c, i) => {
     if (filter && !String(c.id || '').toLowerCase().includes(filter)) return;
+    const st = getCaseState(c.id);
+    const progress = getTaskProgressSummary(c, st);
     const li = document.createElement('li');
     const btn = document.createElement('button');
-    btn.textContent = c.id;
     btn.title = c.id;
     btn.classList.toggle('active-task', i === currentCaseIndex);
+    btn.classList.add('task-nav-btn', `task-status-${progress.status}`);
+    btn.innerHTML = `
+      <span class="task-nav-top">
+        <span class="task-nav-id">${escapeHtml(c.id || '')}</span>
+        <span class="task-nav-percent">${progress.percent}%</span>
+      </span>
+      <span class="task-nav-meta">
+        <span class="task-nav-label">${escapeHtml(progress.label)}</span>
+        <span class="task-nav-ratio">${progress.ratioText}</span>
+      </span>
+      <span class="task-progress-bar" aria-hidden="true">
+        <span class="task-progress-fill" style="width:${progress.percent}%"></span>
+      </span>
+    `;
     btn.onclick = () => selectCase(i);
     li.appendChild(btn);
     ul.appendChild(li);
   });
+}
+
+function getTaskProgressSummary(c, st) {
+  const totalSamplesRaw = Array.isArray(c?.samples) ? c.samples.length : 0;
+  const totalSamples = Math.max(1, totalSamplesRaw);
+  const screening = ensureProblemQualityScreening(st);
+  const resolvedSamples = (st.sample_validation || []).filter((item) => {
+    const status = item?.pipeline_status;
+    return status === 'completed' || status === 'discarded';
+  }).length;
+  const completedSamples = (st.sample_validation || []).filter((item) => item?.pipeline_status === 'completed').length;
+  const discardedSamples = (st.sample_validation || []).filter((item) => item?.pipeline_status === 'discarded').length;
+  const activeStep = Number(st.current_step || 0);
+  let status = 'idle';
+  let label = '未开始';
+  let ratioText = totalSamplesRaw > 0 ? `${resolvedSamples}/${totalSamplesRaw}` : '0/0';
+  let percent = 0;
+
+  if (screening.decision === 'reject') {
+    status = 'rejected';
+    label = '已拒绝';
+    percent = 100;
+    ratioText = totalSamplesRaw > 0 ? `${discardedSamples}/${totalSamplesRaw}` : '0/0';
+  } else if (screening.decision === 'pass') {
+    const activeSampleProgress = st.active_sample_idx !== null
+      ? Math.max(0, Math.min(1, (Math.max(2, activeStep) - 1) / 5))
+      : 0;
+    const progressUnits = 1 + resolvedSamples + activeSampleProgress;
+    percent = Math.max(5, Math.min(100, Math.round((progressUnits / (1 + totalSamples)) * 100)));
+    if (resolvedSamples >= totalSamplesRaw && totalSamplesRaw > 0) {
+      status = 'done';
+      label = '已完成';
+      percent = 100;
+    } else if (st.active_sample_idx !== null) {
+      status = 'active';
+      label = `进行中 · Step ${Math.max(2, activeStep)}`;
+    } else if (resolvedSamples > 0) {
+      status = 'reviewed';
+      label = '样本处理中';
+    } else {
+      status = 'screened';
+      label = '已通过质检';
+    }
+  }
+
+  if (completedSamples > 0 && status !== 'done') {
+    ratioText = totalSamplesRaw > 0 ? `${completedSamples}+${discardedSamples}/${totalSamplesRaw}` : ratioText;
+  }
+
+  return { percent, status, label, ratioText };
 }
 
 async function selectCase(idx) {
@@ -235,8 +454,8 @@ async function selectCase(idx) {
   await flushAutosave();
   currentCaseIndex = idx;
   const c = selectedCase();
-  const st = getCaseState(c.id);
   await restoreProgress(c.id);
+  const st = getCaseState(c.id);
   const qualityPassed = st.problem_quality_screening?.decision === 'pass';
   currentStep = qualityPassed ? Math.max(1, st.current_step || 1) : 0;
   st.current_step = currentStep;
@@ -1175,22 +1394,24 @@ function moveSampleCursor(delta) {
   renderStepContent();
 }
 
-function buildProgressPayload(status = 'in_progress') {
+function buildProgressPayload(status = 'in_progress', clientRevision = null) {
   const c = selectedCase();
   if (!c) return null;
   const st = getCaseState(c.id);
   const wa = getWorkingAnnotation(st);
   const laterStageData = getClaimsForLaterStages(wa);
+  const workflowState = deriveCaseWorkflowState(st);
   return {
     annotator_id: annotatorId(),
     device_id: deviceId,
     case_id: c.id,
+    client_revision: clientRevision ?? st.client_revision ?? 0,
     status,
     current_step: st.current_step ?? currentStep,
     current_workflow_state: {
       active_sample_idx: st.active_sample_idx,
       sample_cursor: st.sample_cursor || 0,
-      workflow_state: wa.workflow_state || 'sample_selected',
+      workflow_state: workflowState,
       problem_quality_screening: st.problem_quality_screening || { decision: null, reason: '', other_text: '', rejected_at: '' },
     },
     current_annotations: {
@@ -1224,34 +1445,53 @@ function payloadFingerprint(payload) {
 }
 
 async function persistProgress(status = 'in_progress', silent = true) {
-  const payload = buildProgressPayload(status);
-  if (!payload) return;
+  const c = selectedCase();
+  if (!c) return { ok: false, skipped: true };
+  const st = getCaseState(c.id);
+  const clientRevision = nextClientRevision(st);
+  const payload = buildProgressPayload(status, clientRevision);
+  if (!payload) return { ok: false, skipped: true };
+  writeDraftCache(c.id, payload);
   const fingerprint = payloadFingerprint(payload);
-  if (fingerprint === lastSavedFingerprint && status !== 'completed') {
+  if (fingerprint === st.last_saved_fingerprint && status !== 'completed') {
     setSaveState('无变更', 'saved');
-    return;
+    return { ok: true, unchanged: true };
   }
   const requestSeq = ++saveRequestSeq;
   setSaveState('保存中…', 'saving');
-  const res = await fetch('/api/save_progress', {
-    method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
-  });
-  const data = await res.json();
-  if (requestSeq < lastAppliedSaveSeq) return;
-  lastAppliedSaveSeq = requestSeq;
+  let res;
+  let data;
+  try {
+    res = await fetch('/api/save_progress', {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload),
+    });
+    data = await res.json();
+  } catch (error) {
+    setSaveState('保存失败（网络）', 'error');
+    if (!silent) alert(`保存失败：${error.message || '网络异常'}`);
+    return { ok: false, error: error.message || '网络异常' };
+  }
+  if (requestSeq < st.last_applied_save_seq) return { ok: true, skipped: true };
+  st.last_applied_save_seq = requestSeq;
   if (!res.ok) {
     setSaveState('保存失败', 'error');
     if (!silent) alert(data.error || '保存失败');
-    return;
+    return { ok: false, error: data.error || '保存失败' };
   }
-  lastSavedHash = data.content_hash || lastSavedHash;
-  lastSavedFingerprint = fingerprint;
+  if (data.client_revision) {
+    st.client_revision = Math.max(st.client_revision || 0, Number(data.client_revision) || 0);
+  }
+  st.last_saved_hash = data.content_hash || st.last_saved_hash;
+  st.last_saved_fingerprint = fingerprint;
   const ts = formatUtcToLocal(data.updated_at_utc);
-  if (data.unchanged) {
+  if (data.ignored_stale) {
+    setSaveState(`已忽略旧保存 ${ts}`, 'saved');
+  } else if (data.unchanged) {
     setSaveState(`无变更 ${ts}`, 'saved');
   } else {
     setSaveState(`已保存 ${ts}`, 'saved');
   }
+  return { ok: true, unchanged: Boolean(data.unchanged), ignored_stale: Boolean(data.ignored_stale) };
 }
 
 function scheduleAutosave() {
@@ -1264,62 +1504,82 @@ function scheduleAutosave() {
 
 async function flushAutosave() {
   clearTimeout(autosaveTimer);
-  await persistProgress('in_progress', true);
+  return persistProgress('in_progress', true);
 }
 
 async function restoreProgress(caseId) {
   if (!caseId) return;
-  const st = getCaseState(caseId);
+  let st = getCaseState(caseId);
+  const cachedDraft = readDraftCache(caseId);
   const params = new URLSearchParams({
     annotator_id: annotatorId(),
     device_id: deviceId,
     case_id: caseId,
   });
-  const res = await fetch(`/api/load_progress?${params.toString()}`);
-  const data = await res.json();
-  if (!res.ok || !data.found) {
-    st.sample_cursor = 0;
+  let res;
+  let data;
+  try {
+    res = await fetch(`/api/load_progress?${params.toString()}`);
+    data = await res.json();
+  } catch (error) {
+    if (cachedDraft && hasMeaningfulProgress(cachedDraft.progress)) {
+      applyRestoredProgress(caseId, cachedDraft.progress, 'local_draft:error');
+      setSaveState('已恢复本地草稿（网络异常）', 'pending');
+      showToast(`服务器恢复失败，已保留本地草稿：${error.message || '网络异常'}`, 'error');
+      return;
+    }
+    resetCaseState(caseId);
+    currentStep = 0;
+    setSaveState('恢复失败', 'error');
+    showToast(`恢复失败：${error.message || '网络异常'}`, 'error');
+    return;
+  }
+  if (!res.ok) {
+    if (cachedDraft && hasMeaningfulProgress(cachedDraft.progress)) {
+      applyRestoredProgress(caseId, cachedDraft.progress, 'local_draft:error');
+      setSaveState('已恢复本地草稿（服务器恢复失败）', 'pending');
+      showToast(data.error || '服务器恢复失败，已回退到本地草稿', 'error');
+      return;
+    }
+    resetCaseState(caseId);
+    currentStep = 0;
+    setSaveState('恢复失败', 'error');
+    showToast(data.error || '恢复失败', 'error');
+    return;
+  }
+  if (!data.found) {
+    if (cachedDraft && hasMeaningfulProgress(cachedDraft.progress)) {
+      applyRestoredProgress(caseId, cachedDraft.progress, 'local_draft:not_found');
+      setSaveState('已恢复本地草稿（服务器无记录）', 'pending');
+      showToast('服务器未发现历史进度，已恢复本地草稿', 'error');
+      return;
+    }
+    resetCaseState(caseId);
+    currentStep = 0;
     setSaveState('未发现历史进度', 'pending');
     return;
   }
   const progress = data.progress || {};
-  st.current_step = progress.current_step || 0;
-  currentStep = st.current_step;
-  st.problem_quality_screening = progress.current_workflow_state?.problem_quality_screening || st.problem_quality_screening || {
-    decision: null, reason: '', other_text: '', rejected_at: '',
-  };
-  st.sample_validation = progress.sample_decisions || [];
-  st.correct_solutions = progress.correct_solutions || [];
-  st.active_sample_idx = progress.current_workflow_state?.active_sample_idx ?? null;
-  const savedAnnotations = progress.current_annotations || {};
-  st.sample_annotations = savedAnnotations.sample_annotations || st.sample_annotations || {};
-  if (st.active_sample_idx !== null && !st.sample_annotations[st.active_sample_idx]) {
-    st.sample_annotations[st.active_sample_idx] = {
-      selected_solution_text: savedAnnotations.selected_solution_text || '',
-      cut_points: savedAnnotations.cut_points || [],
-      steps: savedAnnotations.steps || [],
-      presegmented_claims: savedAnnotations.presegmented_claims || [],
-      claims: savedAnnotations.claims || [],
-      claim_checks: savedAnnotations.claim_checks || {},
-      dependencies: savedAnnotations.dependencies || {},
-      step_dependencies: savedAnnotations.step_dependencies || {},
-      workflow_state: progress.current_workflow_state?.workflow_state || 'sample_selected',
-    };
+  st = applyRestoredProgress(caseId, progress, String(data.source || ''));
+  writeDraftCache(caseId, progress);
+  st.last_saved_fingerprint = payloadFingerprint(progress);
+  st.last_saved_hash = progress.content_hash || st.last_saved_hash;
+  const mode = String(data.source || '');
+  const ts = formatUtcToLocal(progress.updated_at_utc);
+  if (mode.startsWith('annotator_fallback:')) {
+    setSaveState(`已恢复(跨设备) ${ts}`, 'saved');
+  } else {
+    setSaveState(`已恢复 ${ts}`, 'saved');
   }
-  st.sample_cursor = Number.isInteger(progress.current_workflow_state?.sample_cursor)
-    ? progress.current_workflow_state.sample_cursor
-    : (st.sample_cursor || 0);
-  const qualityPassed = st.problem_quality_screening?.decision === 'pass';
-  if (!qualityPassed) {
-    st.current_step = 0;
-    currentStep = 0;
-  }
-  setSaveState(`已恢复 ${formatUtcToLocal(progress.updated_at_utc)}`, 'saved');
 }
 
 async function saveProgress() {
-  await flushAutosave();
-  alert('已保存当前进度');
+  const result = await flushAutosave();
+  if (result?.ok) {
+    alert('已保存当前进度');
+    return;
+  }
+  alert(`保存失败：${result?.error || '请检查网络或服务器状态'}`);
 }
 
 async function submitCase() {
@@ -1501,8 +1761,12 @@ function initLayoutControls() {
 }
 
 window.addEventListener('beforeunload', () => {
-  const payload = buildProgressPayload('in_progress');
+  const c = selectedCase();
+  if (!c) return;
+  const st = getCaseState(c.id);
+  const payload = buildProgressPayload('in_progress', nextClientRevision(st));
   if (!payload) return;
+  writeDraftCache(c.id, payload);
   const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
   navigator.sendBeacon('/api/save_progress', blob);
 });

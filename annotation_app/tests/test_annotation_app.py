@@ -96,6 +96,16 @@ def test_save_progress_accepts_sendbeacon_text_payload(tmp_path, monkeypatch):
     assert got.get_json()["progress"]["current_annotations"]["selected_solution_text"] == "$y$"
 
 
+def test_save_progress_rejects_missing_required_ids(tmp_path, monkeypatch):
+    monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
+    monkeypatch.setattr("annotation_app.app.RECORDS_DIR", tmp_path / "records")
+    client = app.test_client()
+
+    res = client.put("/api/save_progress", json={"device_id": "d0", "current_annotations": {"selected_solution_text": "$x$"}})
+    assert res.status_code == 400
+    assert "annotator_id" in res.get_json()["error"]
+
+
 def test_save_record_forces_completed_status(tmp_path, monkeypatch):
     monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
     monkeypatch.setattr("annotation_app.app.RECORDS_DIR", tmp_path / "records")
@@ -352,8 +362,70 @@ def test_load_progress_reads_legacy_single_file(tmp_path, monkeypatch):
     res = client.get("/api/load_progress", query_string={"annotator_id": "u7", "device_id": "d7", "case_id": "c7"})
     assert res.status_code == 200
     body = res.get_json()
-    assert body["source"] == "legacy"
+    assert body["source"] == "exact_device:legacy"
     assert body["progress"]["current_annotations"]["selected_solution_text"] == "$legacy$"
+
+
+def test_load_progress_can_fallback_across_devices_for_same_annotator(tmp_path, monkeypatch):
+    monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
+    monkeypatch.setattr("annotation_app.app.RECORDS_DIR", tmp_path / "records")
+    client = app.test_client()
+
+    payload = {
+        "annotator_id": "u9",
+        "device_id": "device-a",
+        "case_id": "c9",
+        "current_step": 4,
+        "client_revision": 101,
+        "current_workflow_state": {"active_sample_idx": 0, "sample_cursor": 0, "workflow_state": "claims_checked"},
+        "current_annotations": {"selected_solution_text": "$fallback$"},
+        "sample_decisions": [{"is_correct": True, "pipeline_status": "in_progress"}],
+    }
+    assert client.put("/api/save_progress", json=payload).status_code == 200
+
+    res = client.get("/api/load_progress", query_string={"annotator_id": "u9", "device_id": "device-b", "case_id": "c9"})
+    assert res.status_code == 200
+    body = res.get_json()
+    assert body["found"] is True
+    assert body["source"].startswith("annotator_fallback:")
+    assert body["progress"]["current_annotations"]["selected_solution_text"] == "$fallback$"
+    assert body["progress"]["client_revision"] == 101
+
+
+def test_stale_client_revision_cannot_overwrite_newer_progress(tmp_path, monkeypatch):
+    monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
+    monkeypatch.setattr("annotation_app.app.RECORDS_DIR", tmp_path / "records")
+    client = app.test_client()
+
+    newer = {
+        "annotator_id": "u10",
+        "device_id": "d10",
+        "case_id": "c10",
+        "client_revision": 200,
+        "current_workflow_state": {"active_sample_idx": 0, "sample_cursor": 0, "workflow_state": "claims_checked"},
+        "current_annotations": {"selected_solution_text": "$new$"},
+        "sample_decisions": [{"is_correct": True, "pipeline_status": "in_progress"}],
+    }
+    older = {
+        "annotator_id": "u10",
+        "device_id": "d10",
+        "case_id": "c10",
+        "client_revision": 150,
+        "current_workflow_state": {"active_sample_idx": 0, "sample_cursor": 0, "workflow_state": "steps_segmented"},
+        "current_annotations": {"selected_solution_text": "$old$"},
+        "sample_decisions": [{"is_correct": True, "pipeline_status": "in_progress"}],
+    }
+
+    first = client.put("/api/save_progress", json=newer)
+    assert first.status_code == 200
+    second = client.put("/api/save_progress", json=older)
+    assert second.status_code == 200
+    assert second.get_json()["ignored_stale"] is True
+
+    got = client.get("/api/load_progress", query_string={"annotator_id": "u10", "device_id": "d10", "case_id": "c10"})
+    assert got.status_code == 200
+    assert got.get_json()["progress"]["current_annotations"]["selected_solution_text"] == "$new$"
+    assert got.get_json()["progress"]["client_revision"] == 200
 
 
 def test_root_route_shows_home_entry():
@@ -391,6 +463,29 @@ def test_frontend_claim_preview_uses_math_fallback_rendering():
     assert "${renderMathPreviewBlock(cl.text || '', '当前 Claim 为空')}" in js
     assert "${renderMathPreviewBlock(step.text || '', '当前 Step 暂无内容')}" in js
     assert ".compact-rendered-math" in css
+
+
+def test_frontend_restore_logic_uses_local_draft_fallback_before_resetting_case_state():
+    js = Path("annotation_app/static/app.js").read_text(encoding="utf-8")
+    assert "const draftCachePrefix = 'annotation_draft_v1'" in js
+    assert "function writeDraftCache" in js
+    assert "function readDraftCache" in js
+    assert "function hasMeaningfulProgress" in js
+    assert "applyRestoredProgress(caseId, cachedDraft.progress, 'local_draft:not_found')" in js
+    assert "applyRestoredProgress(caseId, cachedDraft.progress, 'local_draft:error')" in js
+    assert "已恢复本地草稿（服务器无记录）" in js
+    assert "已恢复本地草稿（服务器恢复失败）" in js
+
+
+def test_frontend_case_list_shows_progress_percent_and_status_colors():
+    js = Path("annotation_app/static/app.js").read_text(encoding="utf-8")
+    css = Path("annotation_app/static/styles.css").read_text(encoding="utf-8")
+    assert "function getTaskProgressSummary" in js
+    assert "task-nav-percent" in js
+    assert "task-progress-fill" in js
+    assert "task-status-done" in css
+    assert "task-status-active" in css
+    assert "task-status-rejected" in css
 
 
 def test_annotator_cannot_access_reviewer_apis():

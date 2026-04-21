@@ -144,9 +144,6 @@ button.ghost { background: #f4f7fe; }
 #caseList button {
   width: 100%;
   text-align: left;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
   background: #fff;
 }
 #caseList button.active-task {
@@ -155,6 +152,68 @@ button.ghost { background: #f4f7fe; }
   color: #1d3fbd;
   font-weight: 600;
 }
+.task-nav-btn {
+  display: grid;
+  gap: 6px;
+}
+.task-nav-top,
+.task-nav-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+  min-width: 0;
+}
+.task-nav-id {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 600;
+}
+.task-nav-percent {
+  flex: 0 0 auto;
+  font-size: 12px;
+  color: var(--muted);
+}
+.task-nav-label,
+.task-nav-ratio {
+  font-size: 12px;
+  color: var(--muted);
+}
+.task-nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.task-progress-bar {
+  display: block;
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #e8eef8;
+  overflow: hidden;
+}
+.task-progress-fill {
+  display: block;
+  height: 100%;
+  border-radius: inherit;
+  background: #aab9d9;
+  transition: width .18s ease;
+}
+.task-status-idle .task-progress-fill { background: #b7c4db; }
+.task-status-screened .task-progress-fill { background: #5a88ff; }
+.task-status-reviewed .task-progress-fill { background: #14a0b8; }
+.task-status-active .task-progress-fill { background: #3451d1; }
+.task-status-done .task-progress-fill { background: #12804a; }
+.task-status-rejected .task-progress-fill { background: #c23a3a; }
+.task-status-done .task-nav-percent,
+.task-status-done .task-nav-label { color: #12804a; }
+.task-status-rejected .task-nav-percent,
+.task-status-rejected .task-nav-label { color: #a43434; }
+.task-status-active .task-nav-percent,
+.task-status-active .task-nav-label { color: #2646c5; }
 
 .workspace-main { padding: 12px; display: flex; flex-direction: column; overflow: hidden; }
 .step-nav {

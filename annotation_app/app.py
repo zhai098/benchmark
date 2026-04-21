@@ -32,6 +32,14 @@ WORKFLOW_STATES = {
 PIPELINE_STATUSES = {"not_started", "ready", "in_progress", "completed", "discarded"}
 CASE_STATUSES = {"in_progress", "completed"}
 SCREENING_DECISIONS = {"pass", "reject"}
+WORKFLOW_STATE_ORDER = {
+    "sample_selected": 0,
+    "steps_segmented": 1,
+    "claims_assigned": 2,
+    "claims_checked": 3,
+    "dependencies_labeled": 4,
+    "completed": 5,
+}
 
 app = Flask(__name__, template_folder="templates", static_folder="static")
 app.secret_key = "annotation-app-dev-secret"
@@ -567,12 +575,34 @@ def _summarize_samples(
     return sample_rows, sample_stats, annotation_stats
 
 
+def _derive_case_workflow_state(
+    current_workflow_state: dict[str, Any],
+    sample_annotations: dict[str, dict[str, Any]],
+    sample_decisions: list[dict[str, Any]],
+) -> str:
+    states = [current_workflow_state.get("workflow_state", "sample_selected")]
+    for ann in sample_annotations.values():
+        if isinstance(ann, dict):
+            states.append(_normalize_workflow_state(ann.get("workflow_state"), "sample_selected"))
+    if sample_decisions and all(
+        _normalize_pipeline_status(item.get("pipeline_status"), "not_started") in {"completed", "discarded"}
+        for item in sample_decisions
+    ):
+        states.append("completed")
+    return max(states, key=lambda state: WORKFLOW_STATE_ORDER.get(state, -1))
+
+
 def _build_summary_payload(detail_payload: dict[str, Any]) -> dict[str, Any]:
     sample_rows, sample_stats, annotation_stats = _summarize_samples(
         detail_payload.get("sample_annotations", {}),
         detail_payload.get("sample_decisions", []),
     )
     current_workflow_state = detail_payload.get("current_workflow_state", {})
+    latest_workflow_state = _derive_case_workflow_state(
+        current_workflow_state,
+        detail_payload.get("sample_annotations", {}),
+        detail_payload.get("sample_decisions", []),
+    )
     screening = current_workflow_state.get("problem_quality_screening", {})
     correct_solutions = []
     for item in detail_payload.get("correct_solutions", []):
@@ -589,13 +619,14 @@ def _build_summary_payload(detail_payload: dict[str, Any]) -> dict[str, Any]:
         "annotator_id": detail_payload["annotator_id"],
         "device_id": detail_payload["device_id"],
         "case_id": detail_payload["case_id"],
+        "client_revision": detail_payload.get("client_revision", 0),
         "status": detail_payload["status"],
         "created_at_utc": detail_payload["created_at_utc"],
         "updated_at_utc": detail_payload["updated_at_utc"],
         "problem_quality_screening": screening,
         "active_sample_idx": current_workflow_state.get("active_sample_idx"),
         "sample_cursor": current_workflow_state.get("sample_cursor", 0),
-        "latest_workflow_state": current_workflow_state.get("workflow_state", "sample_selected"),
+        "latest_workflow_state": latest_workflow_state,
         "sample_stats": sample_stats,
         "annotation_stats": annotation_stats,
         "correct_solutions": correct_solutions,
@@ -635,6 +666,7 @@ def _normalize_progress_payload(
         "annotator_id": annotator_id,
         "device_id": device_id,
         "case_id": case_id,
+        "client_revision": _normalize_int(payload.get("client_revision"), default=0, minimum=0),
         "status": _normalize_case_status(payload.get("status"), default_status),
         "current_step": _normalize_int(payload.get("current_step"), default=1, minimum=0),
         "current_workflow_state": current_workflow_state,
@@ -678,6 +710,7 @@ def _detail_to_compat_progress(detail_payload: dict[str, Any], summary_payload: 
         "annotator_id": detail_payload.get("annotator_id", ""),
         "device_id": detail_payload.get("device_id", ""),
         "case_id": detail_payload.get("case_id", ""),
+        "client_revision": detail_payload.get("client_revision", 0),
         "status": detail_payload.get("status", "in_progress"),
         "current_step": detail_payload.get("current_step", 1),
         "current_workflow_state": current_workflow_state,
@@ -700,10 +733,7 @@ def _maybe_upgrade_legacy_record(data: dict[str, Any]) -> bool:
 
 
 def _load_existing_created_at(annotator_id: str, device_id: str, case_id: str) -> str | None:
-    summary_path = progress_summary_path(annotator_id, device_id, case_id)
-    detail_path = progress_detail_path(annotator_id, device_id, case_id)
-    legacy_path = progress_path(annotator_id, device_id, case_id)
-    for path in (detail_path, summary_path, legacy_path):
+    for path in _iter_case_record_paths(annotator_id, case_id, preferred_device_id=device_id):
         if not path.exists():
             continue
         try:
@@ -716,11 +746,97 @@ def _load_existing_created_at(annotator_id: str, device_id: str, case_id: str) -
     return None
 
 
+def _validate_progress_payload(payload: dict[str, Any], *, minimal: bool = False) -> None:
+    annotator_id = _normalize_string(payload.get("annotator_id") or payload.get("annotator"), "")
+    case_id = _normalize_string(payload.get("case_id"), "")
+    if not annotator_id:
+        raise ValueError("annotator_id 不能为空")
+    if not case_id:
+        raise ValueError("case_id 不能为空")
+    if minimal:
+        return
+    meaningful = any(
+        key in payload
+        for key in ("current_workflow_state", "current_annotations", "sample_annotations", "sample_decisions", "correct_solutions", "current_step")
+    )
+    if not meaningful:
+        raise ValueError("保存负载缺少进度字段")
+
+
+def _iter_case_bases(annotator_id: str, case_id: str) -> list[Path]:
+    annotator_dir = ANNOTATIONS_DIR / safe_name(annotator_id, "unknown")
+    if not annotator_dir.exists():
+        return []
+    case_safe = safe_name(case_id, "case")
+    bases: list[Path] = []
+    for device_dir in annotator_dir.iterdir():
+        if not device_dir.is_dir():
+            continue
+        base = device_dir / case_safe
+        if any(path.exists() for path in (base.with_suffix(".detail.json"), base.with_suffix(".summary.json"), base.with_suffix(".json"))):
+            bases.append(base)
+    return bases
+
+
+def _record_sort_key(path: Path) -> tuple[float, str]:
+    try:
+        data = _read_json_file(path)
+    except Exception:
+        return (0.0, str(path))
+    updated_at = _normalize_string(data.get("updated_at_utc"), "")
+    try:
+        ts = datetime.fromisoformat(updated_at).timestamp() if updated_at else 0.0
+    except ValueError:
+        ts = 0.0
+    return (ts, str(path))
+
+
+def _iter_case_record_paths(annotator_id: str, case_id: str, *, preferred_device_id: str | None = None) -> list[Path]:
+    bases = _iter_case_bases(annotator_id, case_id)
+    preferred_base = None
+    if preferred_device_id:
+        preferred_base = progress_base_path(annotator_id, preferred_device_id, case_id)
+    ordered: list[Path] = []
+    seen: set[Path] = set()
+
+    def add_base(base: Path) -> None:
+        for path in (base.with_suffix(".detail.json"), base.with_suffix(".summary.json"), base.with_suffix(".json")):
+            if path.exists() and path not in seen:
+                ordered.append(path)
+                seen.add(path)
+
+    if preferred_base and preferred_base in bases:
+        add_base(preferred_base)
+
+    remaining_bases = [base for base in bases if base != preferred_base]
+    remaining_paths: list[Path] = []
+    for base in remaining_bases:
+        remaining_paths.extend([p for p in (base.with_suffix(".detail.json"), base.with_suffix(".summary.json"), base.with_suffix(".json")) if p.exists()])
+    for path in sorted(remaining_paths, key=_record_sort_key, reverse=True):
+        if path not in seen:
+            ordered.append(path)
+            seen.add(path)
+    return ordered
+
+
+def _latest_case_revision(annotator_id: str, case_id: str) -> tuple[int, str | None]:
+    for path in _iter_case_record_paths(annotator_id, case_id):
+        try:
+            data = _read_json_file(path)
+        except Exception:
+            continue
+        revision = _normalize_int(data.get("client_revision"), default=0, minimum=0)
+        content_hash = _normalize_string(data.get("detail_content_hash") or data.get("content_hash"), "")
+        return revision, (content_hash or None)
+    return 0, None
+
+
 def persist_progress_payload(payload: dict[str, Any], default_status: str = "in_progress") -> dict[str, Any]:
     annotator_id = _normalize_string(payload.get("annotator_id") or payload.get("annotator"), "unknown")
     device_id = _normalize_string(payload.get("device_id"), "device")
     case_id = _normalize_string(payload.get("case_id"), "case")
     created_at = _load_existing_created_at(annotator_id, device_id, case_id)
+    latest_revision, latest_content_hash = _latest_case_revision(annotator_id, case_id)
 
     detail_payload = _normalize_progress_payload(payload, default_status=default_status, created_at=created_at)
     summary_payload = _build_summary_payload(detail_payload)
@@ -728,6 +844,29 @@ def persist_progress_payload(payload: dict[str, Any], default_status: str = "in_
         summary_payload,
         skip_keys={"summary_content_hash", "created_at_utc", "updated_at_utc"},
     )
+
+    incoming_revision = detail_payload["client_revision"]
+    if incoming_revision and latest_revision and incoming_revision < latest_revision:
+        write_json_log(
+            "app_logger",
+            "progress.stale_write_ignored",
+            annotator_id=annotator_id,
+            device_id=device_id,
+            case_id=case_id,
+            incoming_revision=incoming_revision,
+            latest_revision=latest_revision,
+        )
+        return {
+            "ok": True,
+            "summary_path": str(progress_summary_path(annotator_id, device_id, case_id)),
+            "detail_path": str(progress_detail_path(annotator_id, device_id, case_id)),
+            "path": str(progress_detail_path(annotator_id, device_id, case_id)),
+            "updated_at_utc": detail_payload["updated_at_utc"],
+            "unchanged": True,
+            "ignored_stale": True,
+            "content_hash": latest_content_hash or detail_payload["detail_content_hash"],
+            "client_revision": latest_revision,
+        }
 
     summary_path = progress_summary_path(annotator_id, device_id, case_id)
     detail_path = progress_detail_path(annotator_id, device_id, case_id)
@@ -758,6 +897,7 @@ def persist_progress_payload(payload: dict[str, Any], default_status: str = "in_
             "updated_at_utc": detail_payload["updated_at_utc"],
             "unchanged": True,
             "content_hash": detail_payload["detail_content_hash"],
+            "client_revision": detail_payload["client_revision"],
         }
 
     try:
@@ -785,14 +925,13 @@ def persist_progress_payload(payload: dict[str, Any], default_status: str = "in_
         "updated_at_utc": detail_payload["updated_at_utc"],
         "unchanged": False,
         "content_hash": detail_payload["detail_content_hash"],
+        "client_revision": detail_payload["client_revision"],
     }
 
-
-def _load_progress_pair(annotator_id: str, device_id: str, case_id: str) -> tuple[dict[str, Any], dict[str, Any], str]:
-    summary_path = progress_summary_path(annotator_id, device_id, case_id)
-    detail_path = progress_detail_path(annotator_id, device_id, case_id)
-    legacy_path = progress_path(annotator_id, device_id, case_id)
-
+def _load_progress_pair_from_base(base_path: Path, *, annotator_id: str, device_id: str, case_id: str) -> tuple[dict[str, Any], dict[str, Any], str]:
+    summary_path = base_path.with_suffix(".summary.json")
+    detail_path = base_path.with_suffix(".detail.json")
+    legacy_path = base_path.with_suffix(".json")
     summary_data = None
     detail_data = None
 
@@ -880,6 +1019,43 @@ def _load_progress_pair(annotator_id: str, device_id: str, case_id: str) -> tupl
             path=str(detail_path),
         )
     return summary_data, detail_data, "pair"
+
+
+def _load_progress_pair(annotator_id: str, device_id: str, case_id: str) -> tuple[dict[str, Any], dict[str, Any], str]:
+    exact_base = progress_base_path(annotator_id, device_id, case_id)
+    bases = _iter_case_bases(annotator_id, case_id)
+    if not bases:
+        raise FileNotFoundError
+
+    if exact_base in bases:
+        try:
+            summary_data, detail_data, source = _load_progress_pair_from_base(
+                exact_base,
+                annotator_id=annotator_id,
+                device_id=device_id,
+                case_id=case_id,
+            )
+            return summary_data, detail_data, f"exact_device:{source}"
+        except ProgressLoadError:
+            bases = [base for base in bases if base != exact_base]
+            if not bases:
+                raise
+
+    fallback_base = max(
+        bases,
+        key=lambda base: max(
+            (_record_sort_key(path) for path in (base.with_suffix(".detail.json"), base.with_suffix(".summary.json"), base.with_suffix(".json")) if path.exists()),
+            default=(0.0, str(base)),
+        ),
+    )
+    fallback_device_id = fallback_base.parent.name
+    summary_data, detail_data, source = _load_progress_pair_from_base(
+        fallback_base,
+        annotator_id=annotator_id,
+        device_id=fallback_device_id,
+        case_id=case_id,
+    )
+    return summary_data, detail_data, f"annotator_fallback:{source}"
 
 
 def parse_jsonl(path: Path) -> list[dict[str, Any]]:
@@ -1137,7 +1313,18 @@ def save_progress():
     ensure_dirs()
     payload = parse_request_json()
     try:
+        _validate_progress_payload(payload, minimal=False)
         result = persist_progress_payload(payload, default_status="in_progress")
+    except ValueError as exc:
+        write_json_log(
+            "app_logger",
+            "progress.validation_failed",
+            annotator_id=str(payload.get("annotator_id") or payload.get("annotator") or "unknown"),
+            device_id=str(payload.get("device_id") or "device"),
+            case_id=str(payload.get("case_id") or "unknown"),
+            error=str(exc),
+        )
+        return jsonify({"error": str(exc)}), 400
     except Exception as exc:
         write_json_log(
             "app_logger",
@@ -1165,9 +1352,12 @@ def save_progress():
 @app.get("/api/load_progress")
 def load_progress():
     ensure_dirs()
-    annotator_id = request.args.get("annotator_id", "unknown")
+    annotator_id = request.args.get("annotator_id", "").strip()
     device_id = request.args.get("device_id", "device")
-    case_id = request.args.get("case_id", "unknown")
+    case_id = request.args.get("case_id", "").strip()
+
+    if not annotator_id or not case_id:
+        return jsonify({"error": "annotator_id 和 case_id 不能为空"}), 400
 
     try:
         summary_data, detail_data, source = _load_progress_pair(annotator_id, device_id, case_id)
@@ -1184,6 +1374,7 @@ def load_progress():
             "path": str(progress_detail_path(annotator_id, device_id, case_id)),
             "summary_path": str(progress_summary_path(annotator_id, device_id, case_id)),
             "source": source,
+            "client_revision": progress.get("client_revision", 0),
         }
     )
 
@@ -1193,7 +1384,18 @@ def save_record():
     payload = parse_request_json()
     payload.setdefault("status", "completed")
     try:
+        _validate_progress_payload(payload, minimal=True)
         result = persist_progress_payload(payload, default_status="completed")
+    except ValueError as exc:
+        write_json_log(
+            "app_logger",
+            "record.validation_failed",
+            annotator_id=str(payload.get("annotator_id") or payload.get("annotator") or "unknown"),
+            device_id=str(payload.get("device_id") or "device"),
+            case_id=str(payload.get("case_id") or "unknown"),
+            error=str(exc),
+        )
+        return jsonify({"error": str(exc)}), 400
     except Exception as exc:
         write_json_log(
             "app_logger",

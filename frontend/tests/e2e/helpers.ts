@@ -6,6 +6,7 @@ export const datasetPath = path.resolve(
   '../../../annotation_app/tests/fixtures/annotator_e2e_dataset.jsonl',
 );
 export const e2eDataDir = path.resolve(__dirname, '../../../.tmp/annotation-app-e2e-data');
+export const draftCacheKey = (annotatorId: string, caseId: string) => `annotation_draft_v1:${annotatorId}:${caseId}`;
 
 export async function loadFixtureDataset(page: Page, annotatorId: string) {
   await page.goto('/annotator');
