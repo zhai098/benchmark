@@ -6,8 +6,8 @@ import subprocess
 import sys
 from pathlib import Path
 
-from config import Config
-from log_reference import iter_purified_rows, load_benchmark_cases, purify_annotations_folder
+from benchmark_core.config import Config
+from benchmark_core.log_reference import iter_purified_rows, load_benchmark_cases, purify_annotations_folder
 
 
 def _run(command: list[str]) -> None:

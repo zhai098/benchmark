@@ -3,20 +3,21 @@ import sys
 
 sys.path.append(str(Path(__file__).resolve().parents[1]))
 
-from log_reference import (
+from benchmark_core.log_reference import (
     claims_for_step,
     dependency_claims_for_step,
     load_benchmark_cases,
     purify_annotations_folder,
     step_id_at_index,
 )
+from benchmark_core.paths import OMNI_MATH_DIR
 
 
 LOGS_DIR = Path("annotation_app/data/annotations/___/dev-1775126623662-xze9d4")
 
 
 def _records():
-    benchmark_cases = load_benchmark_cases("Omni_MATH/Omni_MATH_Human_Segmented_100_1.jsonl")
+    benchmark_cases = load_benchmark_cases(str(OMNI_MATH_DIR / "Omni_MATH_Human_Segmented_100_1.jsonl"))
     return purify_annotations_folder(LOGS_DIR, benchmark_cases=benchmark_cases)
 
 

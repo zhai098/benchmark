@@ -6,7 +6,7 @@ import copy
 from typing import List, Union, Dict, Any, Tuple
 import math
 from openai import OpenAI
-from config import Config
+from benchmark_core.config import Config
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os, threading
 import httpx

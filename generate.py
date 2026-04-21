@@ -7,11 +7,11 @@ import logging
 import os
 import time
 from typing import Any, Dict, List, Tuple
-from config import Config
+from benchmark_core.config import Config
 from runner import VLLMRunner, Kimi_API_runner, DEEPSEEK_API_runner
-from prompt import Generate_Prompt
-from data_process import _write_jsonl_line, _write_pretty_json
-from data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
+from benchmark_core.prompt import Generate_Prompt
+from benchmark_core.data_process import _write_jsonl_line, _write_pretty_json
+from benchmark_core.data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
 
 logger = logging.getLogger(__name__)
 processor = Processor()

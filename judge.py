@@ -3,11 +3,11 @@ from __future__ import annotations
 
 import os, json, time, argparse, logging, math
 from typing import Dict, Any, List, Tuple
-from config import Config
+from benchmark_core.config import Config
 from runner import VLLMRunner, DEEPSEEK_API_runner, DOUBAO_deepseek_API_runner
-from data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
-from log_reference import claims_for_step, dependency_claims_for_step, step_id_at_index
-from prompt import Judge_Prompt, Pairwise_Prompt, Holistic_Prompt, SelfJudge_Prompt
+from benchmark_core.data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
+from benchmark_core.log_reference import claims_for_step, dependency_claims_for_step, step_id_at_index
+from benchmark_core.prompt import Judge_Prompt, Pairwise_Prompt, Holistic_Prompt, SelfJudge_Prompt
 import numpy as np
 from openai import OpenAI
 
