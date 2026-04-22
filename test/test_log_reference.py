@@ -1,3 +1,4 @@
+import json
 from pathlib import Path
 import sys
 
@@ -14,11 +15,22 @@ from benchmark_core.paths import OMNI_MATH_DIR
 
 
 LOGS_DIR = Path("annotation_app/data/annotations/___/dev-1775126623662-xze9d4")
+WORKFLOW_OUTPUTS_DIR = LOGS_DIR / "workflow_outputs"
+PURIFIED_CASES_PATH = WORKFLOW_OUTPUTS_DIR / "purified" / "purified_cases.jsonl"
 
 
 def _records():
     benchmark_cases = load_benchmark_cases(str(OMNI_MATH_DIR / "Omni_MATH_Human_Segmented_100_1.jsonl"))
     return purify_annotations_folder(LOGS_DIR, benchmark_cases=benchmark_cases)
+
+
+def _workflow_records():
+    rows = []
+    for line in PURIFIED_CASES_PATH.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if line:
+            rows.append(json.loads(line))
+    return rows
 
 
 def test_purify_annotations_folder_keeps_all_questions():
@@ -67,3 +79,41 @@ def test_completed_correct_solution_prefers_completed_sample_annotation():
     assert record["correct_sample_solution"]
     assert len(record["steps"]) == 16
     assert step_id_at_index(record, 0) == "s1"
+
+
+def test_workflow_outputs_preserve_structured_step_claim_dependency_extraction_for_q21():
+    raw = json.loads((LOGS_DIR / "q-21.json").read_text(encoding="utf-8"))
+    workflow_record = next(item for item in _workflow_records() if item["case_id"] == "q-21")
+
+    sample_annotation = raw["current_annotations"]["sample_annotations"]["0"]
+    expected_steps = [
+        {"step_id": step["id"], "text": step["text"]}
+        for step in sample_annotation["steps"]
+        if step.get("text")
+    ]
+    expected_claims = []
+    for step_entry in sample_annotation["claims"]:
+        normalized = []
+        for claim_idx, claim_text in enumerate(step_entry.get("claims", []), start=1):
+            if claim_text:
+                normalized.append({"id": f"{step_entry['step_id']}c{claim_idx}", "text": claim_text})
+        if normalized:
+            expected_claims.append({"step_id": step_entry["step_id"], "claims": normalized})
+
+    assert workflow_record["reference_quality"] == "structured"
+    assert workflow_record["accepted_sample_idx"] == 0
+    assert workflow_record["reference_steps"] == expected_steps
+    assert workflow_record["reference_claims_by_step"] == expected_claims
+    assert workflow_record["reference_step_dependencies"] == sample_annotation["step_dependencies"]
+
+
+def test_workflow_outputs_keep_raw_fallback_for_cases_without_structured_steps():
+    raw = json.loads((LOGS_DIR / "q-1.json").read_text(encoding="utf-8"))
+    workflow_record = next(item for item in _workflow_records() if item["case_id"] == "q-1")
+
+    assert raw["current_annotations"]["steps"] == []
+    assert raw["current_annotations"]["sample_annotations"]["0"]["steps"] == []
+    assert workflow_record["reference_quality"] == "raw_fallback"
+    assert workflow_record["reference_steps"] == []
+    assert workflow_record["reference_claims_by_step"] == []
+    assert workflow_record["reference_step_dependencies"] == {}

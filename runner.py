@@ -1,6 +1,19 @@
-from vllm import LLM, SamplingParams
-from vllm.sampling_params import GuidedDecodingParams
-from transformers import AutoTokenizer, AutoModelForCausalLM
+try:
+    from vllm import LLM, SamplingParams
+    from vllm.sampling_params import GuidedDecodingParams
+except ImportError:  # pragma: no cover - allows static prompt tests without local vllm
+    LLM = None
+    SamplingParams = None
+
+    class GuidedDecodingParams:  # type: ignore[override]
+        def __init__(self, *args, **kwargs):
+            pass
+
+try:
+    from transformers import AutoTokenizer, AutoModelForCausalLM
+except ImportError:  # pragma: no cover - allows static prompt tests without transformers
+    AutoTokenizer = None
+    AutoModelForCausalLM = None
 import time
 import copy
 from typing import List, Union, Dict, Any, Tuple
@@ -20,6 +33,8 @@ from volcenginesdkarkruntime import AsyncArk
 
 class VLLMRunner:
     def __init__(self, model: str, vllm_config: dict, sampling_config: dict, gpus: str):
+        if LLM is None or SamplingParams is None or AutoTokenizer is None:
+            raise ImportError("VLLMRunner requires vllm and transformers to be installed.")
         self.model_name = model
         os.environ["CUDA_VISIBLE_DEVICES"] = gpus
         # Some Hugging Face model repos require executing custom code.
@@ -37,6 +52,66 @@ class VLLMRunner:
             stop=sampling_config.get("stop", ["<<<END>>>"]))
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
 
+    @staticmethod
+    def _is_chat_message(message: Any) -> bool:
+        return isinstance(message, dict) and isinstance(message.get("role"), str) and "content" in message
+
+    def _chat_messages_to_prompt_text(self, messages: List[Dict[str, Any]]) -> str:
+        normalized_messages: List[Dict[str, Any]] = []
+        continue_final_message = False
+        for idx, message in enumerate(messages):
+            if not self._is_chat_message(message):
+                raise ValueError("Unsupported chat message payload for VLLMRunner.generate")
+            normalized = {
+                "role": message["role"],
+                "content": message.get("content", ""),
+            }
+            is_prefill = bool(message.get("prefix"))
+            if is_prefill and idx == len(messages) - 1 and normalized["role"] == "assistant":
+                continue_final_message = True
+            normalized_messages.append(normalized)
+
+        if hasattr(self.tokenizer, "apply_chat_template"):
+            kwargs: Dict[str, Any] = {"tokenize": False}
+            sig = inspect.signature(self.tokenizer.apply_chat_template)
+            if "add_generation_prompt" in sig.parameters:
+                kwargs["add_generation_prompt"] = not continue_final_message
+            if "continue_final_message" in sig.parameters and continue_final_message:
+                kwargs["continue_final_message"] = True
+            if "enable_thinking" in sig.parameters:
+                kwargs["enable_thinking"] = True
+            return self.tokenizer.apply_chat_template(normalized_messages, **kwargs)
+
+        rendered = "\n".join(
+            f"{message['role']}: {message.get('content', '')}"
+            for message in normalized_messages
+        )
+        if continue_final_message:
+            return rendered
+        return rendered + "\nassistant:"
+
+    def _normalize_generate_prompt(
+        self,
+        prompt: str | list[str] | list[int] | list[list[int]] | list[dict[str, Any]] | list[list[dict[str, Any]]] | dict[str, Any],
+    ) -> tuple[list[str] | None, list[list[int]] | None]:
+        if isinstance(prompt, dict) and "messages" in prompt:
+            return [self._chat_messages_to_prompt_text(prompt["messages"])], None
+
+        if isinstance(prompt, list):
+            if not prompt:
+                return prompt, None
+            first = prompt[0]
+            if isinstance(first, int):
+                return None, [prompt]
+            if isinstance(first, list) and first and isinstance(first[0], int):
+                return None, prompt
+            if self._is_chat_message(first):
+                return [self._chat_messages_to_prompt_text(prompt)], None
+            if isinstance(first, list) and first and self._is_chat_message(first[0]):
+                return [self._chat_messages_to_prompt_text(item) for item in prompt], None
+            return prompt, None
+
+        return [prompt], None
 
 
     def generate(self, prompt: str | list[str] | list[int] | list[list[int]], schema: dict | None) -> list[str]:
@@ -49,42 +124,13 @@ class VLLMRunner:
             
         t0 = time.time()
         
-        # Check if prompt is token IDs (list of ints or list of list of ints)
-        is_token_ids = False
-        if isinstance(prompt, list):
-            if len(prompt) > 0:
-                if isinstance(prompt[0], int):
-                    # Single prompt as list of ints
-                    is_token_ids = True
-                    prompt_arg = None
-                    prompt_token_ids = [prompt]
-                elif isinstance(prompt[0], list) and len(prompt[0]) > 0 and isinstance(prompt[0][0], int):
-                    # Batch of prompts as list of list of ints
-                    is_token_ids = True
-                    prompt_arg = None
-                    prompt_token_ids = prompt
-                else:
-                    # List of strings
-                    prompt_arg = prompt
-                    prompt_token_ids = None
-            else:
-                # Empty list
-                prompt_arg = prompt
-                prompt_token_ids = None
-        else:
-            # Single string
-            prompt_arg = [prompt]
-            prompt_token_ids = None
-
-        if is_token_ids:
+        prompt_arg, prompt_token_ids = self._normalize_generate_prompt(prompt)
+        if prompt_token_ids is not None:
             print("Generating for a list of token IDs, count:", len(prompt_token_ids))
             outs = self.llm.generate(prompts=None, sampling_params=sp, prompt_token_ids=prompt_token_ids)
         else:
-            if isinstance(prompt, list):
-                print("Generating for a list of prompts, count:", len(prompt))
-                outs = self.llm.generate(prompt, sp)
-            else:
-                outs = self.llm.generate([prompt], sp)
+            print("Generating for a list of prompts, count:", len(prompt_arg))
+            outs = self.llm.generate(prompt_arg, sp)
         
         latency = time.time() - t0
 
@@ -260,6 +306,8 @@ class TransformersLogProbRunner:
         trust_remote_code: bool = True,
         model_kwargs: dict | None = None,
     ):
+        if AutoTokenizer is None or AutoModelForCausalLM is None:
+            raise ImportError("TransformersLogProbRunner requires transformers to be installed.")
         self.model_name = model
         self.tokenizer = AutoTokenizer.from_pretrained(
             model,

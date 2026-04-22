@@ -75,7 +75,7 @@ def main() -> None:
     pack_dir = work_dir / "packed_prompts"
     command = [
         sys.executable,
-        "pack_prompt.py",
+        "tools/prompts/pack_prompt.py",
         "--gen_file",
         str(gen_file),
         "--out_dir",

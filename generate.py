@@ -8,7 +8,6 @@ import os
 import time
 from typing import Any, Dict, List, Tuple
 from benchmark_core.config import Config
-from runner import VLLMRunner, Kimi_API_runner, DEEPSEEK_API_runner
 from benchmark_core.prompt import Generate_Prompt
 from benchmark_core.data_process import _write_jsonl_line, _write_pretty_json
 from benchmark_core.data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
@@ -17,6 +16,8 @@ logger = logging.getLogger(__name__)
 processor = Processor()
 
 def build_reasoning_model(use_vllm_local: bool = False):
+    from runner import VLLMRunner, DEEPSEEK_API_runner
+
     if use_vllm_local:
         return VLLMRunner(
             model=Config["reasoning_model"],
@@ -34,19 +35,47 @@ def _split_generate_response(response: Any) -> Tuple[List[str], List[str]]:
     generations = list(response or [])
     return [""] * len(generations), generations
 
+
+def _reference_step_records(obj: Dict[str, Any]) -> List[Dict[str, Any]]:
+    raw_steps = (
+        obj.get("reference_steps")
+        or obj.get("steps")
+        or []
+    )
+    records: List[Dict[str, Any]] = []
+    for idx, step in enumerate(raw_steps):
+        if isinstance(step, dict):
+            text = str(step.get("text") or step.get("content") or "").strip()
+            step_type = str(step.get("type") or "text")
+        else:
+            text = str(step).strip()
+            step_type = "text"
+        if not text:
+            continue
+        records.append({"text": text, "type": step_type, "index": idx})
+    return records
+
+
+def _reference_claims_by_step(obj: Dict[str, Any]) -> List[Dict[str, Any]]:
+    return obj.get("reference_claims_by_step") or obj.get("claims_by_step") or []
+
+
+def _reference_step_dependencies(obj: Dict[str, Any]) -> Dict[str, Any]:
+    return obj.get("reference_step_dependencies") or obj.get("step_dependencies") or {}
+
 def generate_case(obj: Dict[str, Any], reasoning_model) -> Dict[str, Any]:
     """复用 main.py 的生成阶段：逐步 add_step -> run()，直到用尽参考步骤。
        逻辑等价于 execute_evaluation() 中生成部分。"""
     problem = obj.get("question") or obj["problem"]
-    thought_seg = obj["segments"]
+    thought_seg = _reference_step_records(obj)
     answer = obj.get("standard_solution") or obj.get("solution") or obj.get("answer", "")
 
     # 初始化 prompt（与原逻辑一致）
     generate_promptbuilder = Generate_Prompt(reasoning_model, query=problem)
 
     # 只取 content，等价于你现在的 thought_policy 构造
-    thought_policy: List[str] = [seg["content"] for seg in thought_seg]  # 
-    type_list: List[str] = [seg["type"] for seg in thought_seg]  
+    thought_policy: List[str] = [seg["text"] for seg in thought_seg]
+    type_list: List[str] = [seg["type"] for seg in thought_seg]
     unprocessed: List[Tuple[str, str]] = list(zip(thought_policy, type_list))
     processed: List[str] = []
     processed_types: List[str] = []
@@ -164,9 +193,9 @@ def main():
                 "has_correct_sample": obj.get("has_correct_sample", False),
                 "correct_sample_idx": obj.get("correct_sample_idx"),
                 "correct_sample_solution": obj.get("correct_sample_solution", ""),
-                "steps": obj.get("steps", []),
-                "claims_by_step": obj.get("claims_by_step", []),
-                "step_dependencies": obj.get("step_dependencies", {}),
+                "steps": obj.get("reference_steps") or obj.get("steps", []),
+                "claims_by_step": _reference_claims_by_step(obj),
+                "step_dependencies": _reference_step_dependencies(obj),
             }
             _write_jsonl_line(fgen, out_record)
             _write_pretty_json(fgen_pretty, out_record)
