@@ -118,6 +118,7 @@ function createDefaultCaseState() {
     last_applied_save_seq: 0,
     last_saved_hash: '',
     last_saved_fingerprint: '',
+    last_saved_at_utc: '',
     draft_cached_at_utc: '',
     restore_source: '',
   };
@@ -285,6 +286,7 @@ function applyRestoredProgress(caseId, progress, source = '') {
   st.correct_solutions = progress.correct_solutions || [];
   st.active_sample_idx = progress.current_workflow_state?.active_sample_idx ?? null;
   st.client_revision = Number(progress.client_revision || 0) || 0;
+  st.last_saved_at_utc = String(progress.updated_at_utc || '');
   const savedAnnotations = progress.current_annotations || {};
   const rawSampleAnnotations = savedAnnotations.sample_annotations && typeof savedAnnotations.sample_annotations === 'object'
     ? savedAnnotations.sample_annotations
@@ -412,7 +414,8 @@ function renderCaseList() {
     const progress = getTaskProgressSummary(c, st);
     const li = document.createElement('li');
     const btn = document.createElement('button');
-    btn.title = c.id;
+    const tooltipLines = getTaskProgressDetailLines(c, st, progress);
+    btn.title = tooltipLines.join('\n');
     btn.classList.toggle('active-task', i === currentCaseIndex);
     btn.classList.add('task-nav-btn', `task-status-${progress.status}`);
     btn.innerHTML = `
@@ -426,6 +429,9 @@ function renderCaseList() {
       </span>
       <span class="task-progress-bar" aria-hidden="true">
         <span class="task-progress-fill" style="width:${progress.percent}%"></span>
+      </span>
+      <span class="task-nav-tooltip" role="tooltip">
+        ${tooltipLines.map((line) => `<span>${escapeHtml(line)}</span>`).join('')}
       </span>
     `;
     btn.onclick = () => selectCase(i);
@@ -482,6 +488,40 @@ function getTaskProgressSummary(c, st) {
   }
 
   return { percent, status, label, ratioText };
+}
+
+function getTaskProgressDetailLines(c, st, progress = getTaskProgressSummary(c, st)) {
+  const totalSamples = Array.isArray(c?.samples) ? c.samples.length : 0;
+  const screening = ensureProblemQualityScreening(st);
+  const validations = Array.isArray(st.sample_validation) ? st.sample_validation : [];
+  const completedSamples = validations.filter((item) => item?.pipeline_status === 'completed').length;
+  const discardedSamples = validations.filter((item) => item?.pipeline_status === 'discarded').length;
+  const inProgressSamples = validations.filter((item) => item?.pipeline_status === 'in_progress').length;
+  const latestWorkflow = deriveCaseWorkflowState(st);
+  const activeSample = st.active_sample_idx === null || st.active_sample_idx === undefined
+    ? '无'
+    : `sample-${Number(st.active_sample_idx) + 1}`;
+  const latestSaved = st.last_saved_hash || st.last_saved_at_utc
+    ? formatUtcToLocal(st.last_saved_at_utc || '')
+    : '未检测到已保存记录';
+  const screeningLabel = screening.decision === 'pass'
+    ? '已通过'
+    : screening.decision === 'reject'
+      ? `已拒绝${screening.reason ? ` · ${screening.reason}` : ''}`
+      : '未质检';
+  return [
+    `标注者：${annotatorId()}`,
+    `任务：${String(c?.id || '')}`,
+    `总体进度：${progress.percent}% · ${progress.label}`,
+    `题目质检：${screeningLabel}`,
+    `样本进度：完成 ${completedSamples} / 丢弃 ${discardedSamples} / 处理中 ${inProgressSamples} / 总计 ${totalSamples}`,
+    `当前活跃样本：${activeSample}`,
+    `当前步骤：Step ${Math.max(0, Number(st.current_step || 0))}`,
+    `工作流状态：${latestWorkflow}`,
+    `最近本地缓存：${st.draft_cached_at_utc ? formatUtcToLocal(st.draft_cached_at_utc) : '暂无'}`,
+    `恢复来源：${st.restore_source || '初始数据'}`,
+    `最近同步状态：${latestSaved}`,
+  ];
 }
 
 async function selectCase(idx) {
@@ -1613,6 +1653,7 @@ async function persistProgress(status = 'in_progress', silent = true) {
   }
   st.last_saved_hash = data.content_hash || st.last_saved_hash;
   st.last_saved_fingerprint = fingerprint;
+  st.last_saved_at_utc = String(data.updated_at_utc || st.last_saved_at_utc || '');
   const ts = formatUtcToLocal(data.updated_at_utc);
   if (data.ignored_stale) {
     setSaveState(`已忽略旧保存 ${ts}`, 'saved');
@@ -1694,6 +1735,7 @@ async function restoreProgress(caseId) {
   writeDraftCache(caseId, progress);
   st.last_saved_fingerprint = payloadFingerprint(progress);
   st.last_saved_hash = progress.content_hash || st.last_saved_hash;
+  st.last_saved_at_utc = String(progress.updated_at_utc || st.last_saved_at_utc || '');
   const mode = String(data.source || '');
   const ts = formatUtcToLocal(progress.updated_at_utc);
   if (mode.startsWith('annotator_fallback:')) {

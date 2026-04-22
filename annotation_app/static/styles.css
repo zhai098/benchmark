@@ -155,6 +155,7 @@ button.ghost { background: #f4f7fe; }
 .task-nav-btn {
   display: grid;
   gap: 6px;
+  position: relative;
 }
 .task-nav-top,
 .task-nav-meta {
@@ -214,6 +215,42 @@ button.ghost { background: #f4f7fe; }
 .task-status-rejected .task-nav-label { color: #a43434; }
 .task-status-active .task-nav-percent,
 .task-status-active .task-nav-label { color: #2646c5; }
+.task-nav-tooltip {
+  position: absolute;
+  left: calc(100% + 10px);
+  top: 50%;
+  transform: translateY(-50%);
+  z-index: 8;
+  display: none;
+  min-width: 240px;
+  max-width: 320px;
+  padding: 10px 12px;
+  border: 1px solid rgba(41, 62, 117, 0.16);
+  border-radius: 12px;
+  background: rgba(15, 23, 42, 0.96);
+  box-shadow: 0 12px 30px rgba(15, 23, 42, 0.22);
+  color: #eef4ff;
+  font-size: 12px;
+  line-height: 1.45;
+  pointer-events: none;
+}
+.task-nav-tooltip::before {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: 100%;
+  transform: translateY(-50%);
+  border-width: 7px;
+  border-style: solid;
+  border-color: transparent rgba(15, 23, 42, 0.96) transparent transparent;
+}
+.task-nav-tooltip span {
+  display: block;
+}
+.task-nav-btn:hover .task-nav-tooltip,
+.task-nav-btn:focus-visible .task-nav-tooltip {
+  display: block;
+}
 
 .workspace-main { padding: 12px; display: flex; flex-direction: column; overflow: hidden; min-width: 0; }
 .step-nav {

@@ -493,10 +493,10 @@ def test_frontend_has_katex_and_copy_ui():
     tpl = Path("annotation_app/templates/annotator.html").read_text(encoding="utf-8")
     js = Path("annotation_app/static/app.js").read_text(encoding="utf-8")
     assert "vendor/katex/katex.min.css" in tpl
-    assert "styles.css', v='20260422a'" in tpl
+    assert "styles.css', v='20260422b'" in tpl
     assert "vendor/katex/katex.min.js" in tpl
     assert "vendor/katex/auto-render.min.js" in tpl
-    assert "app.js', v='20260422a'" in tpl
+    assert "app.js', v='20260422b'" in tpl
     assert "jsdelivr" not in tpl
     assert "copySolutionRaw" in js
     assert "已复制" in js
@@ -546,8 +546,12 @@ def test_frontend_case_list_shows_progress_percent_and_status_colors():
     js = Path("annotation_app/static/app.js").read_text(encoding="utf-8")
     css = Path("annotation_app/static/styles.css").read_text(encoding="utf-8")
     assert "function getTaskProgressSummary" in js
+    assert "function getTaskProgressDetailLines" in js
     assert "task-nav-percent" in js
+    assert "task-nav-tooltip" in js
+    assert "标注者：" in js
     assert "task-progress-fill" in js
+    assert ".task-nav-tooltip" in css
     assert "task-status-done" in css
     assert "task-status-active" in css
     assert "task-status-rejected" in css
