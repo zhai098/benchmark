@@ -2,19 +2,21 @@ from benchmark_core.paths import OMNI_MATH_DIR
 
 
 Config = {
-    "tag" : "1_29_0",
-    "reasoning_model" : "Deepseek-v3.2",
+    "tag" : "mistral_small_4_local",
+    "reasoning_model" : "/data/pretrain/Mistral-Small-4-NVFP4",
     "reasoning_model_params": {
-        "tensor_parallel_size": 4,          
+        "tensor_parallel_size": 2,
         "dtype": "bfloat16",
-        "max_num_seqs": 16,
-        "gpu_memory_utilization": 0.75,    
-        "max_model_len": 12288,             
-        "max_num_batched_tokens": 1024,     
+        "config_format": "mistral",
+        "load_format": "mistral",
+        "max_num_seqs": 128,
+        "gpu_memory_utilization": 0.8,
+        "max_model_len": 12288,
+        "max_num_batched_tokens": 16384,
         "enable_prefix_caching": False,
     },
     "reasoning_sampling_params": {
-        "temperature": 0.6,                 
+        "temperature": 0.7,                 
         "top_p": 0.95,
         "max_tokens": 8192,
         "repetition_penalty": 1.05,
@@ -22,7 +24,7 @@ Config = {
         "frequency_penalty": 0.3,
         "stop": ["<<<END>>>", "<|endoftext|>", "</s>", "<|im_end|>", "<|eot_id|>"]
     },
-    "reasoning_model_gpus" : "0,1,2,3",
+    "reasoning_model_gpus" : "0,1",
     "judge_model_gpus" : "0,1,2,3",
     "judge_model" : "Qwen/Qwen3-32B",
     "judge_model_params" : {

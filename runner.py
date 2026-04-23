@@ -1,19 +1,22 @@
 try:
     from vllm import LLM, SamplingParams
-    from vllm.sampling_params import GuidedDecodingParams
 except ImportError:  # pragma: no cover - allows static prompt tests without local vllm
     LLM = None
     SamplingParams = None
 
+try:
+    from vllm.sampling_params import GuidedDecodingParams
+except ImportError:  # pragma: no cover - older/newer vllm variants may not expose guided decoding
     class GuidedDecodingParams:  # type: ignore[override]
         def __init__(self, *args, **kwargs):
             pass
 
 try:
-    from transformers import AutoTokenizer, AutoModelForCausalLM
+    from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerFast
 except ImportError:  # pragma: no cover - allows static prompt tests without transformers
     AutoTokenizer = None
     AutoModelForCausalLM = None
+    PreTrainedTokenizerFast = None
 import time
 import copy
 from typing import List, Union, Dict, Any, Tuple
@@ -27,14 +30,50 @@ import sys
 import asyncio
 import json
 import inspect
+from pathlib import Path
 import torch
 from typing import Any, Dict, List, Tuple, Union
-from volcenginesdkarkruntime import AsyncArk
+try:
+    from volcenginesdkarkruntime import AsyncArk
+except ImportError:  # pragma: no cover - optional unless Doubao API runner is used
+    AsyncArk = None
+
+
+def _load_generation_tokenizer(model_name: str):
+    if AutoTokenizer is None:
+        raise ImportError("Transformers tokenizer support is not installed.")
+
+    try:
+        return AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    except Exception:
+        model_path = Path(model_name)
+        tokenizer_file = model_path / "tokenizer.json"
+        chat_template_file = model_path / "chat_template.jinja"
+        tokenizer_config_file = model_path / "tokenizer_config.json"
+
+        if not model_path.exists() or PreTrainedTokenizerFast is None or not tokenizer_file.exists():
+            raise
+
+        init_kwargs = {}
+        if tokenizer_config_file.exists():
+            tokenizer_config = json.loads(tokenizer_config_file.read_text())
+            for src_key, dst_key in (("bos_token", "bos_token"), ("eos_token", "eos_token"), ("unk_token", "unk_token"), ("pad_token", "pad_token")):
+                value = tokenizer_config.get(src_key)
+                if value:
+                    init_kwargs[dst_key] = value
+            extra_special_tokens = tokenizer_config.get("extra_special_tokens") or []
+            if extra_special_tokens:
+                init_kwargs["additional_special_tokens"] = extra_special_tokens
+
+        tokenizer = PreTrainedTokenizerFast(tokenizer_file=str(tokenizer_file), **init_kwargs)
+        if chat_template_file.exists():
+            tokenizer.chat_template = chat_template_file.read_text()
+        return tokenizer
 
 class VLLMRunner:
     def __init__(self, model: str, vllm_config: dict, sampling_config: dict, gpus: str):
-        if LLM is None or SamplingParams is None or AutoTokenizer is None:
-            raise ImportError("VLLMRunner requires vllm and transformers to be installed.")
+        if LLM is None or SamplingParams is None or (AutoTokenizer is None and PreTrainedTokenizerFast is None):
+            raise ImportError("VLLMRunner requires vllm and transformers tokenizer support to be installed.")
         self.model_name = model
         os.environ["CUDA_VISIBLE_DEVICES"] = gpus
         # Some Hugging Face model repos require executing custom code.
@@ -50,7 +89,7 @@ class VLLMRunner:
             top_p=sampling_config.get("top_p", 0.95),
             max_tokens=sampling_config.get("max_tokens", 256),
             stop=sampling_config.get("stop", ["<<<END>>>"]))
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
+        self.tokenizer = _load_generation_tokenizer(self.model_name)
 
     @staticmethod
     def _is_chat_message(message: Any) -> bool:
@@ -74,12 +113,21 @@ class VLLMRunner:
         if hasattr(self.tokenizer, "apply_chat_template"):
             kwargs: Dict[str, Any] = {"tokenize": False}
             sig = inspect.signature(self.tokenizer.apply_chat_template)
+            supports_continue = "continue_final_message" in sig.parameters
+            if continue_final_message and not supports_continue:
+                raise ValueError(
+                    f"Tokenizer for {self.model_name} does not support continue_final_message, "
+                    "but generation requires assistant continuation."
+                )
             if "add_generation_prompt" in sig.parameters:
                 kwargs["add_generation_prompt"] = not continue_final_message
-            if "continue_final_message" in sig.parameters and continue_final_message:
+            if supports_continue and continue_final_message:
                 kwargs["continue_final_message"] = True
             if "enable_thinking" in sig.parameters:
                 kwargs["enable_thinking"] = True
+            chat_template = getattr(self.tokenizer, "chat_template", "") or ""
+            if "reasoning_effort" in chat_template:
+                kwargs.setdefault("reasoning_effort", "high")
             return self.tokenizer.apply_chat_template(normalized_messages, **kwargs)
 
         rendered = "\n".join(
@@ -631,6 +679,8 @@ class DOUBAO_deepseek_API_runner:
         debug: bool = True,
         debug_max_chars: int = 4000,
     ):
+        if AsyncArk is None:
+            raise ImportError("volcenginesdkarkruntime is required for DOUBAO_deepseek_API_runner.")
         self.model_name = "ep-bi-20260112204923-vml7s"
         self.default_params = dict(Config["judge_sampling_params"])
         self.max_concurrent_tasks = max_concurrent_tasks

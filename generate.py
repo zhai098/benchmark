@@ -140,7 +140,8 @@ def main():
     os.makedirs(out_root, exist_ok=True)
 
     tag = args.tag
-    run_dir_name = f"{Config['reasoning_model']}_{tag}"
+    model_label = os.path.basename(os.path.normpath(str(Config["reasoning_model"]))) or "model"
+    run_dir_name = f"{model_label}_{tag}"
     run_dir = os.path.join(out_root, run_dir_name)
     os.makedirs(run_dir, exist_ok=True)
 

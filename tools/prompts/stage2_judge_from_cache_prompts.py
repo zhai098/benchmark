@@ -71,6 +71,55 @@ def _pairwise_aggregate(scores: List[float]) -> float:
     return float(_mean(s[:k]))
 
 
+def _mean_nonempty(scores: List[float]) -> float:
+    if not scores:
+        return 0.0
+    return float(_mean([float(x) for x in scores]))
+
+
+def _aggregate_routes(
+    *,
+    pairwise_scores: List[float],
+    holistic_score: Optional[float],
+    selfjudge_without_reference_score: Optional[float],
+    selfjudge_with_reference_scores: List[float],
+) -> tuple[float, Dict[str, float], List[str]]:
+    route_weights = {
+        "pairwise": 0.35,
+        "holistic": 0.25,
+        "selfjudge_without_reference": 0.20,
+        "selfjudge_with_reference": 0.20,
+    }
+
+    available_routes: Dict[str, float] = {}
+    if pairwise_scores:
+        available_routes["pairwise"] = _mean_nonempty(pairwise_scores)
+    if holistic_score is not None:
+        available_routes["holistic"] = float(holistic_score)
+    if selfjudge_without_reference_score is not None:
+        available_routes["selfjudge_without_reference"] = float(selfjudge_without_reference_score)
+    if selfjudge_with_reference_scores:
+        available_routes["selfjudge_with_reference"] = _mean_nonempty(selfjudge_with_reference_scores)
+
+    if not available_routes:
+        return 0.0, {
+            "pairwise": 0.0,
+            "holistic": 0.0,
+            "selfjudge_without_reference": 0.0,
+            "selfjudge_with_reference": 0.0,
+        }, []
+
+    weight_sum = sum(route_weights[name] for name in available_routes)
+    agg = sum(score * route_weights[name] for name, score in available_routes.items()) / weight_sum
+    per_route = {
+        "pairwise": float(available_routes.get("pairwise", 0.0)),
+        "holistic": float(available_routes.get("holistic", 0.0)),
+        "selfjudge_without_reference": float(available_routes.get("selfjudge_without_reference", 0.0)),
+        "selfjudge_with_reference": float(available_routes.get("selfjudge_with_reference", 0.0)),
+    }
+    return float(agg), per_route, sorted(available_routes.keys())
+
+
 def _safe_case_filename(case_id: str) -> str:
     return "".join(ch if ch.isalnum() or ch in "-_." else "_" for ch in str(case_id))
 
@@ -153,13 +202,16 @@ def _flush_batch(
     # accumulators
     pair_scores_by_idx: Dict[int, List[float]],
     hol_score_by_idx: Dict[int, float],
-    self_score_by_idx: Dict[int, float],
+    self_without_score_by_idx: Dict[int, float],
+    self_with_scores_by_idx: Dict[int, List[float]],
     pair_raw_by_idx: Dict[int, List[str]],
     pair_reason_by_idx: Dict[int, List[str]],
     hol_raw_by_idx: Dict[int, List[str]],
     hol_reason_by_idx: Dict[int, List[str]],
-    self_raw_by_idx: Dict[int, List[str]],
-    self_reason_by_idx: Dict[int, List[str]],
+    self_without_raw_by_idx: Dict[int, List[str]],
+    self_without_reason_by_idx: Dict[int, List[str]],
+    self_with_raw_by_idx: Dict[int, List[str]],
+    self_with_reason_by_idx: Dict[int, List[str]],
     case_id: str,
 ):
     if not batch:
@@ -206,9 +258,12 @@ def _flush_batch(
         elif route == "holistic":
             hol_raw_by_idx.setdefault(idx, []).append(raw or "")
             hol_reason_by_idx.setdefault(idx, []).append(reasoning or "")
-        elif route == "selfjudge":
-            self_raw_by_idx.setdefault(idx, []).append(raw or "")
-            self_reason_by_idx.setdefault(idx, []).append(reasoning or "")
+        elif route == "selfjudge_without_reference":
+            self_without_raw_by_idx.setdefault(idx, []).append(raw or "")
+            self_without_reason_by_idx.setdefault(idx, []).append(reasoning or "")
+        elif route == "selfjudge_with_reference":
+            self_with_raw_by_idx.setdefault(idx, []).append(raw or "")
+            self_with_reason_by_idx.setdefault(idx, []).append(reasoning or "")
 
         # Aggregate scores
         if score is not None:
@@ -217,8 +272,10 @@ def _flush_batch(
                 pair_scores_by_idx.setdefault(idx, []).append(score)
             elif route == "holistic":
                 hol_score_by_idx[idx] = score
-            elif route == "selfjudge":
-                self_score_by_idx[idx] = score
+            elif route == "selfjudge_without_reference":
+                self_without_score_by_idx[idx] = score
+            elif route == "selfjudge_with_reference":
+                self_with_scores_by_idx.setdefault(idx, []).append(score)
 
         f_req.write(json.dumps({
             "case_id": case_id,
@@ -288,13 +345,16 @@ def main():
             # Aggregation storage
             pair_scores_by_idx: Dict[int, List[float]] = {}
             hol_score_by_idx: Dict[int, float] = {}
-            self_score_by_idx: Dict[int, float] = {}
+            self_without_score_by_idx: Dict[int, float] = {}
+            self_with_scores_by_idx: Dict[int, List[float]] = {}
             pair_raw_by_idx: Dict[int, List[str]] = {}
             pair_reason_by_idx: Dict[int, List[str]] = {}
             hol_raw_by_idx: Dict[int, List[str]] = {}
             hol_reason_by_idx: Dict[int, List[str]] = {}
-            self_raw_by_idx: Dict[int, List[str]] = {}
-            self_reason_by_idx: Dict[int, List[str]] = {}
+            self_without_raw_by_idx: Dict[int, List[str]] = {}
+            self_without_reason_by_idx: Dict[int, List[str]] = {}
+            self_with_raw_by_idx: Dict[int, List[str]] = {}
+            self_with_reason_by_idx: Dict[int, List[str]] = {}
 
             meta_rec = gen_meta.get(case_id)
             if meta_rec and isinstance(meta_rec.get("ref_steps"), list):
@@ -322,13 +382,16 @@ def main():
                         f_req=f_req,
                         pair_scores_by_idx=pair_scores_by_idx,
                         hol_score_by_idx=hol_score_by_idx,
-                        self_score_by_idx=self_score_by_idx,
+                        self_without_score_by_idx=self_without_score_by_idx,
+                        self_with_scores_by_idx=self_with_scores_by_idx,
                         pair_raw_by_idx=pair_raw_by_idx,
                         pair_reason_by_idx=pair_reason_by_idx,
                         hol_raw_by_idx=hol_raw_by_idx,
                         hol_reason_by_idx=hol_reason_by_idx,
-                        self_raw_by_idx=self_raw_by_idx,
-                        self_reason_by_idx=self_reason_by_idx,
+                        self_without_raw_by_idx=self_without_raw_by_idx,
+                        self_without_reason_by_idx=self_without_reason_by_idx,
+                        self_with_raw_by_idx=self_with_raw_by_idx,
+                        self_with_reason_by_idx=self_with_reason_by_idx,
                         case_id=case_id,
                     )
                     batch = []
@@ -346,13 +409,16 @@ def main():
                     f_req=f_req,
                     pair_scores_by_idx=pair_scores_by_idx,
                     hol_score_by_idx=hol_score_by_idx,
-                    self_score_by_idx=self_score_by_idx,
+                    self_without_score_by_idx=self_without_score_by_idx,
+                    self_with_scores_by_idx=self_with_scores_by_idx,
                     pair_raw_by_idx=pair_raw_by_idx,
                     pair_reason_by_idx=pair_reason_by_idx,
                     hol_raw_by_idx=hol_raw_by_idx,
                     hol_reason_by_idx=hol_reason_by_idx,
-                    self_raw_by_idx=self_raw_by_idx,
-                    self_reason_by_idx=self_reason_by_idx,
+                    self_without_raw_by_idx=self_without_raw_by_idx,
+                    self_without_reason_by_idx=self_without_reason_by_idx,
+                    self_with_raw_by_idx=self_with_raw_by_idx,
+                    self_with_reason_by_idx=self_with_reason_by_idx,
                     case_id=case_id,
                 )
                 if args.sleep > 0:
@@ -364,20 +430,26 @@ def main():
             all_idxs = sorted(set(
                 list(pair_scores_by_idx.keys())
                 + list(hol_score_by_idx.keys())
-                + list(self_score_by_idx.keys())
+                + list(self_without_score_by_idx.keys())
+                + list(self_with_scores_by_idx.keys())
             ))
             for idx in all_idxs:
                 pair_list = pair_scores_by_idx.get(idx, [])
-                hol_s = float(hol_score_by_idx.get(idx, 0.0))
-                self_s = float(self_score_by_idx.get(idx, 0.0))
-                pair_agg = _pairwise_aggregate(pair_list)
-                step_score = float((pair_agg + hol_s + self_s) / 3.0)
-                contrib = step_score / max(1, N) * 20.0
+                hol_s = hol_score_by_idx.get(idx)
+                self_wo_s = self_without_score_by_idx.get(idx)
+                self_w_list = self_with_scores_by_idx.get(idx, [])
+                step_score, route_scores, available_routes = _aggregate_routes(
+                    pairwise_scores=pair_list,
+                    holistic_score=hol_s,
+                    selfjudge_without_reference_score=self_wo_s,
+                    selfjudge_with_reference_scores=self_w_list,
+                )
+                contrib = step_score / max(1, N - 1) * 20.0
                 total_score += contrib
                 steps.append({
                     "index": idx + 1,
                     "score": step_score,
-                    "routes": {"pairwise": pair_agg, "holistic": hol_s, "selfjudge": self_s},
+                    "routes": route_scores,
                     "pairwise_scores": pair_list,
                     "judge_detail": {
                         "pairwise": {
@@ -386,15 +458,21 @@ def main():
                             "reasoning_outputs": pair_reason_by_idx.get(idx, []),
                         },
                         "holistic": {
-                            "score": hol_s,
+                            "score": float(hol_s or 0.0),
                             "raw_output": hol_raw_by_idx.get(idx, []),
                             "reasoning_output": hol_reason_by_idx.get(idx, []),
                         },
-                        "selfjudge": {
-                            "score": self_s,
-                            "raw_output": self_raw_by_idx.get(idx, []),
-                            "reasoning_output": self_reason_by_idx.get(idx, []),
+                        "selfjudge_without_reference": {
+                            "score": float(self_wo_s or 0.0),
+                            "raw_output": self_without_raw_by_idx.get(idx, []),
+                            "reasoning_output": self_without_reason_by_idx.get(idx, []),
                         },
+                        "selfjudge_with_reference": {
+                            "scores": self_w_list,
+                            "raw_outputs": self_with_raw_by_idx.get(idx, []),
+                            "reasoning_outputs": self_with_reason_by_idx.get(idx, []),
+                        },
+                        "available_routes": available_routes,
                     },
                     "contrib": contrib,
                 })

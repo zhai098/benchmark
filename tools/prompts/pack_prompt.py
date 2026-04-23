@@ -45,6 +45,25 @@ def _build_gen_prefix(gen_output_item: str) -> str:
     return " ".join(gen_sents_all[:k]).strip()
 
 
+def _iter_scored_prefixes(rec: Dict[str, Any]) -> List[Tuple[int, str]]:
+    """Mirror judge.py's scoring window and prefer stored generation prefixes."""
+    gen_output: List[str] = rec.get("gen_output") or []
+    stored_prefixes: List[str] = rec.get("gen_prefix") or []
+    upper = max(0, len(stored_prefixes) - 2) if stored_prefixes else max(0, len(gen_output) - 2)
+    upper = min(upper, len(gen_output))
+
+    scored: List[Tuple[int, str]] = []
+    for idx in range(upper):
+        prefix = ""
+        if idx < len(stored_prefixes):
+            prefix = str(stored_prefixes[idx] or "").strip()
+        if not prefix:
+            prefix = _build_gen_prefix(gen_output[idx])
+        if prefix:
+            scored.append((idx, prefix))
+    return scored
+
+
 def _reference_step_text(record: Dict[str, Any], idx: int) -> str:
     steps = record.get("steps", [])
     if idx < len(steps) and isinstance(steps[idx], dict):
@@ -83,7 +102,7 @@ def _pairwise_requests(
                 "prompt": pairwise.return_prompt(),
                 "schema": pairwise.output_schema,
                 "meta": {
-                    "step_id": step_label,
+                    "current_step_id": step_label,
                     "dependency_claim_id": claim["id"],
                     "dependency_claim_text": claim["text"],
                     "prior_ref_len_chars": len(prior_ref),
@@ -133,7 +152,7 @@ def _selfjudge_without_reference_request(
         "ref_idx": None,
         "prompt": selfjudge.return_prompt(),
         "schema": selfjudge.output_schema,
-        "meta": {"step_id": step_label, "gen_prefix_len_chars": len(gen_prefix)},
+        "meta": {"current_step_id": step_label, "gen_prefix_len_chars": len(gen_prefix)},
     }
 
 
@@ -157,9 +176,9 @@ def _selfjudge_with_reference_requests(
                 "prompt": selfjudge.return_prompt(),
                 "schema": selfjudge.output_schema,
                 "meta": {
-                    "reference_step": step_label,
-                    "reference_claim_id": claim["id"],
-                    "reference_claim_text": claim["text"],
+                    "current_step_id": step_label,
+                    "current_step_claim_id": claim["id"],
+                    "current_step_claim_text": claim["text"],
                     "gen_prefix_len_chars": len(gen_prefix),
                 },
             }
@@ -173,31 +192,19 @@ def _iter_case_requests_cache_optimal(
     holistic: Holistic_Prompt,
     selfjudge: SelfJudge_Prompt,
 ) -> List[Dict[str, Any]]:
-    gen_output: List[str] = rec["gen_output"]
     requests: List[Dict[str, Any]] = []
+    scored_prefixes = _iter_scored_prefixes(rec)
 
-    for idx, item in enumerate(gen_output):
-        gen_prefix = _build_gen_prefix(item)
-        if not gen_prefix:
-            continue
+    for idx, gen_prefix in scored_prefixes:
         requests.extend(_pairwise_requests(rec, idx, gen_prefix, pairwise))
 
-    for idx, item in enumerate(gen_output):
-        gen_prefix = _build_gen_prefix(item)
-        if not gen_prefix:
-            continue
+    for idx, gen_prefix in scored_prefixes:
         requests.append(_holistic_request(rec, idx, gen_prefix, holistic))
 
-    for idx, item in enumerate(gen_output):
-        gen_prefix = _build_gen_prefix(item)
-        if not gen_prefix:
-            continue
+    for idx, gen_prefix in scored_prefixes:
         requests.append(_selfjudge_without_reference_request(rec, idx, gen_prefix, selfjudge))
 
-    for idx, item in enumerate(gen_output):
-        gen_prefix = _build_gen_prefix(item)
-        if not gen_prefix:
-            continue
+    for idx, gen_prefix in scored_prefixes:
         requests.extend(_selfjudge_with_reference_requests(rec, idx, gen_prefix, selfjudge))
 
     return requests

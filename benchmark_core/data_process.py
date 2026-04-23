@@ -1,302 +1,332 @@
 from __future__ import annotations
+
+import ast
+import json
+import os
 import re
-from typing import List, Dict, Any, Optional
+from typing import Any, Dict, List
 
-import json, re, ast, os
 
-class Processor():
-    def __init__(self):
-       
-        self._ABBREVIATIONS = [
-            # common English abbreviations
+class Processor:
+    def __init__(self) -> None:
+        abbreviations = [
             "Mr.", "Mrs.", "Ms.", "Dr.", "Prof.", "Sr.", "Jr.", "St.", "Co.", "Inc.", "Ltd.",
             "vs.", "etc.", "e.g.", "i.e.", "cf.", "Fig.", "Eq.", "Sec.", "No.", "pp.", "Ch.",
-            # academic/Latin
             "et al.", "al.",
-            # locales
-            "U.S.", "U.K.", "U.N."
+            "U.S.", "U.K.", "U.N.",
         ]
-        # map each abbreviation to a unique placeholder (no dots inside)
-        self._ABBREV_MAP = {abbr: f"⟪ABBR{idx}⟫" for idx, abbr in enumerate(self._ABBREVIATIONS)}
-        self._EN_SENT_END = re.compile(
-            r'(?:(?<!\d)\.(?!\d)|[!?;])(?=[)"\'\]\}]*\s+|$)'
+        self._abbrev_map = {
+            abbr: f"__ABBR_{idx}__"
+            for idx, abbr in enumerate(sorted(abbreviations, key=len, reverse=True))
+        }
+        self._sentence_end_re = re.compile(
+            r'(?:(?<!\d)\.(?!\d)|(?<=\d)\.(?=[)"\'\]\}]*\s+[A-Z])|[!?;])(?=[)"\'\]\}]*\s+|$)'
         )
-    
-    
-    def sentence_split_en(self, text: str) -> List[str]:
+
+    def sentence_split_en(self, text: Any) -> List[str]:
         """
-        English sentence splitter with abbreviation and number protection.
-        Steps:
-          1) Protect abbreviations by placeholder substitution.
-          2) Split by sentence enders (. ! ? ;) with heuristics.
-          3) Restore abbreviations.
+        Split English text into sentences while protecting common abbreviations
+        and decimal numbers. Returns a best-effort list and never raises.
         """
-        if not text:
+        normalized = _normalize_generation_input(text)
+        if not normalized:
             return []
 
-        # 1) protect abbreviations (longer first to avoid partial overlaps)
-        tmp = text
-        for abbr in sorted(self._ABBREV_MAP.keys(), key=len, reverse=True):
-            tmp = tmp.replace(abbr, self._ABBREV_MAP[abbr])
+        tmp = normalized
+        for abbr, placeholder in self._abbrev_map.items():
+            tmp = tmp.replace(abbr, placeholder)
 
         sentences: List[str] = []
         start = 0
-        for m in self._EN_SENT_END.finditer(tmp):
-            end = m.end()
-            seg = tmp[start:end].strip()
-            if seg:
-                sentences.append(seg)
+        for match in self._sentence_end_re.finditer(tmp):
+            end = match.end()
+            segment = tmp[start:end].strip()
+            if segment:
+                sentences.append(segment)
             start = end
+
         if start < len(tmp):
-            rest = tmp[start:].strip()
-            if rest:
-                sentences.append(rest)
+            tail = tmp[start:].strip()
+            if tail:
+                sentences.append(tail)
 
-        # 3) restore abbreviations and clean spacing
         restored: List[str] = []
-        for s in sentences:
-            for abbr, placeholder in self._ABBREV_MAP.items():
-                s = s.replace(placeholder, abbr)
-            s = re.sub(r"\s+", " ", s).strip()
-            if s:
-                restored.append(s)
-
+        for sentence in sentences:
+            for abbr, placeholder in self._abbrev_map.items():
+                sentence = sentence.replace(placeholder, abbr)
+            sentence = re.sub(r"\s+", " ", sentence).strip()
+            if sentence:
+                restored.append(sentence)
         return restored
 
-    def jaccard(a: str, b: str) -> float:
-        A = set(re.findall(r"[A-Za-z0-9_]+", a.lower()))
-        B = set(re.findall(r"[A-Za-z0-9_]+", b.lower()))
-        if not A or not B:
-            return 0.0
-        return len(A & B) / len(A | B)
 
-    import json, re
-
-
-# 允许的 JSON 空白范围内做规整：\t \n \r space；并清理常见“非标准空白/分隔”
 _JSON_WS_FIX = {
-    "\uFEFF": "",     # BOM
-    "\u200B": "",     # ZERO WIDTH SPACE
-    "\u200C": "", "\u200D": "", "\u2060": "",
-    "\u00A0": " ",    # NO-BREAK SPACE
-    "\u2007": " ", "\u202F": " ",
-    "\u2028": "\n", "\u2029": "\n",
+    "\uFEFF": "",
+    "\u200B": "",
+    "\u200C": "",
+    "\u200D": "",
+    "\u2060": "",
+    "\u00A0": " ",
+    "\u2007": " ",
+    "\u202F": " ",
+    "\u2028": "\n",
+    "\u2029": "\n",
 }
 
 _SMART_QUOTES = {
-    "“": "\"", "”": "\"", "„": "\"", "‟": "\"",
-    "‘": "'",  "’": "'",  "‚": "'",  "‛": "'",
+    "“": "\"",
+    "”": "\"",
+    "„": "\"",
+    "‟": "\"",
+    "‘": "'",
+    "’": "'",
+    "‚": "'",
+    "‛": "'",
 }
 
 _CODE_FENCE_RE = re.compile(r"^```[a-zA-Z0-9_-]*\s*|\s*```$", re.MULTILINE)
+_SCORE_RE = re.compile(r'"score"\s*:\s*(-?\d+(?:\.\d+)?)')
 
-def extract_floats(s):
-    # 使用正则表达式提取浮点数
-    floats = re.findall(r"[-+]?\d*\.\d+|\d+", s)
-    
-    # 将匹配到的字符串转换为 float 类型
-    return [float(num) for num in floats]
 
-def _normalize_ws_and_quotes(s: str) -> str:
-    s = s or ""
-    for k, v in _JSON_WS_FIX.items():
-        s = s.replace(k, v)
-    for k, v in _SMART_QUOTES.items():
-        s = s.replace(k, v)
-    # 去除 Markdown 代码围栏
-    s = _CODE_FENCE_RE.sub("", s)
-    # 规整多余空行
-    s = re.sub(r"\n{3,}", "\n\n", s)
-    return s.strip()
+def _normalize_ws_and_quotes(text: Any) -> str:
+    raw = _normalize_generation_input(text)
+    for src, dst in _JSON_WS_FIX.items():
+        raw = raw.replace(src, dst)
+    for src, dst in _SMART_QUOTES.items():
+        raw = raw.replace(src, dst)
+    raw = _CODE_FENCE_RE.sub("", raw)
+    raw = re.sub(r"\n{3,}", "\n\n", raw)
+    return raw.strip()
 
-def _extract_first_json_chunk(s: str) -> str | None:
-    """从文本中提取首个完整 JSON 块（支持对象{}或数组[]），基于括号计数。"""
-    if not s:
+
+def _extract_first_json_chunk(text: str) -> str | None:
+    """Extract the first balanced JSON object/array while respecting strings."""
+    if not text:
         return None
-    # 找最早出现的 { 或 [
-    start_obj = s.find("{")
-    start_arr = s.find("[")
-    starts = [x for x in [start_obj, start_arr] if x >= 0]
+
+    starts = [idx for idx in (text.find("{"), text.find("[")) if idx >= 0]
     if not starts:
         return None
+
     start = min(starts)
-    opener = s[start]
+    opener = text[start]
     closer = "}" if opener == "{" else "]"
+
     depth = 0
-    for i, ch in enumerate(s[start:], start):
+    in_string = False
+    escape = False
+    quote_char = ""
+
+    for idx in range(start, len(text)):
+        ch = text[idx]
+
+        if in_string:
+            if escape:
+                escape = False
+            elif ch == "\\":
+                escape = True
+            elif ch == quote_char:
+                in_string = False
+            continue
+
+        if ch in ('"', "'"):
+            in_string = True
+            quote_char = ch
+            continue
+
         if ch == opener:
             depth += 1
         elif ch == closer:
             depth -= 1
             if depth == 0:
-                return s[start:i+1]
-    return None  # 未闭合
+                return text[start:idx + 1]
 
-def _strip_trailing_commas(s: str) -> str:
-    # 去掉 } 或 ] 前面多余逗号（尾逗号）
-    return re.sub(r",\s*([}\]])", r"\1", s)
+    return None
 
-def _fix_unquoted_keys(s: str) -> str:
-    # 将 { a: 1, b_c: 2 } 这类键名补双引号（尽量保守：仅匹配安全的标识符键）
-    return re.sub(r'([{\[,]\s*)([A-Za-z_][A-Za-z0-9_\-]*)\s*:', r'\1"\2":', s)
 
-def _single_to_double_quotes(s: str) -> str:
-    # 仅在“明显是 JSON 上下文”中把字符串的单引号换成双引号（尽量保守）
-    # 先处理键名：'key': → "key":
-    s = re.sub(r"([{\[,]\s*)'([^'\"\\]+?)'\s*:", r'\1"\2":', s)
-    # 再处理字符串值：: 'value' → : "value"
-    s = re.sub(r':\s*\'([^\'"\\]*?)\'(\s*[,\}\]])', r': "\1"\2', s)
-    return s
+def _strip_trailing_commas(text: str) -> str:
+    return re.sub(r",\s*([}\]])", r"\1", text)
 
-def _replace_py_literals(s: str) -> str:
-    # 把 Python 字面量替换为 JSON：True/False/None → true/false/null
-    s = re.sub(r"\bTrue\b", "true", s)
-    s = re.sub(r"\bFalse\b", "false", s)
-    s = re.sub(r"\bNone\b", "null", s)
-    return s
 
-def _try_json_loads(s: str):
+def _fix_unquoted_keys(text: str) -> str:
+    return re.sub(r'([{\[,]\s*)([A-Za-z_][A-Za-z0-9_\-]*)\s*:', r'\1"\2":', text)
+
+
+def _single_to_double_quotes(text: str) -> str:
+    text = re.sub(r"([{\[,]\s*)'([^'\"\\]+?)'\s*:", r'\1"\2":', text)
+    text = re.sub(r':\s*\'([^\'"\\]*?)\'(\s*[,\}\]])', r': "\1"\2', text)
+    return text
+
+
+def _replace_py_literals(text: str) -> str:
+    text = re.sub(r"\bTrue\b", "true", text)
+    text = re.sub(r"\bFalse\b", "false", text)
+    text = re.sub(r"\bNone\b", "null", text)
+    return text
+
+
+def _try_json_loads(text: str) -> Any:
     try:
-        return json.loads(s)
+        return json.loads(text)
     except Exception:
         return None
 
-def safe_json_loads(text: str) -> dict | list:
+
+def safe_json_loads(text: Any) -> dict | list:
     """
-    尽力把模型输出解析为 JSON（对象或数组）：
-      1) 标准化空白/引号/去代码块
-      2) 直接 json.loads
-      3) 抽取首个 JSON 块再 loads
-      4) 序列修复：尾逗号 → 单引号/无引号键 → Py 字面量 → 再抽取 → 再 loads
-      5) 兜底：尝试 ast.literal_eval → 再转 JSON
-    失败会抛出 ValueError
+    Best-effort JSON parser for noisy model output.
+
+    Accepts strings, bytes, dicts, and lists. Dict/list inputs are returned
+    directly. Raises ValueError only after all repair strategies fail.
     """
+    if isinstance(text, (dict, list)):
+        return text
+    if isinstance(text, bytes):
+        text = text.decode("utf-8", errors="replace")
+
     raw = _normalize_ws_and_quotes(text)
+    if not raw:
+        raise ValueError("Failed to parse JSON after repairs: empty input")
 
-    # 直接尝试
-    obj = _try_json_loads(raw)
-    if obj is not None:
-        return obj
+    parsed = _try_json_loads(raw)
+    if parsed is not None:
+        return parsed
 
-    # 从混合文本中抽取首个 JSON 块再试
     chunk = _extract_first_json_chunk(raw)
     if chunk:
-        obj = _try_json_loads(chunk)
-        if obj is not None:
-            return obj
+        parsed = _try_json_loads(chunk)
+        if parsed is not None:
+            return parsed
 
-    # 依次做可逆修复（每步都尝试解析）
-    candidates = []
-    s = raw
+    candidates: List[str] = []
+    current = raw
+    for fixer in (_strip_trailing_commas, _single_to_double_quotes, _fix_unquoted_keys, _replace_py_literals):
+        current = fixer(current)
+        candidates.append(current)
 
-    s1 = _strip_trailing_commas(s)
-    candidates.append(s1)
+    for candidate in candidates:
+        parsed = _try_json_loads(candidate)
+        if parsed is not None:
+            return parsed
+        chunk = _extract_first_json_chunk(candidate)
+        if chunk:
+            parsed = _try_json_loads(chunk)
+            if parsed is not None:
+                return parsed
 
-    s2 = _single_to_double_quotes(s1)
-    candidates.append(s2)
-
-    s3 = _fix_unquoted_keys(s2)
-    candidates.append(s3)
-
-    s4 = _replace_py_literals(s3)
-    candidates.append(s4)
-
-    for c in candidates:
-        # 再抽取一次（以防修复后结构闭合）
-        chunk2 = _extract_first_json_chunk(c) or c
-        obj = _try_json_loads(chunk2)
-        if obj is not None:
-            return obj
-
-    # 最后的兜底：literal_eval（宽松，但仅在安全上下文里使用）
     try:
-        # 尽量转换成 Python 字面量可接受的形式
-        s5 = _replace_py_literals(_single_to_double_quotes(_strip_trailing_commas(raw)))
-        lit = ast.literal_eval(_extract_first_json_chunk(s5) or s5)
-        # 再转成 JSON 兼容结构
-        return json.loads(json.dumps(lit))
-    except Exception as e:
-        raise ValueError(f"Failed to parse JSON after repairs: {e}")
+        fallback = _replace_py_literals(_single_to_double_quotes(_strip_trailing_commas(raw)))
+        literal = ast.literal_eval(_extract_first_json_chunk(fallback) or fallback)
+        normalized = json.loads(json.dumps(literal, ensure_ascii=False))
+        if isinstance(normalized, (dict, list)):
+            return normalized
+    except Exception as exc:
+        raise ValueError(f"Failed to parse JSON after repairs: {exc}") from exc
 
-def _to_str_atom(x: Any) -> str:
-    """Make a single item a clean string."""
-    if x is None:
+    raise ValueError("Failed to parse JSON after repairs: unsupported literal result")
+
+
+def _to_str_atom(value: Any) -> str:
+    if value is None:
         return ""
-    if isinstance(x, str):
-        return x.strip()
-    if isinstance(x, (dict, list, tuple)):
-        # dict 用 JSON 形式，list/tuple 由外层处理
-        return json.dumps(x, ensure_ascii=False)
-    return str(x).strip()
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        return json.dumps(value, ensure_ascii=False, sort_keys=True)
+    if isinstance(value, (list, tuple)):
+        return ""
+    return str(value).strip()
 
-def flatten_to_string(gen: Any, sep: str = " ") -> str:
-    """
-    Convert str / list / tuple / nested lists to a single string.
-    - Trims whitespace
-    - Flattens nested arrays
-    - Skips empty atoms
-    """
-    out: list[str] = []
 
-    def _walk(v: Any):
-        if isinstance(v, (list, tuple)):
-            for e in v:
-                _walk(e)
-        else:
-            s = _to_str_atom(v)
-            if s:
-                out.append(s)
+def flatten_to_string(value: Any, sep: str = " ") -> str:
+    """Flatten nested lists/tuples into a single string, skipping empty atoms."""
+    parts: List[str] = []
 
-    _walk(gen)
-    return sep.join(out)
+    def _walk(item: Any) -> None:
+        if item is None:
+            return
+        if isinstance(item, (list, tuple)):
+            for child in item:
+                _walk(child)
+            return
+        atom = _to_str_atom(item)
+        if atom:
+            parts.append(atom)
 
-def _write_jsonl_line(handle, payload: Dict[str, Any]) -> None:
-    """写入单行 JSON 并立即落盘."""
+    _walk(value)
+    return sep.join(parts)
+
+
+def _flush_handle(handle: Any) -> None:
+    try:
+        handle.flush()
+    except Exception:
+        return
+
+    fileno = getattr(handle, "fileno", None)
+    if fileno is None:
+        return
+    try:
+        os.fsync(handle.fileno())
+    except (AttributeError, OSError, ValueError):
+        pass
+
+
+def _write_jsonl_line(handle: Any, payload: Dict[str, Any]) -> None:
+    """Write one JSONL row and flush when possible."""
     handle.write(json.dumps(payload, ensure_ascii=False) + "\n")
-    handle.flush()
-    os.fsync(handle.fileno())
+    _flush_handle(handle)
 
 
-def _write_pretty_json(handle, payload: Dict[str, Any]) -> None:
-    """写入缩进 JSON，记录之间用空行分隔，方便人工浏览."""
+def _write_pretty_json(handle: Any, payload: Dict[str, Any]) -> None:
+    """Write indented JSON blocks separated by blank lines."""
     handle.write(json.dumps(payload, ensure_ascii=False, indent=2))
     handle.write("\n\n")
-    handle.flush()
-    os.fsync(handle.fileno())
+    _flush_handle(handle)
 
 
 def _write_case_text_log(
-    handle,
+    handle: Any,
     *,
     case_record: Dict[str, Any],
     case_genlog: Dict[str, Any],
 ) -> None:
-    """写入便于人工检视的纯文本摘要."""
+    """Write a human-readable text summary for manual inspection."""
+
+    def _safe_float(value: Any, default: float = 0.0) -> float:
+        try:
+            return float(value)
+        except (TypeError, ValueError):
+            return default
+
+    def _safe_int(value: Any, default: int = 0) -> int:
+        try:
+            return int(value)
+        except (TypeError, ValueError):
+            return default
 
     def _fmt_step(step: Dict[str, Any]) -> str:
         idx = step.get("index", "?")
-        score = step.get("score", 0.0)
-        step_score = step.get("step_score", score)
-        hallucination = step.get("hallucination", 0)
+        score = _safe_float(step.get("score", 0.0))
+        step_score = _safe_float(step.get("step_score", score))
+        hallucination = _safe_int(step.get("hallucination", 0))
         return (
-            f"  - Step {idx}: score={float(score):.4f}, "
-            f"weighted={float(step_score):.4f}, hallucination={int(hallucination)}"
+            f"  - Step {idx}: score={score:.4f}, "
+            f"weighted={step_score:.4f}, hallucination={hallucination}"
         )
 
     def _fmt_generation(gen_output: List[Any]) -> List[str]:
         lines: List[str] = []
-        for idx, item in enumerate(gen_output, 1):
-            text = flatten_to_string(item, sep=" ") if item else ""
-            if not text:
-                text = "<empty>"
-            lines.append(f"  [{idx}] {text}")
+        for idx, item in enumerate(gen_output, start=1):
+            text = flatten_to_string(item, sep=" ")
+            lines.append(f"  [{idx}] {text or '<empty>'}")
         return lines or ["  <no generation recorded>"]
 
     lines = [
         f"Case #{case_record.get('id', '?')}",
         f"Difficulty: {case_record.get('difficulty', '?')}",
-        f"Weighted Score: {float(case_record.get('score', 0.0)):.4f}",
-        f"Total Steps: {case_record.get('num_steps', 0)}",
+        f"Weighted Score: {_safe_float(case_record.get('score', 0.0)):.4f}",
+        f"Total Steps: {_safe_int(case_record.get('num_steps', 0))}",
         "Problem:",
         _to_str_atom(case_record.get("problem", "")),
         "Answer:",
@@ -306,7 +336,7 @@ def _write_case_text_log(
 
     steps = case_record.get("steps") or []
     if steps:
-        lines.extend(_fmt_step(step) for step in steps)
+        lines.extend(_fmt_step(step) for step in steps if isinstance(step, dict))
     else:
         lines.append("  <no step scores>")
 
@@ -315,65 +345,81 @@ def _write_case_text_log(
     lines.append("-" * 80)
 
     handle.write("\n".join(lines) + "\n")
-    handle.flush()
-    os.fsync(handle.fileno())
+    _flush_handle(handle)
+
 
 def _normalize_generation_input(value: Any) -> str:
-    """Convert arbitrary user/model outputs to a clean string for evaluation."""
+    """Convert arbitrary user/model outputs to stable plain text without flattening line structure."""
+
+    def _normalize_text(raw: str) -> str:
+        raw = raw.replace("\r\n", "\n").replace("\r", "\n")
+        raw = raw.replace("\t", " ").replace("\f", " ").replace("\v", " ")
+        raw = re.sub(r"[^\S\n]+", " ", raw)
+        raw = re.sub(r" *\n *", "\n", raw)
+        return raw.strip()
 
     if value is None:
         return ""
+    if isinstance(value, bytes):
+        return _normalize_text(value.decode("utf-8", errors="replace"))
     if isinstance(value, str):
-        return value.strip()
+        return _normalize_text(value)
     try:
-        return flatten_to_string(value, sep=" ").strip()
+        return _normalize_text(flatten_to_string(value, sep=" "))
     except Exception:
-        return str(value).strip()
-    
-def extract_last_score_part(text: str) -> str:
-    # 使用正则表达式提取最后的{"score": <number>}部分
-    match = re.search(r'{"score":\s*([0-9]*\.?[0-9]+)}$', text)
-    if match:
-        # 提取捕获的分数并转换为float
-        score = float(match.group(1))
-        return score
-    else:
-        return -1  # 如果没有找到匹配，返回-1
-    
-def extract_prefix_value(raw: str) -> str | None:
-    """
-    从类似
-      'assistantfinal{"prefix":"..."}'
-    这样的字符串里提取 prefix 字段对应的字符串内容。
-    解析失败或没有 prefix 时返回 None。
-    """
-    # 1. 截到第一个 '{'，拿到纯 JSON 部分
-    brace_idx = raw.find("{")
-    if brace_idx == -1:
-        return None
-    json_part = raw[brace_idx:]
+        return _normalize_text(str(value))
 
-    # 2. 解析 JSON
+
+def extract_last_score_part(text: Any) -> float:
+    """
+    Extract the last numeric `score` field from noisy text.
+
+    Returns -1.0 when no score can be recovered.
+    """
+    raw = _normalize_generation_input(text)
+    if not raw:
+        return -1.0
+
+    matches = _SCORE_RE.findall(raw)
+    if matches:
+        try:
+            return float(matches[-1])
+        except ValueError:
+            return -1.0
+
     try:
-        obj = json.loads(json_part)
-    except json.JSONDecodeError:
+        parsed = safe_json_loads(raw)
+        if isinstance(parsed, dict) and "score" in parsed:
+            return float(parsed["score"])
+    except Exception:
+        pass
+    return -1.0
+
+
+def extract_prefix(text: Any) -> str | None:
+    """
+    Extract a `prefix` field from raw model output such as:
+      assistantfinal{"prefix":"..."}
+    Returns None when parsing fails or the field is absent.
+    """
+    raw = _normalize_generation_input(text)
+    if not raw:
         return None
 
-    # 3. 取 prefix 字段
-    val = obj.get("prefix")
-    print("提取到的 prefix 字段值:", val)
-    return val 
+    brace_idx = raw.find("{")
+    candidates = [raw]
+    if brace_idx >= 0:
+        candidates.insert(0, raw[brace_idx:])
 
-import re
-
-def extract_prefix(text: str) -> str | None:
-    """
-    在字符串中查找模式：
-    assistantfinal{"prefix":"..."}
-    返回 ... 的内容（不含引号）。
-    找不到则返回 None。
-    """
-    m = re.search(r'assistantfinal\{"prefix"\s*:\s*"([^"]*)"', text)
-    if not m:
-        return None
-    return m.group(1)
+    for candidate in candidates:
+        try:
+            parsed = safe_json_loads(candidate)
+        except Exception:
+            continue
+        if isinstance(parsed, dict):
+            prefix = parsed.get("prefix")
+            if prefix is None:
+                continue
+            normalized = _normalize_generation_input(prefix)
+            return normalized or None
+    return None
