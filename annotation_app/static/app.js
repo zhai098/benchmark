@@ -490,6 +490,73 @@ function getTaskProgressSummary(c, st) {
   return { percent, status, label, ratioText };
 }
 
+function normalizedMethodName(value) {
+  return String(value || '').trim();
+}
+
+function getOptimalSampleEntries(st) {
+  const entries = [];
+  const seen = new Set();
+  (st.correct_solutions || []).forEach((item) => {
+    const idx = Number(item?.sample_idx);
+    if (!Number.isInteger(idx) || seen.has(idx)) return;
+    seen.add(idx);
+    entries.push({
+      sample_idx: idx,
+      completed_at: String(item?.completed_at || ''),
+      solution: String(item?.solution || ''),
+    });
+  });
+  return entries;
+}
+
+function getMethodLockOwners(st) {
+  const owners = {};
+  getOptimalSampleEntries(st).forEach((entry) => {
+    const rec = sampleRecord(st, entry.sample_idx);
+    const method = normalizedMethodName(rec.class_name);
+    if (!method || owners[method] !== undefined) return;
+    owners[method] = entry.sample_idx;
+  });
+  return owners;
+}
+
+function getSampleMethodLockInfo(st, sampleIdx) {
+  const rec = sampleRecord(st, sampleIdx);
+  const method = normalizedMethodName(rec.class_name);
+  if (!method) return { locked: false, ownerIdx: null, method: '' };
+  const ownerIdx = getMethodLockOwners(st)[method];
+  if (ownerIdx === undefined || ownerIdx === sampleIdx) {
+    return { locked: false, ownerIdx: ownerIdx ?? null, method };
+  }
+  return { locked: true, ownerIdx, method };
+}
+
+function getSampleStageLabel(st, sampleIdx) {
+  const rec = sampleRecord(st, sampleIdx);
+  const workflowState = st.sample_annotations?.[sampleIdx]?.workflow_state || '';
+  if (rec.pipeline_status === 'completed') return '已完成';
+  if (rec.pipeline_status === 'discarded') return '已丢弃';
+  if (sampleIdx === st.active_sample_idx && rec.pipeline_status === 'in_progress') {
+    return `进行中 · Step ${Math.max(2, Number(st.current_step || 2))}`;
+  }
+  if (rec.pipeline_status === 'ready') return '待进入主流程';
+  if (workflowState === 'claims_checked') return '已做 Step 4';
+  if (workflowState === 'claims_assigned') return '已做 Step 3';
+  if (workflowState === 'steps_segmented') return '已做 Step 2';
+  if (workflowState === 'sample_selected') return '待做 Step 2';
+  return '未开始';
+}
+
+function buildSelectedSampleSummary(st) {
+  const parts = getOptimalSampleEntries(st).map((entry) => {
+    const rec = sampleRecord(st, entry.sample_idx);
+    const method = normalizedMethodName(rec.class_name) || '未命名方法';
+    return `sample-${entry.sample_idx + 1} (${method})`;
+  });
+  return parts.length ? parts.join('；') : '无';
+}
+
 function getTaskProgressDetailLines(c, st, progress = getTaskProgressSummary(c, st)) {
   const totalSamples = Array.isArray(c?.samples) ? c.samples.length : 0;
   const screening = ensureProblemQualityScreening(st);
@@ -513,6 +580,7 @@ function getTaskProgressDetailLines(c, st, progress = getTaskProgressSummary(c, 
     `标注者：${annotatorId()}`,
     `任务：${String(c?.id || '')}`,
     `总体进度：${progress.percent}% · ${progress.label}`,
+    `已选最优样本：${buildSelectedSampleSummary(st)}`,
     `题目质检：${screeningLabel}`,
     `样本进度：完成 ${completedSamples} / 丢弃 ${discardedSamples} / 处理中 ${inProgressSamples} / 总计 ${totalSamples}`,
     `当前活跃样本：${activeSample}`,
@@ -615,6 +683,11 @@ function setActiveSampleFromCursor() {
     alert('当前样本尚未判定为正确，不能进入主工作流。');
     return;
   }
+  const lockInfo = getSampleMethodLockInfo(st, idx);
+  if (lockInfo.locked) {
+    alert(`该方法已由 sample-${lockInfo.ownerIdx + 1} 入选最优样本，不能再进入同方法其他样本的主流程。`);
+    return;
+  }
   st.active_sample_idx = idx;
   rec.pipeline_status = 'in_progress';
   if (!st.sample_annotations[idx]) {
@@ -629,6 +702,14 @@ function setActiveSampleFromCursor() {
 function chooseSampleStatus(i, status) {
   const st = getCaseState(selectedCase().id);
   const rec = sampleRecord(st, i);
+  if (status === true) {
+    const lockInfo = getSampleMethodLockInfo(st, i);
+    if (lockInfo.locked) {
+      showToast(`同方法已由 sample-${lockInfo.ownerIdx + 1} 入选最优样本，请不要再选择该方法的其他样本。`, 'error');
+      renderStepContent();
+      return;
+    }
+  }
   rec.is_correct = status;
 
   if (status === false) {
@@ -742,6 +823,7 @@ function setSampleField(i, k, v) {
   const st = getCaseState(selectedCase().id);
   sampleRecord(st, i)[k] = v;
   scheduleAutosave();
+  refreshSampleOverviewPanel();
 }
 
 function selectSolution(i) {
@@ -1093,6 +1175,68 @@ function buildWorkspaceHeader(c, st) {
   `;
 }
 
+function buildSampleOverviewPanel(c, st) {
+  const samples = Array.isArray(c?.samples) ? c.samples : [];
+  const lockOwners = getMethodLockOwners(st);
+  const selectedSamples = buildSelectedSampleSummary(st);
+  const rows = samples.map((_, i) => {
+    const rec = sampleRecord(st, i);
+    const method = normalizedMethodName(rec.class_name);
+    const lockInfo = getSampleMethodLockInfo(st, i);
+    const isSelected = getOptimalSampleEntries(st).some((entry) => entry.sample_idx === i);
+    const notes = [];
+    if (isSelected) notes.push('已入选最优样本');
+    if (lockInfo.locked) {
+      const owner = sampleRecord(st, lockInfo.ownerIdx);
+      const ownerSummary = normalizedMethodName(owner.summary);
+      notes.push(`同方法已由 sample-${lockInfo.ownerIdx + 1} 锁定${ownerSummary ? `：${ownerSummary}` : ''}`);
+    } else if (method && lockOwners[method] === i) {
+      notes.push('该方法已锁定其他同分类样本');
+    }
+    if (i === st.active_sample_idx) notes.push('当前活跃样本');
+    return `
+      <tr class="${i === st.sample_cursor ? 'sample-overview-current' : ''}">
+        <td>sample-${i + 1}</td>
+        <td>${escapeHtml(getSampleStageLabel(st, i))}</td>
+        <td>${method ? escapeHtml(method) : '<span class="muted-note">未填写</span>'}</td>
+        <td>${rec.is_new_class ? '是' : '否'}</td>
+        <td>${rec.summary ? escapeHtml(rec.summary) : '<span class="muted-note">暂无</span>'}</td>
+        <td>${notes.length ? notes.map((note) => `<span class="sample-note">${escapeHtml(note)}</span>`).join('') : '<span class="muted-note">-</span>'}</td>
+      </tr>
+    `;
+  }).join('');
+
+  return `
+    <div class="card sample-overview">
+      <div class="row">
+        <h4 style="margin:0;">当前题目 sample 总览</h4>
+        <span class="pill">已选最优样本 ${getOptimalSampleEntries(st).length}</span>
+        <span class="pill">完成 ${st.sample_validation.filter((item) => item?.pipeline_status === 'completed').length}</span>
+        <span class="pill">丢弃 ${st.sample_validation.filter((item) => item?.pipeline_status === 'discarded').length}</span>
+      </div>
+      <p class="muted-note">同方法按分类名精确匹配；某个 sample 完成并入选最优后，会锁定其他同分类样本。</p>
+      <div class="sample-overview-selected"><strong>已选最优样本：</strong>${escapeHtml(selectedSamples)}</div>
+      <div class="context-panel-scroll">
+        <table class="compact-table sample-overview-table">
+          <thead>
+            <tr><th>样本</th><th>进度</th><th>分类</th><th>新分类</th><th>简介</th><th>说明</th></tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      </div>
+    </div>
+  `;
+}
+
+function refreshSampleOverviewPanel() {
+  if (currentStep !== 1) return;
+  const c = selectedCase();
+  if (!c) return;
+  const mount = document.getElementById('sampleOverviewMount');
+  if (!mount) return;
+  mount.innerHTML = buildSampleOverviewPanel(c, getCaseState(c.id));
+}
+
 function getRawTextForSample(c, idx) {
   const sample = (c.samples || [])[idx] || {};
   return String(
@@ -1361,10 +1505,12 @@ function renderStepContent() {
     st.sample_cursor = i;
     const s = (c.samples || [])[i] || {};
     const rec = sampleRecord(st, i);
+    const lockInfo = getSampleMethodLockInfo(st, i);
     const clsCorrect = rec.is_correct === true ? 'tag active ok' : 'tag';
     const clsWrong = rec.is_correct === false ? 'tag active bad' : 'tag';
     const clsUnset = rec.is_correct === null ? 'tag active' : 'tag';
     let html = `${header}<h3>Step 1：单样本验证入口（严格串行）</h3><p>一次只处理一个样本：判定后进入完整流程，完成后再转到下一样本。</p>`;
+    html += `<div id="sampleOverviewMount">${buildSampleOverviewPanel(c, st)}</div>`;
     const rawText = getRawTextForSample(c, i);
     const rawVisible = st.ui.showRawText || st.ui.pinRawText;
     html += `
@@ -1379,10 +1525,11 @@ function renderStepContent() {
         </div>
         ${renderSolutionCard(s.solution || '', i)}
         <div class="row">
-          <button class="${clsCorrect}" onclick="chooseSampleStatus(${i}, true)">正确</button>
+          <button class="${clsCorrect}" ${lockInfo.locked ? `disabled title="${escapeHtml(`同方法已由 sample-${lockInfo.ownerIdx + 1} 入选最优样本`)}"` : ''} onclick="chooseSampleStatus(${i}, true)">正确</button>
           <button class="${clsWrong}" onclick="chooseSampleStatus(${i}, false)">错误</button>
           <button class="${clsUnset}" onclick="chooseSampleStatus(${i}, null)">未判定</button>
         </div>
+        ${lockInfo.locked ? `<div class="sample-lock-warning">同方法已由 sample-${lockInfo.ownerIdx + 1} 入选最优样本，当前样本不能再标记为正确。请修改分类或改为错误/未判定。</div>` : ''}
         <div class="row">
           <label>分类 <input value="${rec.class_name || ''}" oninput="setSampleField(${i}, 'class_name', this.value)"></label>
           <label><input type="checkbox" ${rec.is_new_class ? 'checked' : ''} onchange="setSampleField(${i}, 'is_new_class', this.checked)"> 新分类</label>
@@ -1738,11 +1885,7 @@ async function restoreProgress(caseId) {
   st.last_saved_at_utc = String(progress.updated_at_utc || st.last_saved_at_utc || '');
   const mode = String(data.source || '');
   const ts = formatUtcToLocal(progress.updated_at_utc);
-  if (mode.startsWith('annotator_fallback:')) {
-    setSaveState(`已恢复(跨设备) ${ts}`, 'saved');
-  } else {
-    setSaveState(`已恢复 ${ts}`, 'saved');
-  }
+  setSaveState(`已恢复 ${ts}`, 'saved');
 }
 
 async function saveProgress() {

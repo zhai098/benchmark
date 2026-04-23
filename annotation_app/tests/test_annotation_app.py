@@ -19,13 +19,14 @@ def test_split_by_cut_points():
     assert split_by_cut_points("abcde", [2, 4]) == ["ab", "cd", "e"]
 
 
-def test_one_file_per_annotator_device_case(tmp_path, monkeypatch):
+def test_one_file_per_annotator_case(tmp_path, monkeypatch):
     monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
     p1 = progress_path("ann", "dev", "case-1")
     p2 = progress_path("ann", "dev", "case-1")
     s1 = progress_summary_path("ann", "dev", "case-1")
     d1 = progress_detail_path("ann", "dev", "case-1")
     assert p1 == p2
+    assert p1.parent == tmp_path / "annotations" / "ann"
     assert s1.name == "case-1.summary.json"
     assert d1.name == "case-1.detail.json"
 
@@ -305,7 +306,7 @@ def test_review_records_falls_back_to_detail_when_summary_missing(tmp_path, monk
 
 
 def test_review_records_isolates_bad_pair_files(tmp_path, monkeypatch):
-    ann = tmp_path / "annotations/u1/d1"
+    ann = tmp_path / "annotations/u1"
     ann.mkdir(parents=True)
     (tmp_path / "records").mkdir(parents=True)
     monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
@@ -414,11 +415,11 @@ def test_load_progress_reads_legacy_single_file(tmp_path, monkeypatch):
     res = client.get("/api/load_progress", query_string={"annotator_id": "u7", "device_id": "d7", "case_id": "c7"})
     assert res.status_code == 200
     body = res.get_json()
-    assert body["source"] == "exact_device:legacy"
+    assert body["source"] == "annotator:legacy"
     assert body["progress"]["current_annotations"]["selected_solution_text"] == "$legacy$"
 
 
-def test_load_progress_can_fallback_across_devices_for_same_annotator(tmp_path, monkeypatch):
+def test_load_progress_reads_same_record_across_devices_for_same_annotator(tmp_path, monkeypatch):
     monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
     monkeypatch.setattr("annotation_app.app.RECORDS_DIR", tmp_path / "records")
     client = app.test_client()
@@ -439,9 +440,42 @@ def test_load_progress_can_fallback_across_devices_for_same_annotator(tmp_path, 
     assert res.status_code == 200
     body = res.get_json()
     assert body["found"] is True
-    assert body["source"].startswith("annotator_fallback:")
+    assert body["source"].startswith("annotator:")
     assert body["progress"]["current_annotations"]["selected_solution_text"] == "$fallback$"
     assert body["progress"]["client_revision"] == 101
+
+
+def test_same_annotator_case_overwrites_single_directory_record_even_with_new_device(tmp_path, monkeypatch):
+    monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
+    monkeypatch.setattr("annotation_app.app.RECORDS_DIR", tmp_path / "records")
+    client = app.test_client()
+
+    first = {
+        "annotator_id": "u11",
+        "device_id": "device-a",
+        "case_id": "c11",
+        "client_revision": 10,
+        "current_annotations": {"selected_solution_text": "$first$"},
+        "sample_decisions": [{"is_correct": True, "pipeline_status": "in_progress"}],
+    }
+    second = {
+        "annotator_id": "u11",
+        "device_id": "device-b",
+        "case_id": "c11",
+        "client_revision": 20,
+        "current_annotations": {"selected_solution_text": "$second$"},
+        "sample_decisions": [{"is_correct": True, "pipeline_status": "in_progress"}],
+    }
+
+    assert client.put("/api/save_progress", json=first).status_code == 200
+    assert client.put("/api/save_progress", json=second).status_code == 200
+
+    detail_path = progress_detail_path("u11", "device-a", "c11")
+    assert detail_path.exists()
+    payload = json.loads(detail_path.read_text(encoding="utf-8"))
+    assert payload["device_id"] == "device-b"
+    assert payload["sample_annotations"]["0"]["selected_solution_text"] == "$second$"
+    assert list((tmp_path / "annotations" / "u11").glob("*.detail.json")) == [detail_path]
 
 
 def test_stale_client_revision_cannot_overwrite_newer_progress(tmp_path, monkeypatch):
@@ -493,13 +527,18 @@ def test_frontend_has_katex_and_copy_ui():
     tpl = Path("annotation_app/templates/annotator.html").read_text(encoding="utf-8")
     js = Path("annotation_app/static/app.js").read_text(encoding="utf-8")
     assert "vendor/katex/katex.min.css" in tpl
-    assert "styles.css', v='20260422b'" in tpl
+    assert "styles.css', v='20260423a'" in tpl
     assert "vendor/katex/katex.min.js" in tpl
     assert "vendor/katex/auto-render.min.js" in tpl
-    assert "app.js', v='20260422b'" in tpl
+    assert "app.js', v='20260423a'" in tpl
     assert "jsdelivr" not in tpl
     assert "copySolutionRaw" in js
     assert "已复制" in js
+
+
+def test_frontend_restore_status_no_longer_mentions_cross_device():
+    js = Path("annotation_app/static/app.js").read_text(encoding="utf-8")
+    assert "已恢复(跨设备)" not in js
 
 
 def test_frontend_pipeline_isolation_rules_present():
@@ -549,6 +588,20 @@ def test_frontend_case_list_shows_progress_percent_and_status_colors():
     assert "function getTaskProgressDetailLines" in js
     assert "task-nav-percent" in js
     assert "task-nav-tooltip" in js
+
+
+def test_frontend_step1_has_method_locking_and_sample_overview():
+    js = Path("annotation_app/static/app.js").read_text(encoding="utf-8")
+    css = Path("annotation_app/static/styles.css").read_text(encoding="utf-8")
+    assert "function getMethodLockOwners" in js
+    assert "function getSampleMethodLockInfo" in js
+    assert "function buildSampleOverviewPanel" in js
+    assert "同方法已由 sample-" in js
+    assert "已入选最优样本" in js
+    assert "当前题目 sample 总览" in js
+    assert "该方法已锁定其他同分类样本" in js
+    assert ".sample-overview-table" in css
+    assert ".sample-lock-warning" in css
     assert "标注者：" in js
     assert "task-progress-fill" in js
     assert ".task-nav-tooltip" in css
