@@ -1,0 +1,29 @@
+tier	family	model_name	hf_source	include_pattern	local_dir	gated	vllm_track	continue_note
+main	Qwen	Qwen3.6-27B	Qwen/Qwen3.6-27B		data/pretrain/Qwen/Qwen3.6-27B	no	upstream	enable_thinking=false
+main	Qwen	Qwen3-32B	Qwen/Qwen3-32B		data/pretrain/Qwen/Qwen3-32B	no	upstream	enable_thinking=false
+main	Qwen	Qwen3.5-397B-A17B	Qwen/Qwen3.5-397B-A17B		data/pretrain/Qwen/Qwen3.5-397B-A17B	no	upstream	enable_thinking=false
+main	Qwen	Qwen3.5-27B	Qwen/Qwen3.5-27B		data/pretrain/Qwen/Qwen3.5-27B	no	upstream	enable_thinking=false
+main	GLM	GLM-5	zai-org/GLM-5		data/pretrain/GLM/GLM-5	no	upstream	enable_thinking=false
+main	GLM	GLM-4.7	zai-org/GLM-4.7		data/pretrain/GLM/GLM-4.7	no	upstream	enable_thinking=false
+main	Kimi	Kimi-K2.6	moonshotai/Kimi-K2.6		data/pretrain/Kimi/Kimi-K2.6	no	upstream	thinking=false
+main	Kimi	Kimi-K2.5	moonshotai/Kimi-K2.5		data/pretrain/Kimi/Kimi-K2.5	no	upstream	thinking=false
+main	Mistral Small	Mistral-Small-4-119B-2603	mistralai/Mistral-Small-4-119B-2603		data/pretrain/Mistral/Mistral-Small-4-119B-2603	no	special_mistral	reasoning_effort=none
+main	Mistral Small	Mistral-Small-3.2-24B-Instruct-2506	mistralai/Mistral-Small-3.2-24B-Instruct-2506		data/pretrain/Mistral/Mistral-Small-3.2-24B-Instruct-2506	no	special_mistral	reasoning_effort=none
+main	MiniMax	MiniMax-M2.5	MiniMaxAI/MiniMax-M2.5		data/pretrain/MiniMax/MiniMax-M2.5	no	smoke_test_first	standard
+main	MiniMax	MiniMax-M2.1	MiniMaxAI/MiniMax-M2.1		data/pretrain/MiniMax/MiniMax-M2.1	no	smoke_test_first	standard
+main	Hunyuan	Hunyuan-A13B-Instruct	tencent/Hunyuan-A13B-Instruct		data/pretrain/Hunyuan/Hunyuan-A13B-Instruct	no	upstream	enable_thinking=false
+main	Hunyuan	Hunyuan-A52B-Instruct	tencent/Tencent-Hunyuan-Large	Hunyuan-A52B-Instruct/*	data/pretrain/Hunyuan/Hunyuan-A52B-Instruct	no	smoke_test_first	enable_thinking=false
+main	Nemotron	NVIDIA-Nemotron-Nano-9B-v2	nvidia/NVIDIA-Nemotron-Nano-9B-v2		data/pretrain/Nemotron/NVIDIA-Nemotron-Nano-9B-v2	no	upstream	standard
+main	Nemotron	Llama-3.1-Nemotron-Nano-8B-v1	nvidia/Llama-3.1-Nemotron-Nano-8B-v1		data/pretrain/Nemotron/Llama-3.1-Nemotron-Nano-8B-v1	no	smoke_test_first	think_tags_off
+main	Llama	Llama-4-Maverick-17B-128E-Instruct-FP8	meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8		data/pretrain/Llama/Llama-4-Maverick-17B-128E-Instruct-FP8	yes	upstream	enable_thinking=false
+main	Llama	Llama-3.3-70B-Instruct	meta-llama/Llama-3.3-70B-Instruct		data/pretrain/Llama/Llama-3.3-70B-Instruct	yes	upstream	standard
+main	EXAONE	EXAONE-4.5-33B	LGAI-EXAONE/EXAONE-4.5-33B		data/pretrain/EXAONE/EXAONE-4.5-33B	no	fork_or_latest	enable_thinking=false
+main	EXAONE	EXAONE-4.0-32B	LGAI-EXAONE/EXAONE-4.0-32B		data/pretrain/EXAONE/EXAONE-4.0-32B	no	upstream	enable_thinking=false
+shadow	Granite	granite-3.3-8b-instruct	ibm-granite/granite-3.3-8b-instruct		data/pretrain/Granite/granite-3.3-8b-instruct	no	smoke_test_first	thinking=false
+shadow	Granite	granite-3.2-8b-instruct	ibm-granite/granite-3.2-8b-instruct		data/pretrain/Granite/granite-3.2-8b-instruct	no	smoke_test_first	thinking=false
+shadow	Phi	Phi-4-reasoning-plus	microsoft/Phi-4-reasoning-plus		data/pretrain/Phi/Phi-4-reasoning-plus	no	smoke_test_first	non_reasoning_mode
+shadow	Phi	Phi-4-mini-instruct	microsoft/Phi-4-mini-instruct		data/pretrain/Phi/Phi-4-mini-instruct	no	upstream	standard
+shadow	MiMo	MiMo-V2-Flash	XiaomiMiMo/MiMo-V2-Flash		data/pretrain/MiMo/MiMo-V2-Flash	no	smoke_test_first	enable_thinking=false
+shadow	MiMo	MiMo-7B-RL	XiaomiMiMo/MiMo-7B-RL		data/pretrain/MiMo/MiMo-7B-RL	no	smoke_test_first	standard
+shadow	Gemma	gemma-3-27b-it	google/gemma-3-27b-it		data/pretrain/Gemma/gemma-3-27b-it	yes	smoke_test_first	standard
+shadow	Gemma	gemma-2-27b-it	google/gemma-2-27b-it		data/pretrain/Gemma/gemma-2-27b-it	yes	smoke_test_first	standard
