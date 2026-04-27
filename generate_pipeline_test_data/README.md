@@ -49,7 +49,22 @@ pytest test/test_generate_pipeline.py -q
 
 ## Manual Model Test Flow
 
-Use this input for a small end-to-end generation test:
+This workflow does **not** run `judge.py`. It only:
+
+1. runs `generate.py` on the purified annotation cases;
+2. writes model generations to `gen_only.jsonl`;
+3. packs judge prompts from `gen_only.jsonl` for a separate batch/evaluation runner.
+
+The required annotation information is already carried through the files:
+
+- `purified_cases.jsonl` contains annotation-derived `reference_steps`,
+  `reference_claims_by_step`, and `reference_step_dependencies`.
+- `generate.py` forwards those fields into `gen_only.jsonl` as `steps`,
+  `claims_by_step`, and `step_dependencies`.
+- `tools/prompts/pack_prompt.py` reads those fields from `gen_only.jsonl` and
+  builds the pairwise, holistic, and self-judge prompt cache.
+
+Use this input for a small generation test:
 
 ```bash
 python generate.py \
@@ -76,15 +91,7 @@ The generation file will be written under:
 runs/generate_pipeline_smoke/<model_name>_MODEL_TAG/gen_only.jsonl
 ```
 
-Then run judging on that generation file:
-
-```bash
-python judge.py \
-  --gen_file runs/generate_pipeline_smoke/<model_name>_MODEL_TAG/gen_only.jsonl \
-  --run_dir runs/generate_pipeline_smoke/<model_name>_MODEL_TAG
-```
-
-If you only need packed judge prompts for a separate batch runner:
+Then pack the judge prompts from that generation file:
 
 ```bash
 python tools/prompts/pack_prompt.py \
@@ -93,6 +100,16 @@ python tools/prompts/pack_prompt.py \
   --max_cases 10 \
   --write_all
 ```
+
+The packed prompt outputs will be under:
+
+```text
+runs/generate_pipeline_smoke/<model_name>_MODEL_TAG/packed_prompts/cache_prompts/
+runs/generate_pipeline_smoke/<model_name>_MODEL_TAG/packed_prompts/cache_prompts/ALL_cache.jsonl
+```
+
+Use those JSONL prompt files as the handoff artifact for the downstream batch
+judge/evaluation service.
 
 ## Testing Different Models
 
@@ -117,10 +134,22 @@ python generate.py \
   --max_cases 10 \
   --use_vllm_local
 
+python tools/prompts/pack_prompt.py \
+  --gen_file runs/mistral_small_4/<model_name>_mistral_small_4/gen_only.jsonl \
+  --out_dir runs/mistral_small_4/<model_name>_mistral_small_4/packed_prompts \
+  --max_cases 10 \
+  --write_all
+
 python generate.py \
   --input_path generate_pipeline_test_data/purified_cases.jsonl \
   --out_root runs/qwen_candidate \
   --tag qwen_candidate \
   --max_cases 10 \
   --use_vllm_local
+
+python tools/prompts/pack_prompt.py \
+  --gen_file runs/qwen_candidate/<model_name>_qwen_candidate/gen_only.jsonl \
+  --out_dir runs/qwen_candidate/<model_name>_qwen_candidate/packed_prompts \
+  --max_cases 10 \
+  --write_all
 ```
