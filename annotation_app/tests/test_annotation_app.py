@@ -584,6 +584,66 @@ def test_save_progress_recovery_cache_keeps_history_latest_and_best(tmp_path, mo
     assert best["detail"]["sample_decisions"][0]["pipeline_status"] == "completed"
 
 
+def test_load_progress_recovers_from_best_cache_when_formal_record_regresses(tmp_path, monkeypatch):
+    monkeypatch.setattr("annotation_app.app.DATA_DIR", tmp_path)
+    monkeypatch.setattr("annotation_app.app.GUIDE_PATH", tmp_path / "guideline.md")
+    monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
+    monkeypatch.setattr("annotation_app.app.RECORDS_DIR", tmp_path / "records")
+    app.config.pop("_logging_configured", None)
+    client = app.test_client()
+
+    completed = {
+        "annotator_id": "restore-user",
+        "device_id": "restore-dev",
+        "case_id": "restore-case",
+        "client_revision": 100,
+        "status": "completed",
+        "current_step": 5,
+        "current_workflow_state": {"workflow_state": "completed", "problem_quality_screening": {"decision": "pass"}},
+        "current_annotations": {
+            "sample_annotations": {
+                "0": {
+                    "selected_solution_text": "solution",
+                    "steps": ["step 1"],
+                    "claims": [{"step_id": "s1", "claims": ["claim 1"]}],
+                    "claim_checks": {"s1c1": "correct"},
+                    "workflow_state": "completed",
+                }
+            }
+        },
+        "sample_decisions": [{"sample_idx": 0, "is_correct": True, "pipeline_status": "completed"}],
+        "correct_solutions": [{"sample_idx": 0, "solution": "solution"}],
+    }
+    blank = {
+        "annotator_id": "restore-user",
+        "device_id": "restore-dev",
+        "case_id": "restore-case",
+        "client_revision": 200,
+        "current_step": 1,
+        "current_workflow_state": {"workflow_state": "sample_selected", "problem_quality_screening": {"decision": "pass"}},
+        "current_annotations": {"sample_annotations": {}},
+        "sample_decisions": [{"sample_idx": 0, "is_correct": None, "pipeline_status": "not_started"}],
+        "correct_solutions": [],
+        "allow_regression": True,
+    }
+
+    assert client.put("/api/save_progress", json=completed).status_code == 200
+    cleared = client.put("/api/save_progress", json=blank)
+    assert cleared.status_code == 200
+    assert cleared.get_json().get("ignored_regression") is not True
+
+    got = client.get(
+        "/api/load_progress",
+        query_string={"annotator_id": "restore-user", "device_id": "restore-dev", "case_id": "restore-case"},
+    )
+    assert got.status_code == 200
+    body = got.get_json()
+    assert body["recovered_from_cache"] is True
+    assert body["source"].startswith("cache_best")
+    assert body["progress"]["sample_decisions"][0]["pipeline_status"] == "completed"
+    assert body["cache"]["cache_score"] > body["cache"]["formal_score"]
+
+
 def test_newer_blank_progress_cannot_clear_completed_sample(tmp_path, monkeypatch):
     monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
     monkeypatch.setattr("annotation_app.app.RECORDS_DIR", tmp_path / "records")
@@ -717,9 +777,12 @@ def test_frontend_restore_logic_uses_local_draft_fallback_before_resetting_case_
     assert "applyRestoredProgress(caseId, cachedDraft.progress, 'local_draft:not_found')" in js
     assert "applyRestoredProgress(caseId, cachedDraft.progress, 'local_draft:error')" in js
     assert "applyRestoredProgress(caseId, cachedDraft.progress, 'local_draft:richer_than_server')" in js
+    assert "source.startsWith('cache_best')" in js
+    assert "await persistProgress(progress.status || 'in_progress', true)" in js
     assert "已恢复本地草稿（服务器无记录）" in js
     assert "已恢复本地草稿（服务器恢复失败）" in js
     assert "已恢复本地草稿（比服务器记录更完整）" in js
+    assert "已从服务器恢复缓存加载" in js
 
 
 def test_frontend_beforeunload_skips_empty_or_unchanged_payloads():

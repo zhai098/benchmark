@@ -1935,12 +1935,20 @@ async function restoreProgress(caseId) {
     showToast('服务器记录比本地草稿更空，已保留本地草稿，请再次保存确认。', 'error');
     return;
   }
-  st = applyRestoredProgress(caseId, progress, String(data.source || ''));
+  const source = String(data.source || '');
+  st = applyRestoredProgress(caseId, progress, source);
   writeDraftCache(caseId, progress);
-  st.last_saved_fingerprint = payloadFingerprint(progress);
   st.last_saved_hash = progress.content_hash || st.last_saved_hash;
   st.last_saved_at_utc = String(progress.updated_at_utc || st.last_saved_at_utc || '');
   const ts = formatUtcToLocal(progress.updated_at_utc);
+  if (data.recovered_from_cache || source.startsWith('cache_best')) {
+    st.last_saved_fingerprint = '';
+    setSaveState(`已从服务器恢复缓存加载 ${ts}`, 'pending');
+    showToast('已从服务器恢复缓存加载，并正在回写正式记录。', 'success');
+    await persistProgress(progress.status || 'in_progress', true);
+    return;
+  }
+  st.last_saved_fingerprint = payloadFingerprint(progress);
   setSaveState(`已恢复 ${ts}`, 'saved');
 }
 
