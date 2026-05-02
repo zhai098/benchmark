@@ -1427,6 +1427,118 @@ def _load_progress_pair(annotator_id: str, device_id: str, case_id: str) -> tupl
     return summary_data, detail_data, f"annotator_fallback:{source}"
 
 
+def _cache_record_sort_key(path: Path) -> tuple[float, str]:
+    try:
+        data = _read_json_file(path)
+    except Exception:
+        return (0.0, str(path))
+    cached_at = _normalize_string(data.get("cached_at_utc"), "")
+    try:
+        ts = datetime.fromisoformat(cached_at).timestamp() if cached_at else 0.0
+    except ValueError:
+        ts = 0.0
+    if not ts:
+        try:
+            ts = path.stat().st_mtime
+        except OSError:
+            ts = 0.0
+    return (ts, str(path))
+
+
+def _iter_cache_best_paths(annotator_id: str, device_id: str, case_id: str) -> list[Path]:
+    annotator_safe = safe_name(annotator_id, "unknown")
+    device_safe = safe_name(device_id, "device")
+    case_safe = safe_name(case_id, "case")
+    annotator_cache_dir = progress_cache_root() / annotator_safe
+    exact_path = progress_cache_best_path(annotator_id, device_id, case_id)
+    paths: list[Path] = []
+    seen: set[Path] = set()
+    if exact_path.exists():
+        paths.append(exact_path)
+        seen.add(exact_path)
+    if annotator_cache_dir.exists():
+        for path in sorted(annotator_cache_dir.glob(f"*/{case_safe}.best.detail.json"), key=_cache_record_sort_key, reverse=True):
+            if path not in seen:
+                paths.append(path)
+                seen.add(path)
+    return paths
+
+
+def _load_progress_cache_best(
+    annotator_id: str,
+    device_id: str,
+    case_id: str,
+) -> tuple[dict[str, Any], dict[str, Any], str, dict[str, Any]]:
+    for path in _iter_cache_best_paths(annotator_id, device_id, case_id):
+        try:
+            envelope = _read_json_file(path)
+        except Exception:
+            continue
+        raw_detail = envelope.get("detail") if isinstance(envelope, dict) else None
+        if not isinstance(raw_detail, dict):
+            continue
+        created_at = raw_detail.get("created_at_utc") if isinstance(raw_detail.get("created_at_utc"), str) else None
+        updated_at = raw_detail.get("updated_at_utc") if isinstance(raw_detail.get("updated_at_utc"), str) else None
+        try:
+            detail_data = _normalize_progress_payload(
+                raw_detail,
+                default_status=_normalize_case_status(raw_detail.get("status"), "in_progress"),
+                created_at=created_at,
+                updated_at=updated_at,
+            )
+        except Exception:
+            continue
+        summary_data = _build_summary_payload(detail_data)
+        summary_data["summary_content_hash"] = _record_content_hash(
+            summary_data,
+            skip_keys={"summary_content_hash", "client_revision", "created_at_utc", "updated_at_utc"},
+        )
+        cache_device_id = path.parent.name
+        meta = {
+            "cache_path": str(path),
+            "cache_score": _progress_recovery_score(detail_data),
+            "cache_client_revision": detail_data.get("client_revision", 0),
+            "cache_device_id": cache_device_id,
+        }
+        return summary_data, detail_data, f"cache_best:{cache_device_id}", meta
+    raise FileNotFoundError
+
+
+def _maybe_use_cache_recovery(
+    annotator_id: str,
+    device_id: str,
+    case_id: str,
+    summary_data: dict[str, Any] | None,
+    detail_data: dict[str, Any] | None,
+    source: str | None,
+) -> tuple[dict[str, Any], dict[str, Any], str, dict[str, Any]]:
+    cache_summary, cache_detail, cache_source, cache_meta = _load_progress_cache_best(annotator_id, device_id, case_id)
+    if detail_data is None or summary_data is None:
+        cache_meta["formal_score"] = 0
+        cache_meta["recovered_from_cache"] = True
+        return cache_summary, cache_detail, cache_source, cache_meta
+    formal_score = _progress_recovery_score(detail_data)
+    cache_score = _progress_recovery_score(cache_detail)
+    cache_meta["formal_score"] = formal_score
+    if cache_score > formal_score:
+        cache_meta["recovered_from_cache"] = True
+        write_json_log(
+            "app_logger",
+            "progress.cache_recovery_used",
+            annotator_id=annotator_id,
+            device_id=device_id,
+            case_id=case_id,
+            source=source or "",
+            cache_source=cache_source,
+            formal_score=formal_score,
+            cache_score=cache_score,
+            cache_path=cache_meta.get("cache_path", ""),
+        )
+        return cache_summary, cache_detail, cache_source, cache_meta
+    cache_meta["recovered_from_cache"] = False
+    return summary_data, detail_data, source or "", cache_meta
+
+
 def parse_jsonl(path: Path) -> list[dict[str, Any]]:
     items: list[dict[str, Any]] = []
     for i, line in enumerate(path.read_text(encoding="utf-8").splitlines()):
@@ -1729,12 +1841,60 @@ def load_progress():
     if not annotator_id or not case_id:
         return jsonify({"error": "annotator_id 和 case_id 不能为空"}), 400
 
+    cache_meta: dict[str, Any] = {}
     try:
         summary_data, detail_data, source = _load_progress_pair(annotator_id, device_id, case_id)
+        try:
+            summary_data, detail_data, source, cache_meta = _maybe_use_cache_recovery(
+                annotator_id,
+                device_id,
+                case_id,
+                summary_data,
+                detail_data,
+                source,
+            )
+        except FileNotFoundError:
+            cache_meta = {"recovered_from_cache": False}
     except FileNotFoundError:
-        return jsonify({"found": False})
+        try:
+            summary_data, detail_data, source, cache_meta = _load_progress_cache_best(annotator_id, device_id, case_id)
+            cache_meta["formal_score"] = 0
+            cache_meta["recovered_from_cache"] = True
+            write_json_log(
+                "app_logger",
+                "progress.cache_recovery_used",
+                annotator_id=annotator_id,
+                device_id=device_id,
+                case_id=case_id,
+                source="missing_formal",
+                cache_source=source,
+                formal_score=0,
+                cache_score=cache_meta.get("cache_score", 0),
+                cache_path=cache_meta.get("cache_path", ""),
+            )
+        except FileNotFoundError:
+            return jsonify({"found": False})
     except ProgressLoadError as exc:
-        return jsonify({"found": False, "error": str(exc)}), 500
+        try:
+            summary_data, detail_data, source, cache_meta = _load_progress_cache_best(annotator_id, device_id, case_id)
+            cache_meta["formal_score"] = 0
+            cache_meta["recovered_from_cache"] = True
+            cache_meta["formal_error"] = str(exc)
+            write_json_log(
+                "app_logger",
+                "progress.cache_recovery_used",
+                annotator_id=annotator_id,
+                device_id=device_id,
+                case_id=case_id,
+                source="formal_error",
+                cache_source=source,
+                formal_score=0,
+                cache_score=cache_meta.get("cache_score", 0),
+                cache_path=cache_meta.get("cache_path", ""),
+                error=str(exc),
+            )
+        except FileNotFoundError:
+            return jsonify({"found": False, "error": str(exc)}), 500
 
     progress = _detail_to_compat_progress(detail_data, summary_data)
     return jsonify(
@@ -1745,6 +1905,8 @@ def load_progress():
             "summary_path": str(progress_summary_path(annotator_id, device_id, case_id)),
             "source": source,
             "client_revision": progress.get("client_revision", 0),
+            "recovered_from_cache": bool(cache_meta.get("recovered_from_cache", False)),
+            "cache": cache_meta,
         }
     )
 
