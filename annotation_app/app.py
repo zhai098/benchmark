@@ -54,6 +54,10 @@ def logs_dir() -> Path:
     return DATA_DIR / "logs"
 
 
+def progress_cache_root() -> Path:
+    return ANNOTATIONS_DIR.parent / "progress_cache"
+
+
 def configure_app_logging() -> None:
     if app.config.get("_logging_configured"):
         return
@@ -99,6 +103,7 @@ def ensure_dirs() -> None:
     DATA_DIR.mkdir(parents=True, exist_ok=True)
     RECORDS_DIR.mkdir(parents=True, exist_ok=True)
     ANNOTATIONS_DIR.mkdir(parents=True, exist_ok=True)
+    progress_cache_root().mkdir(parents=True, exist_ok=True)
     logs_dir().mkdir(parents=True, exist_ok=True)
     if not GUIDE_PATH.exists():
         GUIDE_PATH.write_text(
@@ -158,6 +163,25 @@ def progress_summary_path(annotator_id: str, device_id: str, case_id: str) -> Pa
 
 def progress_detail_path(annotator_id: str, device_id: str, case_id: str) -> Path:
     return progress_base_path(annotator_id, device_id, case_id).with_suffix(".detail.json")
+
+
+def progress_cache_base_path(annotator_id: str, device_id: str, case_id: str) -> Path:
+    annotator_safe = safe_name(annotator_id, "unknown")
+    device_safe = safe_name(device_id, "device")
+    case_safe = safe_name(case_id, "case")
+    return progress_cache_root() / annotator_safe / device_safe / case_safe
+
+
+def progress_cache_latest_path(annotator_id: str, device_id: str, case_id: str) -> Path:
+    return progress_cache_base_path(annotator_id, device_id, case_id).with_suffix(".latest.detail.json")
+
+
+def progress_cache_best_path(annotator_id: str, device_id: str, case_id: str) -> Path:
+    return progress_cache_base_path(annotator_id, device_id, case_id).with_suffix(".best.detail.json")
+
+
+def progress_cache_history_path(annotator_id: str, device_id: str, case_id: str) -> Path:
+    return progress_cache_base_path(annotator_id, device_id, case_id).with_suffix(".history.jsonl")
 
 
 def _json_dumps_pretty(data: dict[str, Any]) -> str:
@@ -772,7 +796,7 @@ def _normalize_progress_payload(
     }
     detail_payload["detail_content_hash"] = _record_content_hash(
         detail_payload,
-        skip_keys={"detail_content_hash", "created_at_utc", "updated_at_utc"},
+        skip_keys={"detail_content_hash", "client_revision", "created_at_utc", "updated_at_utc"},
     )
     return detail_payload
 
@@ -924,6 +948,196 @@ def _latest_case_revision(annotator_id: str, case_id: str) -> tuple[int, str | N
     return 0, None
 
 
+def _load_latest_detail_payload(
+    annotator_id: str,
+    case_id: str,
+    *,
+    preferred_device_id: str | None = None,
+) -> tuple[dict[str, Any] | None, Path | None]:
+    for path in _iter_case_record_paths(annotator_id, case_id, preferred_device_id=preferred_device_id):
+        if path.name.endswith(".summary.json"):
+            continue
+        try:
+            data = _read_json_file(path)
+        except Exception:
+            continue
+        created_at = data.get("created_at_utc") if isinstance(data.get("created_at_utc"), str) else None
+        updated_at = data.get("updated_at_utc") if isinstance(data.get("updated_at_utc"), str) else None
+        try:
+            normalized = _normalize_progress_payload(
+                data,
+                default_status=_normalize_case_status(data.get("status"), "in_progress"),
+                created_at=created_at,
+                updated_at=updated_at,
+            )
+        except Exception:
+            continue
+        return normalized, path
+    return None, None
+
+
+def _sample_idx_from_value(value: Any) -> int | None:
+    try:
+        idx = int(value)
+    except (TypeError, ValueError):
+        return None
+    return idx if idx >= 0 else None
+
+
+def _annotation_content_score(annotation: Any) -> int:
+    if not isinstance(annotation, dict):
+        return 0
+    steps = annotation.get("steps") if isinstance(annotation.get("steps"), list) else []
+    claims = annotation.get("claims") if isinstance(annotation.get("claims"), list) else []
+    claim_count = 0
+    for item in claims:
+        if isinstance(item, dict) and isinstance(item.get("claims"), list):
+            claim_count += len(item.get("claims") or [])
+        elif item:
+            claim_count += 1
+    checks = annotation.get("claim_checks") if isinstance(annotation.get("claim_checks"), dict) else {}
+    dependencies = annotation.get("dependencies") if isinstance(annotation.get("dependencies"), dict) else {}
+    step_dependencies = annotation.get("step_dependencies") if isinstance(annotation.get("step_dependencies"), dict) else {}
+    return (
+        len(steps) * 10
+        + claim_count * 20
+        + len(checks) * 20
+        + len(dependencies) * 5
+        + len(step_dependencies) * 5
+        + (5 if _normalize_string(annotation.get("selected_solution_text"), "") else 0)
+    )
+
+
+def _completed_sample_indices(detail_payload: dict[str, Any]) -> set[int]:
+    indices: set[int] = set()
+    for item in detail_payload.get("sample_decisions", []):
+        if not isinstance(item, dict):
+            continue
+        if _normalize_pipeline_status(item.get("pipeline_status"), "not_started") == "completed":
+            idx = _sample_idx_from_value(item.get("sample_idx", len(indices)))
+            if idx is not None:
+                indices.add(idx)
+    for item in detail_payload.get("correct_solutions", []):
+        if isinstance(item, dict):
+            idx = _sample_idx_from_value(item.get("sample_idx"))
+            if idx is not None:
+                indices.add(idx)
+    for key, annotation in (detail_payload.get("sample_annotations") or {}).items():
+        idx = _sample_idx_from_value(key)
+        if idx is None:
+            continue
+        if isinstance(annotation, dict) and annotation.get("workflow_state") == "completed":
+            indices.add(idx)
+    return indices
+
+
+def _rich_annotation_indices(detail_payload: dict[str, Any]) -> set[int]:
+    indices: set[int] = set()
+    for key, annotation in (detail_payload.get("sample_annotations") or {}).items():
+        idx = _sample_idx_from_value(key)
+        if idx is not None and _annotation_content_score(annotation) > 0:
+            indices.add(idx)
+    return indices
+
+
+def _progress_regression_reason(existing: dict[str, Any] | None, incoming: dict[str, Any]) -> dict[str, list[int]]:
+    if not existing:
+        return {}
+    removed_completed = sorted(_completed_sample_indices(existing) - _completed_sample_indices(incoming))
+    removed_annotations = []
+    incoming_annotations = incoming.get("sample_annotations") or {}
+    for idx in sorted(_rich_annotation_indices(existing)):
+        incoming_score = _annotation_content_score(incoming_annotations.get(str(idx)))
+        if incoming_score == 0:
+            removed_annotations.append(idx)
+    reason: dict[str, list[int]] = {}
+    if removed_completed:
+        reason["completed_samples_removed"] = removed_completed
+    if removed_annotations:
+        reason["rich_annotations_removed"] = removed_annotations
+    return reason
+
+
+def _progress_recovery_score(detail_payload: dict[str, Any]) -> int:
+    decisions = detail_payload.get("sample_decisions") or []
+    annotations = detail_payload.get("sample_annotations") or {}
+    score = _normalize_int(detail_payload.get("current_step"), default=0, minimum=0)
+    score += len(detail_payload.get("correct_solutions") or []) * 120_000
+    score += len(_completed_sample_indices(detail_payload)) * 100_000
+    for item in decisions:
+        if not isinstance(item, dict):
+            continue
+        status = _normalize_pipeline_status(item.get("pipeline_status"), "not_started")
+        if status == "discarded":
+            score += 1_000
+        elif status not in {"not_started", "completed"}:
+            score += 500
+    for annotation in annotations.values():
+        score += _annotation_content_score(annotation)
+    return score
+
+
+def _cache_snapshot_envelope(detail_payload: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "schema_version": 1,
+        "cached_at_utc": now_utc_iso(),
+        "score": _progress_recovery_score(detail_payload),
+        "detail_content_hash": detail_payload.get("detail_content_hash", ""),
+        "client_revision": detail_payload.get("client_revision", 0),
+        "annotator_id": detail_payload.get("annotator_id", ""),
+        "device_id": detail_payload.get("device_id", ""),
+        "case_id": detail_payload.get("case_id", ""),
+        "detail": detail_payload,
+    }
+
+
+def _append_jsonl(path: Path, data: dict[str, Any]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    line = json.dumps(data, ensure_ascii=False, sort_keys=True, separators=(",", ":")) + "\n"
+    fd = os.open(path, os.O_APPEND | os.O_CREAT | os.O_WRONLY, 0o644)
+    try:
+        os.write(fd, line.encode("utf-8"))
+    finally:
+        os.close(fd)
+
+
+def _write_progress_recovery_cache(detail_payload: dict[str, Any]) -> dict[str, Any]:
+    annotator_id = detail_payload["annotator_id"]
+    device_id = detail_payload["device_id"]
+    case_id = detail_payload["case_id"]
+    envelope = _cache_snapshot_envelope(detail_payload)
+    latest_path = progress_cache_latest_path(annotator_id, device_id, case_id)
+    best_path = progress_cache_best_path(annotator_id, device_id, case_id)
+    history_path = progress_cache_history_path(annotator_id, device_id, case_id)
+
+    _append_jsonl(history_path, envelope)
+    _atomic_write_json(latest_path, envelope)
+
+    should_update_best = True
+    if best_path.exists():
+        try:
+            best = _read_json_file(best_path)
+            best_score = _normalize_int(best.get("score"), default=-1, minimum=-1)
+            best_revision = _normalize_int(best.get("client_revision"), default=0, minimum=0)
+            current_score = _normalize_int(envelope.get("score"), default=0, minimum=0)
+            current_revision = _normalize_int(envelope.get("client_revision"), default=0, minimum=0)
+            should_update_best = current_score > best_score or (
+                current_score == best_score and current_revision >= best_revision
+            )
+        except Exception:
+            should_update_best = True
+    if should_update_best:
+        _atomic_write_json(best_path, envelope)
+
+    return {
+        "latest_path": str(latest_path),
+        "best_path": str(best_path),
+        "history_path": str(history_path),
+        "score": envelope["score"],
+        "detail_content_hash": envelope["detail_content_hash"],
+    }
+
+
 def persist_progress_payload(payload: dict[str, Any], default_status: str = "in_progress") -> dict[str, Any]:
     annotator_id = _normalize_string(payload.get("annotator_id") or payload.get("annotator"), "unknown")
     device_id = _normalize_string(payload.get("device_id"), "device")
@@ -935,8 +1149,22 @@ def persist_progress_payload(payload: dict[str, Any], default_status: str = "in_
     summary_payload = _build_summary_payload(detail_payload)
     summary_payload["summary_content_hash"] = _record_content_hash(
         summary_payload,
-        skip_keys={"summary_content_hash", "created_at_utc", "updated_at_utc"},
+        skip_keys={"summary_content_hash", "client_revision", "created_at_utc", "updated_at_utc"},
     )
+
+    cache_result = None
+    try:
+        cache_result = _write_progress_recovery_cache(detail_payload)
+    except Exception as exc:
+        write_json_log(
+            "app_logger",
+            "progress.cache_failed",
+            annotator_id=annotator_id,
+            device_id=device_id,
+            case_id=case_id,
+            error_type=type(exc).__name__,
+            error=str(exc),
+        )
 
     incoming_revision = detail_payload["client_revision"]
     if incoming_revision and latest_revision and incoming_revision < latest_revision:
@@ -959,6 +1187,50 @@ def persist_progress_payload(payload: dict[str, Any], default_status: str = "in_
             "ignored_stale": True,
             "content_hash": latest_content_hash or detail_payload["detail_content_hash"],
             "client_revision": latest_revision,
+            "cache_written": cache_result is not None,
+            "cache": cache_result or {},
+        }
+
+    existing_latest_detail, existing_latest_path = _load_latest_detail_payload(
+        annotator_id,
+        case_id,
+        preferred_device_id=device_id,
+    )
+    regression_reason = _progress_regression_reason(existing_latest_detail, detail_payload)
+    if regression_reason and not payload.get("allow_regression"):
+        existing_revision = _normalize_int(
+            (existing_latest_detail or {}).get("client_revision"),
+            default=latest_revision,
+            minimum=0,
+        )
+        existing_hash = _normalize_string(
+            (existing_latest_detail or {}).get("detail_content_hash") or latest_content_hash,
+            "",
+        )
+        write_json_log(
+            "app_logger",
+            "progress.regression_write_ignored",
+            annotator_id=annotator_id,
+            device_id=device_id,
+            case_id=case_id,
+            incoming_revision=incoming_revision,
+            latest_revision=existing_revision,
+            latest_path=str(existing_latest_path or ""),
+            reason=regression_reason,
+        )
+        return {
+            "ok": True,
+            "summary_path": str(progress_summary_path(annotator_id, device_id, case_id)),
+            "detail_path": str(progress_detail_path(annotator_id, device_id, case_id)),
+            "path": str(progress_detail_path(annotator_id, device_id, case_id)),
+            "updated_at_utc": (existing_latest_detail or detail_payload).get("updated_at_utc", detail_payload["updated_at_utc"]),
+            "unchanged": True,
+            "ignored_regression": True,
+            "regression_reason": regression_reason,
+            "content_hash": existing_hash or detail_payload["detail_content_hash"],
+            "client_revision": existing_revision or latest_revision,
+            "cache_written": cache_result is not None,
+            "cache": cache_result or {},
         }
 
     summary_path = progress_summary_path(annotator_id, device_id, case_id)
@@ -991,6 +1263,8 @@ def persist_progress_payload(payload: dict[str, Any], default_status: str = "in_
             "unchanged": True,
             "content_hash": detail_payload["detail_content_hash"],
             "client_revision": detail_payload["client_revision"],
+            "cache_written": cache_result is not None,
+            "cache": cache_result or {},
         }
 
     try:
@@ -1019,6 +1293,8 @@ def persist_progress_payload(payload: dict[str, Any], default_status: str = "in_
         "unchanged": False,
         "content_hash": detail_payload["detail_content_hash"],
         "client_revision": detail_payload["client_revision"],
+        "cache_written": cache_result is not None,
+        "cache": cache_result or {},
     }
 
 def _load_progress_pair_from_base(base_path: Path, *, annotator_id: str, device_id: str, case_id: str) -> tuple[dict[str, Any], dict[str, Any], str]:
@@ -1074,7 +1350,7 @@ def _load_progress_pair_from_base(base_path: Path, *, annotator_id: str, device_
         summary_data = _build_summary_payload(detail_data)
         summary_data["summary_content_hash"] = _record_content_hash(
             summary_data,
-            skip_keys={"summary_content_hash", "created_at_utc", "updated_at_utc"},
+            skip_keys={"summary_content_hash", "client_revision", "created_at_utc", "updated_at_utc"},
         )
         write_json_log(
             "app_logger",
@@ -1101,7 +1377,7 @@ def _load_progress_pair_from_base(base_path: Path, *, annotator_id: str, device_
         summary_data = _build_summary_payload(detail_data)
         summary_data["summary_content_hash"] = _record_content_hash(
             summary_data,
-            skip_keys={"summary_content_hash", "created_at_utc", "updated_at_utc"},
+            skip_keys={"summary_content_hash", "client_revision", "created_at_utc", "updated_at_utc"},
         )
         write_json_log(
             "app_logger",
@@ -1438,6 +1714,7 @@ def save_progress():
         ok=bool(result.get("ok")),
         unchanged=bool(result.get("unchanged", False)),
         content_hash=str(result.get("content_hash") or ""),
+        cache_written=bool(result.get("cache_written", False)),
     )
     return jsonify(result)
 
@@ -1575,7 +1852,7 @@ def review_records_api():
             summary_data = _build_summary_payload(detail_data)
             summary_data["summary_content_hash"] = _record_content_hash(
                 summary_data,
-                skip_keys={"summary_content_hash", "created_at_utc", "updated_at_utc"},
+                skip_keys={"summary_content_hash", "client_revision", "created_at_utc", "updated_at_utc"},
             )
 
         if summary_data is None and detail_data is None:
@@ -1637,7 +1914,7 @@ def review_records_api():
                 summary_data = _build_summary_payload(detail_data)
                 summary_data["summary_content_hash"] = _record_content_hash(
                     summary_data,
-                    skip_keys={"summary_content_hash", "created_at_utc", "updated_at_utc"},
+                    skip_keys={"summary_content_hash", "client_revision", "created_at_utc", "updated_at_utc"},
                 )
                 records.append(
                     _build_review_record_from_summary(
