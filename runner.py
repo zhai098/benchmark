@@ -176,8 +176,10 @@ class VLLMRunner:
             supports_continue = "continue_final_message" in sig.parameters or _signature_accepts_kwargs(self.tokenizer.apply_chat_template)
             if continue_final_message and not supports_continue:
                 raise ValueError(
-                    f"Tokenizer for {self.model_name} does not support continue_final_message, "
-                    "but generation requires assistant continuation."
+                    f"Tokenizer for {self.model_name} does not expose a supported HF/vLLM "
+                    "assistant-continuation mode. This runner uses tokenizer "
+                    "continue_final_message for local HF/vLLM chat templates; API runners "
+                    "may use their own native partial/prefill mechanism."
                 )
             if "add_generation_prompt" in sig.parameters:
                 kwargs["add_generation_prompt"] = not continue_final_message

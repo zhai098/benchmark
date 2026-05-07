@@ -4,6 +4,9 @@
 
 This is intentionally tokenizer-only. It checks the exact chat-template path
 used by completed-annotation generation before any GPU model loading starts.
+For local HF/vLLM models in this benchmark, the supported continuation rule is
+`continue_final_message`; API models may use other native rules such as
+assistant `partial=true`.
 """
 
 from __future__ import annotations
@@ -69,7 +72,7 @@ def classify_failure(error_text: str, supports_continue: bool) -> Dict[str, str]
     lower = error_text.lower()
     if not supports_continue or "continue_final_message" in lower and "unexpected" in lower:
         return {
-            "issue_type": "tokenizer_does_not_support_continue_final_message",
+            "issue_type": "tokenizer_no_supported_assistant_continuation",
             "likely_cause": "tokenizer_or_chat_template_capability",
         }
     if "jinja" in lower or "template" in lower or "chat_template" in lower:
@@ -107,15 +110,18 @@ def probe(model_path: str, model_name: str, chat_template_kwargs: Dict[str, Any]
     sig = inspect.signature(tokenizer.apply_chat_template)
     accepts_kwargs = signature_accepts_kwargs(tokenizer.apply_chat_template)
     supports_continue = "continue_final_message" in sig.parameters or accepts_kwargs
+    continuation_mode = "tokenizer_continue_final_message" if supports_continue else None
     result["apply_chat_template_signature"] = str(sig)
     result["apply_chat_template_accepts_kwargs"] = accepts_kwargs
     result["supports_continue_final_message"] = supports_continue
+    result["supports_assistant_continuation"] = supports_continue
+    result["continuation_mode"] = continuation_mode
     result["chat_template_excerpt"] = (getattr(tokenizer, "chat_template", "") or "")[:800]
     if not supports_continue:
         result.update(
             {
                 "ok": False,
-                "issue_type": "tokenizer_does_not_support_continue_final_message",
+                "issue_type": "tokenizer_no_supported_assistant_continuation",
                 "likely_cause": "tokenizer_or_chat_template_capability",
             }
         )

@@ -145,18 +145,18 @@ def classify_continuation_issue(result: Dict[str, Any]) -> Optional[Dict[str, st
             "issue_type": str(probe.get("issue_type") or "preflight_continuation_failed"),
             "likely_cause": str(probe.get("likely_cause") or "tokenizer_or_chat_template_capability"),
             "analysis": (
-                "tokenizer 预检阶段无法稳定渲染 assistant-prefix 续写 prompt，"
-                "因此按本轮规则跳过模型加载和生成，不尝试其它 prompt 或 fallback。"
+                "预检阶段无法稳定渲染该模型当前 runner 支持的 assistant-prefix "
+                "续写 prompt，因此按本轮规则跳过模型加载和生成；不尝试语义 cue/fallback。"
             ),
         }
     if "does not support continue_final_message" in text:
         return {
-            "issue_type": "tokenizer_does_not_support_continue_final_message",
+            "issue_type": "tokenizer_no_supported_assistant_continuation",
             "likely_cause": "tokenizer_or_chat_template_capability",
             "analysis": (
-                "该模型的 tokenizer.apply_chat_template 不支持 continue_final_message，"
-                "或当前 transformers/tokenizer 版本暴露的签名不包含该参数。"
-                "这不是生成数学内容失败，而是当前续写式 prompt 格式无法被 tokenizer 正确渲染。"
+                "该模型在当前本地 HF/vLLM runner 下没有可用的 assistant 续写渲染方式。"
+                "本地 HF/vLLM 路径优先使用 tokenizer 的 continue_final_message；"
+                "API 路径可使用各自原生 partial/prefill 机制。"
             ),
         }
     for key in ("smoke_validation", "full_validation"):
@@ -168,8 +168,8 @@ def classify_continuation_issue(result: Dict[str, Any]) -> Optional[Dict[str, st
                 "likely_cause": "model_behavior_or_chat_template_mismatch",
                 "analysis": (
                     f"{key} 中有 {count} 个处在 judge 评分窗口内的续写输出为空。"
-                    "这说明 continue_final_message 渲染链路技术上可执行，但模型可能把前缀视为完整回答并直接 EOS，"
-                    "也可能是该模型 chat template 与 assistant prefix 续写任务不匹配。按当前要求，不改用 cue/fallback。"
+                    "这说明该模型支持的续写渲染链路技术上可执行，但模型可能把前缀视为完整回答并直接 EOS，"
+                    "也可能是 chat template 与 assistant prefix 续写任务不匹配。按当前要求，不改用语义 cue/fallback。"
                 ),
             }
     if "continue_final_message" in lower and ("error" in lower or "exception" in lower or "traceback" in lower):
@@ -177,8 +177,8 @@ def classify_continuation_issue(result: Dict[str, Any]) -> Optional[Dict[str, st
             "issue_type": "continuation_render_or_runtime_error",
             "likely_cause": "code_or_tokenizer_runtime",
             "analysis": (
-                "日志中出现 continue_final_message 相关运行错误。需要优先检查 tokenizer/chat_template 签名、"
-                "transformers 版本以及 runner 的 prompt 渲染分支。"
+                "日志中出现本地 HF/vLLM 续写渲染相关运行错误。需要优先检查 tokenizer/chat_template 签名、"
+                "transformers 版本以及 runner 的 prompt 渲染分支；API 模型则检查对应 partial/prefill 参数。"
             ),
         }
     return None
@@ -200,20 +200,22 @@ def refresh_continuation_issue_doc() -> None:
                 rows.append({**row, "continuation_issue": issue})
 
     lines = [
-        "# continue_final_message 续写问题记录",
+        "# assistant 续写问题记录",
         "",
         f"更新时间：{now()}",
         "",
-        "规则：如果某模型不能稳定使用 `continue_final_message` 做 assistant-prefix 续写，本轮不尝试其它生成方式，不使用 cue/fallback，不改 prompt 语义绕过；只记录问题、证据和归因。", 
+        "规则：如果某模型有原生 assistant 续写/partial/prefill 机制，就使用该模型支持的机制。"
+        "本地 HF/vLLM 模型使用 tokenizer `continue_final_message`；Kimi/Moonshot API 使用 assistant `partial=true`。"
+        "若原生续写机制不可用或不稳定，本轮不使用 cue/fallback 改写 prompt 语义绕过，只记录问题、证据和归因。",
         "",
         "归因口径：",
-        "- `tokenizer_or_chat_template_capability`：tokenizer/chat_template 不支持 `continue_final_message`。",
+        "- `tokenizer_or_chat_template_capability`：当前 runner 找不到该模型可用的原生续写渲染方式。",
         "- `model_behavior_or_chat_template_mismatch`：渲染可执行，但模型在评分窗口内直接返回空输出/EOS。",
         "- `code_or_tokenizer_runtime`：runner 或 tokenizer 渲染分支出现运行时错误，需要修代码或版本适配。",
         "",
     ]
     if not rows:
-        lines += ["当前尚无 continue_final_message 续写异常。", ""]
+        lines += ["当前尚无 assistant 续写异常。", ""]
     else:
         for row in rows:
             issue = row["continuation_issue"]
@@ -425,6 +427,8 @@ def refresh_continuation_compatibility_doc() -> None:
             "",
             f"- 预检结论：`{'通过' if probe.get('ok') else '不通过'}`",
             f"- tokenizer：`{probe.get('tokenizer_class')}`",
+            f"- continuation_mode：`{probe.get('continuation_mode')}`",
+            f"- supports_assistant_continuation：`{probe.get('supports_assistant_continuation')}`",
             f"- supports_continue_final_message：`{probe.get('supports_continue_final_message')}`",
             f"- template kwargs：`{json.dumps(probe.get('chat_template_kwargs_used') or probe.get('chat_template_kwargs_requested') or {}, ensure_ascii=False)}`",
             f"- no_system_role：`{probe.get('no_system_role')}`",
