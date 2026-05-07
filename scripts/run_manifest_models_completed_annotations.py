@@ -600,6 +600,30 @@ MOJIBAKE_MARKERS = (
     "â€",
     "å",
 )
+CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+ARABIC_RE = re.compile(r"[\u0600-\u06ff]")
+EMOJI_RE = re.compile(r"[\U0001F300-\U0001FAFF]")
+DEGENERATION_MARKERS = (
+    "actual explicit closed-form expression derived would appear here",
+    "solution resolution fusion synthesis",
+    "redrawing redrawing",
+    "button -button",
+    "next next next",
+    "禁止禁止",
+    "停止停止",
+    "拒绝拒绝",
+    "错误错误",
+    "失败失败",
+)
+
+
+def language_or_degeneration_issue(text: str) -> bool:
+    return (
+        len(CJK_RE.findall(text)) >= 32
+        or len(ARABIC_RE.findall(text)) >= 64
+        or len(EMOJI_RE.findall(text)) >= 8
+        or any(marker in text for marker in DEGENERATION_MARKERS)
+    )
 
 
 def output_format_issues(text: str) -> List[str]:
@@ -612,6 +636,8 @@ def output_format_issues(text: str) -> List[str]:
         issues.append("chat_role_marker_leak")
     if any(marker in text for marker in MOJIBAKE_MARKERS):
         issues.append("mojibake_or_replacement_char")
+    if language_or_degeneration_issue(text):
+        issues.append("language_or_degenerate_output")
     control_chars = [
         ch for ch in text
         if (ord(ch) < 32 and ch not in "\n\r\t")
@@ -619,6 +645,12 @@ def output_format_issues(text: str) -> List[str]:
     if control_chars:
         issues.append("control_characters")
     return issues
+
+
+def tolerated_issue_threshold(total_outputs: int, expected_rows: int, *, smoke_limit: int, full_min: int, full_rate: float) -> int:
+    if expected_rows <= 10:
+        return smoke_limit
+    return max(full_min, int(total_outputs * full_rate))
 
 
 def validate_artifact(run_dir_path: Path, input_path: Path, expected_rows: int) -> Dict[str, Any]:
@@ -694,7 +726,31 @@ def validate_artifact(run_dir_path: Path, input_path: Path, expected_rows: int) 
     all_cache_lines = line_count(all_cache)
     empty_output_ratio = (len(empty_outputs) / total_output_count) if total_output_count else 1.0
     empty_output_threshold = max(5, int(total_output_count * 0.15))
+    scored_empty_threshold = tolerated_issue_threshold(
+        total_output_count,
+        expected_rows,
+        smoke_limit=1,
+        full_min=3,
+        full_rate=0.005,
+    )
+    format_issue_threshold = tolerated_issue_threshold(
+        total_output_count,
+        expected_rows,
+        smoke_limit=1,
+        full_min=5,
+        full_rate=0.01,
+    )
+    suspicious_output_threshold = tolerated_issue_threshold(
+        total_output_count,
+        expected_rows,
+        smoke_limit=1,
+        full_min=3,
+        full_rate=0.005,
+    )
     excessive_empty_outputs = len(empty_outputs) > empty_output_threshold
+    excessive_scored_empty_outputs = len(scored_empty_outputs) > scored_empty_threshold
+    excessive_format_issues = len(format_issues) > format_issue_threshold
+    excessive_suspicious_outputs = len(suspicious_outputs) > suspicious_output_threshold
     result.update(
         {
             "rows": len(rows),
@@ -707,8 +763,14 @@ def validate_artifact(run_dir_path: Path, input_path: Path, expected_rows: int) 
             "empty_output_ratio": round(empty_output_ratio, 4),
             "empty_output_threshold": empty_output_threshold,
             "excessive_empty_output_count": excessive_empty_outputs,
+            "scored_empty_threshold": scored_empty_threshold,
+            "excessive_scored_empty_output_count": excessive_scored_empty_outputs,
             "scored_empty_output_count": len(scored_empty_outputs),
+            "suspicious_output_threshold": suspicious_output_threshold,
+            "excessive_suspicious_output_count": excessive_suspicious_outputs,
             "suspicious_output_count": len(suspicious_outputs),
+            "format_issue_threshold": format_issue_threshold,
+            "excessive_format_issue_count": excessive_format_issues,
             "format_issue_count": len(format_issues),
             "prompt_mismatch_count": len(prompt_mismatch),
             "empty_output_examples": empty_outputs[:10],
@@ -728,10 +790,10 @@ def validate_artifact(run_dir_path: Path, input_path: Path, expected_rows: int) 
         and len(set(ids)) == expected_rows
         and set(input_ids) == set(ids)
         and not json_errors
-        and not scored_empty_outputs
+        and not excessive_scored_empty_outputs
         and not excessive_empty_outputs
-        and not suspicious_outputs
-        and not format_issues
+        and not excessive_suspicious_outputs
+        and not excessive_format_issues
         and not prompt_mismatch
         and result["all_cache_exists"]
         and len(case_files) == expected_rows

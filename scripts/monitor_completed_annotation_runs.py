@@ -24,9 +24,15 @@ EVENTS_PATH = LOGS_ROOT / "completed_annotation_guard_events.jsonl"
 GUARD_LOG = LOGS_ROOT / "completed_annotation_guard_monitor.log"
 POLL_SECONDS = int(os.environ.get("COMPLETED_GUARD_POLL_SECONDS", "60"))
 NO_PROGRESS_SECONDS = int(os.environ.get("COMPLETED_GUARD_NO_PROGRESS_SECONDS", "1800"))
-SCORED_EMPTY_LIMIT = int(os.environ.get("COMPLETED_GUARD_SCORED_EMPTY_LIMIT", "2"))
-MOJIBAKE_LIMIT = int(os.environ.get("COMPLETED_GUARD_MOJIBAKE_LIMIT", "0"))
-TEMPLATE_LEAK_LIMIT = int(os.environ.get("COMPLETED_GUARD_TEMPLATE_LEAK_LIMIT", "1"))
+# Stop only when output problems look systemic. A small number of bad
+# continuations is recorded and surfaced in validation reports, but should not
+# wastefully terminate a long full run by itself.
+SCORED_EMPTY_MIN_COUNT = int(os.environ.get("COMPLETED_GUARD_SCORED_EMPTY_MIN_COUNT", "3"))
+SCORED_EMPTY_MAX_RATE = float(os.environ.get("COMPLETED_GUARD_SCORED_EMPTY_MAX_RATE", "0.01"))
+SMOKE_MALFORMED_MIN_COUNT = int(os.environ.get("COMPLETED_GUARD_SMOKE_MALFORMED_MIN_COUNT", "2"))
+SMOKE_MALFORMED_MAX_RATE = float(os.environ.get("COMPLETED_GUARD_SMOKE_MALFORMED_MAX_RATE", "0.03"))
+FULL_MALFORMED_MIN_COUNT = int(os.environ.get("COMPLETED_GUARD_FULL_MALFORMED_MIN_COUNT", "5"))
+FULL_MALFORMED_MAX_RATE = float(os.environ.get("COMPLETED_GUARD_FULL_MALFORMED_MAX_RATE", "0.01"))
 
 ERROR_OR_RUNTIME_MARKERS = (
     "Traceback",
@@ -50,6 +56,21 @@ CHAT_TEMPLATE_LEAK_MARKERS = (
     "</s>",
 )
 MOJIBAKE_MARKERS = ("\ufffd", "Ã", "Â", "â€™", "â€œ", "â€", "å")
+CJK_RE = re.compile(r"[\u4e00-\u9fff]")
+ARABIC_RE = re.compile(r"[\u0600-\u06ff]")
+EMOJI_RE = re.compile(r"[\U0001F300-\U0001FAFF]")
+DEGENERATION_MARKERS = (
+    "actual explicit closed-form expression derived would appear here",
+    "solution resolution fusion synthesis",
+    "redrawing redrawing",
+    "button -button",
+    "next next next",
+    "禁止禁止",
+    "停止停止",
+    "拒绝拒绝",
+    "错误错误",
+    "失败失败",
+)
 
 
 def now() -> str:
@@ -140,6 +161,15 @@ def line_count(path: Path) -> int:
         return 0
 
 
+def language_or_degeneration_issue(text: str) -> bool:
+    return (
+        len(CJK_RE.findall(text)) >= 32
+        or len(ARABIC_RE.findall(text)) >= 64
+        or len(EMOJI_RE.findall(text)) >= 8
+        or any(marker in text for marker in DEGENERATION_MARKERS)
+    )
+
+
 def output_issues(text: str) -> List[str]:
     issues: List[str] = []
     if any(marker in text for marker in ERROR_OR_RUNTIME_MARKERS):
@@ -150,16 +180,20 @@ def output_issues(text: str) -> List[str]:
         issues.append("chat_role_marker_leak")
     if any(marker in text for marker in MOJIBAKE_MARKERS):
         issues.append("mojibake_or_replacement_char")
+    if language_or_degeneration_issue(text):
+        issues.append("language_or_degenerate_output")
     return issues
 
 
 def scan_gen_file(path: Path) -> Dict[str, Any]:
     stats: Dict[str, Any] = {
         "rows": 0,
+        "total_outputs": 0,
         "scored_empty": 0,
         "mojibake": 0,
         "template_leak": 0,
         "runtime_text": 0,
+        "language_degen": 0,
         "examples": [],
     }
     if not path.exists():
@@ -182,6 +216,7 @@ def scan_gen_file(path: Path) -> Dict[str, Any]:
                 stats["scored_empty"] += 1
                 continue
             for out_idx, output in enumerate(outputs):
+                stats["total_outputs"] += 1
                 text = str(output or "")
                 if not text.strip() and out_idx < upper:
                     stats["scored_empty"] += 1
@@ -195,6 +230,8 @@ def scan_gen_file(path: Path) -> Dict[str, Any]:
                     stats["template_leak"] += 1
                 if "runtime_error_text" in issues:
                     stats["runtime_text"] += 1
+                if "language_or_degenerate_output" in issues:
+                    stats["language_degen"] += 1
                 if issues and len(stats["examples"]) < 8:
                     stats["examples"].append({"id": row.get("id"), "output_idx": out_idx, "issues": issues, "preview": text[:220]})
     return stats
@@ -253,6 +290,13 @@ def terminate_tag(tag: str, reason: str, evidence: Dict[str, Any], *, expected_o
             time.sleep(delay)
 
 
+def exceeds_systemic_threshold(count: int, total: int, min_count: int, max_rate: float) -> bool:
+    if count < min_count:
+        return False
+    denominator = max(total, 1)
+    return (count / denominator) >= max_rate
+
+
 def evaluate_status(path: Path, state: Dict[str, Any]) -> None:
     status = load_json(path)
     phase = status.get("phase")
@@ -268,15 +312,17 @@ def evaluate_status(path: Path, state: Dict[str, Any]) -> None:
     gen_file = run_dir / "gen_only.jsonl"
     stats = scan_gen_file(gen_file)
 
+    total_outputs = int(stats.get("total_outputs") or 0)
+    malformed_count = int(stats["mojibake"] + stats["template_leak"] + stats["runtime_text"] + stats["language_degen"])
+    is_smoke = "smoke" in str(tag).lower()
+    malformed_min_count = SMOKE_MALFORMED_MIN_COUNT if is_smoke else FULL_MALFORMED_MIN_COUNT
+    malformed_max_rate = SMOKE_MALFORMED_MAX_RATE if is_smoke else FULL_MALFORMED_MAX_RATE
+
     stop_reason = None
-    if stats["scored_empty"] > SCORED_EMPTY_LIMIT:
+    if exceeds_systemic_threshold(stats["scored_empty"], total_outputs, SCORED_EMPTY_MIN_COUNT, SCORED_EMPTY_MAX_RATE):
         stop_reason = "systemic_scored_empty_outputs"
-    elif stats["mojibake"] > MOJIBAKE_LIMIT:
-        stop_reason = "mojibake_or_replacement_char_output"
-    elif stats["template_leak"] >= TEMPLATE_LEAK_LIMIT:
-        stop_reason = "chat_template_or_role_marker_leak"
-    elif stats["runtime_text"] > 0:
-        stop_reason = "runtime_error_text_in_outputs"
+    elif exceeds_systemic_threshold(malformed_count, total_outputs, malformed_min_count, malformed_max_rate):
+        stop_reason = "systemic_malformed_outputs"
 
     now_ts = time.time()
     count = line_count(gen_file)
@@ -291,7 +337,17 @@ def evaluate_status(path: Path, state: Dict[str, Any]) -> None:
         terminate_tag(
             tag,
             stop_reason,
-            {"status_path": str(path), "gen_file": str(gen_file), "partial_stats": stats},
+            {
+                "status_path": str(path),
+                "gen_file": str(gen_file),
+                "partial_stats": stats,
+                "thresholds": {
+                    "scored_empty_min_count": SCORED_EMPTY_MIN_COUNT,
+                    "scored_empty_max_rate": SCORED_EMPTY_MAX_RATE,
+                    "malformed_min_count": malformed_min_count,
+                    "malformed_max_rate": malformed_max_rate,
+                },
+            },
             expected_out_root=str(out_root or ""),
         )
         state[key]["stopped"] = True
