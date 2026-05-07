@@ -516,6 +516,55 @@ def run_dir(model_path: Path, tag: str) -> Path:
     return OUT_ROOT / f"{model_path.name}_{tag}"
 
 
+ERROR_OR_RUNTIME_MARKERS = (
+    "Traceback",
+    "CUDA out of memory",
+    "ImportError",
+    "Exception:",
+    "Error:",
+)
+
+CHAT_TEMPLATE_LEAK_MARKERS = (
+    "<|begin_of_text|>",
+    "<|start_header_id|>",
+    "<|end_header_id|>",
+    "<|eot_id|>",
+    "<|im_start|>",
+    "<|im_end|>",
+    "[INST]",
+    "[/INST]",
+)
+
+MOJIBAKE_MARKERS = (
+    "\ufffd",
+    "Ã",
+    "Â",
+    "â€™",
+    "â€œ",
+    "â€",
+    "å",
+)
+
+
+def output_format_issues(text: str) -> List[str]:
+    issues: List[str] = []
+    if any(marker in text for marker in ERROR_OR_RUNTIME_MARKERS):
+        issues.append("runtime_error_text")
+    if any(marker in text for marker in CHAT_TEMPLATE_LEAK_MARKERS):
+        issues.append("chat_template_token_leak")
+    if re.search(r"(?im)^\s*(assistant|user|system)\s*[:：]", text):
+        issues.append("chat_role_marker_leak")
+    if any(marker in text for marker in MOJIBAKE_MARKERS):
+        issues.append("mojibake_or_replacement_char")
+    control_chars = [
+        ch for ch in text
+        if (ord(ch) < 32 and ch not in "\n\r\t")
+    ]
+    if control_chars:
+        issues.append("control_characters")
+    return issues
+
+
 def validate_artifact(run_dir_path: Path, input_path: Path, expected_rows: int) -> Dict[str, Any]:
     gen_file = run_dir_path / "gen_only.jsonl"
     cache_dir = run_dir_path / "packed_prompts/cache_prompts"
@@ -548,7 +597,9 @@ def validate_artifact(run_dir_path: Path, input_path: Path, expected_rows: int) 
     empty_outputs = []
     scored_empty_outputs = []
     suspicious_outputs = []
+    format_issues = []
     prompt_mismatch = []
+    total_output_count = 0
     for idx, row in enumerate(rows, 1):
         outputs = row.get("gen_output")
         prompts = row.get("prompts")
@@ -558,20 +609,36 @@ def validate_artifact(run_dir_path: Path, input_path: Path, expected_rows: int) 
             empty_outputs.append(row.get("id") or idx)
             scored_empty_outputs.append(row.get("id") or idx)
             outputs = []
+        total_output_count += len(outputs)
         for out_idx, output in enumerate(outputs):
-            if not str(output or "").strip():
+            output_text = str(output or "")
+            if not output_text.strip():
                 item = {"id": row.get("id") or idx, "output_idx": out_idx, "scored": out_idx < upper}
                 empty_outputs.append(item)
                 if out_idx < upper:
                     scored_empty_outputs.append(item)
+                continue
+            issues = output_format_issues(output_text)
+            if issues:
+                format_issues.append(
+                    {
+                        "id": row.get("id") or idx,
+                        "output_idx": out_idx,
+                        "issues": issues,
+                        "preview": output_text[:240],
+                    }
+                )
         text = "\n".join(str(x) for x in outputs or [])
-        if any(marker in text for marker in ("Traceback", "CUDA out of memory", "ImportError", "Exception:", "Error:")):
+        if any(marker in text for marker in ERROR_OR_RUNTIME_MARKERS):
             suspicious_outputs.append(row.get("id") or idx)
         if isinstance(outputs, list) and isinstance(prompts, list) and len(outputs) != len(prompts):
             prompt_mismatch.append(row.get("id") or idx)
 
     case_files = list(cache_dir.glob("case_*_cache.jsonl")) if cache_dir.exists() else []
     all_cache_lines = line_count(all_cache)
+    empty_output_ratio = (len(empty_outputs) / total_output_count) if total_output_count else 1.0
+    empty_output_threshold = max(5, int(total_output_count * 0.15))
+    excessive_empty_outputs = len(empty_outputs) > empty_output_threshold
     result.update(
         {
             "rows": len(rows),
@@ -579,13 +646,19 @@ def validate_artifact(run_dir_path: Path, input_path: Path, expected_rows: int) 
             "unique_ids": len(set(ids)),
             "input_output_id_sets_equal": set(input_ids) == set(ids),
             "duplicate_id_count": len(ids) - len(set(ids)),
+            "total_output_count": total_output_count,
             "empty_output_count": len(empty_outputs),
+            "empty_output_ratio": round(empty_output_ratio, 4),
+            "empty_output_threshold": empty_output_threshold,
+            "excessive_empty_output_count": excessive_empty_outputs,
             "scored_empty_output_count": len(scored_empty_outputs),
             "suspicious_output_count": len(suspicious_outputs),
+            "format_issue_count": len(format_issues),
             "prompt_mismatch_count": len(prompt_mismatch),
             "empty_output_examples": empty_outputs[:10],
             "scored_empty_output_examples": scored_empty_outputs[:10],
             "suspicious_output_examples": suspicious_outputs[:10],
+            "format_issue_examples": format_issues[:10],
             "prompt_mismatch_examples": prompt_mismatch[:10],
             "all_cache_exists": all_cache.exists(),
             "all_cache_lines": all_cache_lines,
@@ -600,7 +673,9 @@ def validate_artifact(run_dir_path: Path, input_path: Path, expected_rows: int) 
         and set(input_ids) == set(ids)
         and not json_errors
         and not scored_empty_outputs
+        and not excessive_empty_outputs
         and not suspicious_outputs
+        and not format_issues
         and not prompt_mismatch
         and result["all_cache_exists"]
         and len(case_files) == expected_rows
