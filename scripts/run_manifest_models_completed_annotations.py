@@ -33,7 +33,7 @@ from typing import Any, Dict, Iterable, List, Optional, Sequence, Tuple
 
 
 REPO = Path("/home/zhaipengxiang/benchmark")
-PY = Path("/home/zhaipengxiang/miniconda3/envs/vllm/bin/python3.12")
+PY = Path(os.environ.get("COMPLETED_MANIFEST_PY", "/home/zhaipengxiang/miniconda3/envs/vllm/bin/python3.12"))
 MANIFEST = REPO / "model/download_manifest.tsv"
 TEST_INPUT = REPO / "workflow_data/annotation_exports/completed_annotation_records_test_subset/purified_cases.jsonl"
 FULL_INPUT = REPO / "workflow_data/annotation_exports/completed_annotation_records/purified_cases.jsonl"
@@ -388,12 +388,37 @@ def no_system_role_for_model(rec: Dict[str, Any]) -> bool:
     return (rec.get("model_name") or "").lower() == "gemma-2-27b-it"
 
 
+def chat_template_content_overrides_for_model(rec: Dict[str, Any]) -> Dict[str, str]:
+    name = rec.get("model_name") or ""
+    if name == "NVIDIA-Nemotron-Nano-9B-v2":
+        # Native Nemotron-H control: its chat template scans system/user content
+        # for /no_think and disables the model's thinking channel.
+        return {"system_suffix": "/no_think", "first_user_prefix": ""}
+    return {"system_suffix": "", "first_user_prefix": ""}
+
+
+def sampling_overrides_for_model(rec: Dict[str, Any]) -> Dict[str, Any]:
+    name = rec.get("model_name") or ""
+    overrides: Dict[str, Any] = {}
+    if "Nemotron" in name:
+        # Replacement-character generations are invalid for downstream judge
+        # prompts; banning the literal token is a model-local decoding fix.
+        overrides["bad_words"] = ["\ufffd"]
+    if name == "NVIDIA-Nemotron-Nano-9B-v2":
+        # This model can emit EOS immediately under assistant prefill. Keep the
+        # native prefill prompt but ignore EOS during generation.
+        overrides["ignore_eos"] = True
+    return overrides
+
+
 def run_continuation_probe(
     model_name: str,
     model_path: Path,
     chat_template_kwargs: Dict[str, Any],
     *,
     no_system_role: bool,
+    system_suffix: str,
+    first_user_prefix: str,
 ) -> Dict[str, Any]:
     out_json = LOG_ROOT / "continuation_probes" / f"{safe_slug(model_name)}.json"
     cmd = [
@@ -408,6 +433,10 @@ def run_continuation_probe(
     ]
     if no_system_role:
         cmd.append("--no-system-role")
+    if system_suffix:
+        cmd += ["--system-suffix", system_suffix]
+    if first_user_prefix:
+        cmd += ["--first-user-prefix", first_user_prefix]
     cmd += ["--out-json", str(out_json)]
     code = run(cmd, log=LOG_ROOT / "continuation_probes" / f"{safe_slug(model_name)}.log")
     probe = load_json(out_json)
@@ -468,6 +497,8 @@ def make_wrapper_cmd(
     plan: Plan,
     chat_template_kwargs: Dict[str, Any],
     no_system_role: bool,
+    content_overrides: Dict[str, str],
+    sampling_overrides: Dict[str, Any],
     max_cases: int,
     status_path: Path,
 ) -> List[str]:
@@ -520,6 +551,16 @@ def make_wrapper_cmd(
         cmd += ["--chat-template-kwargs-json", json.dumps(chat_template_kwargs, ensure_ascii=False)]
     if no_system_role:
         cmd.append("--chat-template-no-system-role")
+    if content_overrides.get("system_suffix"):
+        cmd += ["--chat-template-system-suffix", content_overrides["system_suffix"]]
+    if content_overrides.get("first_user_prefix"):
+        cmd += ["--chat-template-first-user-prefix", content_overrides["first_user_prefix"]]
+    if sampling_overrides.get("bad_words"):
+        cmd += ["--sampling-bad-words-json", json.dumps(sampling_overrides["bad_words"], ensure_ascii=False)]
+    if sampling_overrides.get("stop_token_ids"):
+        cmd += ["--sampling-stop-token-ids-json", json.dumps(sampling_overrides["stop_token_ids"])]
+    if sampling_overrides.get("ignore_eos"):
+        cmd.append("--sampling-ignore-eos")
     return cmd
 
 
@@ -792,14 +833,20 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
     result["plan"] = asdict(plan)
     chat_template_kwargs = chat_template_kwargs_for_model(rec)
     no_system_role = no_system_role_for_model(rec)
+    content_overrides = chat_template_content_overrides_for_model(rec)
+    sampling_overrides = sampling_overrides_for_model(rec)
     result["chat_template_kwargs"] = chat_template_kwargs
     result["chat_template_no_system_role"] = no_system_role
+    result["chat_template_content_overrides"] = content_overrides
+    result["sampling_overrides"] = sampling_overrides
 
     continuation_probe = run_continuation_probe(
         model_name,
         model_path,
         chat_template_kwargs,
         no_system_role=no_system_role,
+        system_suffix=content_overrides.get("system_suffix", ""),
+        first_user_prefix=content_overrides.get("first_user_prefix", ""),
     )
     refresh_continuation_compatibility_doc()
     result["continuation_probe"] = continuation_probe
@@ -829,6 +876,8 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
         plan=Plan(**{**asdict(plan), "shard_count": 1, "gpu_groups": [plan.gpu_groups[0]]}),
         chat_template_kwargs=chat_template_kwargs,
         no_system_role=no_system_role,
+        content_overrides=content_overrides,
+        sampling_overrides=sampling_overrides,
         max_cases=10,
         status_path=smoke_status,
     )
@@ -854,6 +903,8 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
             plan=plan,
             chat_template_kwargs=chat_template_kwargs,
             no_system_role=no_system_role,
+            content_overrides=content_overrides,
+            sampling_overrides=sampling_overrides,
             max_cases=100000,
             status_path=status_path,
         )
@@ -877,6 +928,8 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
                         plan=shard_plan,
                         chat_template_kwargs=chat_template_kwargs,
                         no_system_role=no_system_role,
+                        content_overrides=content_overrides,
+                        sampling_overrides=sampling_overrides,
                         max_cases=100000,
                         status_path=LOG_ROOT / f"{model_slug}_full_shard{i:02d}_status.json",
                     ),

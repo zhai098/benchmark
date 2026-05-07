@@ -107,6 +107,11 @@ def main() -> None:
     parser.add_argument("--tokenizer-mode", default=None)
     parser.add_argument("--chat-template-kwargs-json", default="{}")
     parser.add_argument("--chat-template-no-system-role", action="store_true")
+    parser.add_argument("--chat-template-system-suffix", default="")
+    parser.add_argument("--chat-template-first-user-prefix", default="")
+    parser.add_argument("--sampling-bad-words-json", default="[]")
+    parser.add_argument("--sampling-stop-token-ids-json", default="[]")
+    parser.add_argument("--sampling-ignore-eos", action="store_true")
     parser.add_argument("--min-tokens", type=int, default=16)
     parser.add_argument("--max-cases", type=int, default=100000)
     parser.add_argument("--wait-gpu-free-mib", type=int, default=50000)
@@ -153,6 +158,23 @@ def main() -> None:
             raise ValueError("--chat-template-kwargs-json must decode to an object")
         Config["generation_chat_template_kwargs"] = chat_template_kwargs
         Config["generation_chat_template_no_system_role"] = bool(args.chat_template_no_system_role)
+        Config["generation_chat_template_system_suffix"] = args.chat_template_system_suffix
+        Config["generation_chat_template_first_user_prefix"] = args.chat_template_first_user_prefix
+        try:
+            bad_words = json.loads(args.sampling_bad_words_json or "[]")
+            stop_token_ids = json.loads(args.sampling_stop_token_ids_json or "[]")
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid sampling JSON option: {exc}") from exc
+        if bad_words:
+            if not isinstance(bad_words, list) or not all(isinstance(item, str) for item in bad_words):
+                raise ValueError("--sampling-bad-words-json must decode to a list of strings")
+            Config["reasoning_sampling_params"]["bad_words"] = bad_words
+        if stop_token_ids:
+            if not isinstance(stop_token_ids, list) or not all(isinstance(item, int) for item in stop_token_ids):
+                raise ValueError("--sampling-stop-token-ids-json must decode to a list of ints")
+            Config["reasoning_sampling_params"]["stop_token_ids"] = stop_token_ids
+        if args.sampling_ignore_eos:
+            Config["reasoning_sampling_params"]["ignore_eos"] = True
 
         write_status(
             status_path,
@@ -162,6 +184,11 @@ def main() -> None:
             sampling_min_tokens=Config["reasoning_sampling_params"].get("min_tokens"),
             chat_template_kwargs=chat_template_kwargs,
             chat_template_no_system_role=bool(args.chat_template_no_system_role),
+            chat_template_system_suffix=args.chat_template_system_suffix,
+            chat_template_first_user_prefix=args.chat_template_first_user_prefix,
+            sampling_bad_words=Config["reasoning_sampling_params"].get("bad_words"),
+            sampling_stop_token_ids=Config["reasoning_sampling_params"].get("stop_token_ids"),
+            sampling_ignore_eos=Config["reasoning_sampling_params"].get("ignore_eos", False),
         )
         import generate
 

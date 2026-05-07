@@ -2,8 +2,10 @@ from __future__ import annotations
 
 from benchmark_core.config import Config
 import inspect
+import importlib.util
 import json
 import os
+from pathlib import Path
 from typing import TYPE_CHECKING, Any
 from benchmark_core.data_process import safe_json_loads, extract_last_score_part, extract_prefix  # 文件顶部集中导入一次
 
@@ -78,7 +80,59 @@ def _normalize_chat_template_messages(messages: list[dict[str, Any]]) -> list[di
         merged_user = dict(normalized[1])
         merged_user["content"] = f"{system_text}\n\n{user_text}".strip()
         normalized = [merged_user] + normalized[2:]
+    system_suffix = str(Config.get("generation_chat_template_system_suffix") or "")
+    first_user_prefix = str(Config.get("generation_chat_template_first_user_prefix") or "")
+    if system_suffix:
+        for message in normalized:
+            if message.get("role") == "system":
+                content = str(message.get("content") or "")
+                if system_suffix not in content:
+                    message["content"] = f"{content}\n{system_suffix}".strip()
+                break
+    if first_user_prefix:
+        for message in normalized:
+            if message.get("role") == "user":
+                content = str(message.get("content") or "")
+                if not content.startswith(first_user_prefix):
+                    message["content"] = f"{first_user_prefix}{content}"
+                break
     return normalized
+
+
+def _render_deepseek_v4_messages(model_name: str, messages: list[dict[str, Any]], *, has_prefill: bool) -> str | None:
+    encoder_path = Path(model_name) / "encoding" / "encoding_dsv4.py"
+    if not encoder_path.exists():
+        return None
+    spec = importlib.util.spec_from_file_location("deepseek_v4_encoding_for_benchmark", encoder_path)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"Could not load DeepSeek-V4 encoder from {encoder_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    rendered_messages: list[dict[str, Any]] = []
+    for idx, message in enumerate(messages):
+        item = {
+            "role": message["role"],
+            "content": message.get("content", ""),
+        }
+        if has_prefill and idx == len(messages) - 1 and item["role"] == "assistant":
+            item["wo_eos"] = True
+        rendered_messages.append(item)
+    thinking_mode = str(Config.get("generation_deepseek_v4_thinking_mode") or "chat")
+    return module.encode_messages(rendered_messages, thinking_mode=thinking_mode, drop_thinking=True)
+
+
+def _strip_continuation_trailing_eos(tokenizer: Any, rendered: Any, *, enabled: bool) -> Any:
+    if not enabled or not isinstance(rendered, str):
+        return rendered
+    eos_token = getattr(tokenizer, "eos_token", None)
+    if not isinstance(eos_token, str) or not eos_token:
+        return rendered
+    if rendered.endswith(eos_token):
+        return rendered[: -len(eos_token)]
+    stripped = rendered.rstrip()
+    if stripped.endswith(eos_token):
+        return stripped[: -len(eos_token)]
+    return rendered
 
 
 class GeneratePromptFormatter:
@@ -127,6 +181,13 @@ class GeneratePromptFormatter:
                 and tokenizer_messages[-1].get("role") == "assistant"
                 and tokenizer_messages[-1].get("prefix")
             )
+            deepseek_rendered = _render_deepseek_v4_messages(
+                self.model_name,
+                tokenizer_messages,
+                has_prefill=has_prefill,
+            )
+            if deepseek_rendered is not None:
+                return deepseek_rendered
             supports_continue = "continue_final_message" in sig.parameters or _signature_accepts_kwargs(self.tokenizer.apply_chat_template)
             if has_prefill and not supports_continue:
                 raise ValueError(
@@ -138,7 +199,8 @@ class GeneratePromptFormatter:
             if supports_continue and has_prefill:
                 kwargs["continue_final_message"] = True
             kwargs = _apply_chat_template_kwargs(self.tokenizer, kwargs)
-            return self.tokenizer.apply_chat_template(tokenizer_messages, **kwargs)
+            rendered = self.tokenizer.apply_chat_template(tokenizer_messages, **kwargs)
+            return _strip_continuation_trailing_eos(self.tokenizer, rendered, enabled=has_prefill)
         except Exception:
             raise
 

@@ -25,7 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from runner import _load_generation_tokenizer, _strip_continuation_trailing_eos  # noqa: E402
+from runner import _load_generation_tokenizer, _render_deepseek_v4_messages, _strip_continuation_trailing_eos  # noqa: E402
 
 
 def now_iso() -> str:
@@ -68,6 +68,30 @@ def normalize_messages(messages: List[Dict[str, str]], *, no_system_role: bool) 
     return normalized
 
 
+def apply_content_overrides(
+    messages: List[Dict[str, str]],
+    *,
+    system_suffix: str,
+    first_user_prefix: str,
+) -> List[Dict[str, str]]:
+    normalized = [dict(message) for message in messages]
+    if system_suffix:
+        for message in normalized:
+            if message.get("role") == "system":
+                content = str(message.get("content") or "")
+                if system_suffix not in content:
+                    message["content"] = f"{content}\n{system_suffix}".strip()
+                break
+    if first_user_prefix:
+        for message in normalized:
+            if message.get("role") == "user":
+                content = str(message.get("content") or "")
+                if not content.startswith(first_user_prefix):
+                    message["content"] = f"{first_user_prefix}{content}"
+                break
+    return normalized
+
+
 def classify_failure(error_text: str, supports_continue: bool) -> Dict[str, str]:
     lower = error_text.lower()
     if not supports_continue or "continue_final_message" in lower and "unexpected" in lower:
@@ -86,13 +110,23 @@ def classify_failure(error_text: str, supports_continue: bool) -> Dict[str, str]
     }
 
 
-def probe(model_path: str, model_name: str, chat_template_kwargs: Dict[str, Any], no_system_role: bool) -> Dict[str, Any]:
+def probe(
+    model_path: str,
+    model_name: str,
+    chat_template_kwargs: Dict[str, Any],
+    no_system_role: bool,
+    *,
+    system_suffix: str = "",
+    first_user_prefix: str = "",
+) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "model_name": model_name,
         "model_path": model_path,
         "checked_at_utc": now_iso(),
         "chat_template_kwargs_requested": chat_template_kwargs,
         "no_system_role": no_system_role,
+        "system_suffix": system_suffix,
+        "first_user_prefix": first_user_prefix,
     }
     tokenizer = _load_generation_tokenizer(model_path)
     result["tokenizer_class"] = tokenizer.__class__.__name__
@@ -133,6 +167,31 @@ def probe(model_path: str, model_name: str, chat_template_kwargs: Dict[str, Any]
         {"role": "assistant", "content": "We have 1+1="},
     ]
     messages = normalize_messages(messages, no_system_role=no_system_role)
+    messages = apply_content_overrides(
+        messages,
+        system_suffix=system_suffix,
+        first_user_prefix=first_user_prefix,
+    )
+
+    deepseek_rendered = _render_deepseek_v4_messages(
+        model_path,
+        messages,
+        continue_final_message=True,
+    )
+    if deepseek_rendered is not None:
+        result.update(
+            {
+                "ok": bool(deepseek_rendered.strip()),
+                "continuation_mode": "deepseek_v4_native_encoding",
+                "supports_assistant_continuation": True,
+                "rendered_length": len(deepseek_rendered),
+                "rendered_tail": deepseek_rendered[-500:],
+                "assistant_prefix_present": "We have 1+1=" in deepseek_rendered,
+                "stripped_trailing_eos": False,
+            }
+        )
+        return result
+
     base_kwargs: Dict[str, Any] = {
         "tokenize": False,
         "add_generation_prompt": False,
@@ -181,6 +240,8 @@ def main() -> None:
     parser.add_argument("--model-name", required=True)
     parser.add_argument("--chat-template-kwargs-json", default="{}")
     parser.add_argument("--no-system-role", action="store_true")
+    parser.add_argument("--system-suffix", default="")
+    parser.add_argument("--first-user-prefix", default="")
     parser.add_argument("--out-json", required=True)
     args = parser.parse_args()
 
@@ -194,7 +255,14 @@ def main() -> None:
     out = Path(args.out_json)
     out.parent.mkdir(parents=True, exist_ok=True)
     try:
-        result = probe(args.model_path, args.model_name, chat_template_kwargs, args.no_system_role)
+        result = probe(
+            args.model_path,
+            args.model_name,
+            chat_template_kwargs,
+            args.no_system_role,
+            system_suffix=args.system_suffix,
+            first_user_prefix=args.first_user_prefix,
+        )
     except Exception as exc:
         result = {
             "model_name": args.model_name,

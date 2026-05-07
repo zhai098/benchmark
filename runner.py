@@ -32,6 +32,7 @@ import sys
 import asyncio
 import json
 import inspect
+import importlib.util
 from pathlib import Path
 import torch
 from typing import Any, Dict, List, Tuple, Union
@@ -125,7 +126,45 @@ def _normalize_chat_template_messages(messages: List[Dict[str, Any]]) -> List[Di
         merged_user = dict(normalized[1])
         merged_user["content"] = f"{system_text}\n\n{user_text}".strip()
         normalized = [merged_user] + normalized[2:]
+    system_suffix = str(Config.get("generation_chat_template_system_suffix") or "")
+    first_user_prefix = str(Config.get("generation_chat_template_first_user_prefix") or "")
+    if system_suffix:
+        for message in normalized:
+            if message.get("role") == "system":
+                content = str(message.get("content") or "")
+                if system_suffix not in content:
+                    message["content"] = f"{content}\n{system_suffix}".strip()
+                break
+    if first_user_prefix:
+        for message in normalized:
+            if message.get("role") == "user":
+                content = str(message.get("content") or "")
+                if not content.startswith(first_user_prefix):
+                    message["content"] = f"{first_user_prefix}{content}"
+                break
     return normalized
+
+
+def _render_deepseek_v4_messages(model_name: str, messages: List[Dict[str, Any]], *, continue_final_message: bool) -> str | None:
+    encoder_path = Path(model_name) / "encoding" / "encoding_dsv4.py"
+    if not encoder_path.exists():
+        return None
+    spec = importlib.util.spec_from_file_location("deepseek_v4_encoding_for_benchmark", encoder_path)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"Could not load DeepSeek-V4 encoder from {encoder_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    rendered_messages: List[Dict[str, Any]] = []
+    for idx, message in enumerate(messages):
+        item = {
+            "role": message["role"],
+            "content": message.get("content", ""),
+        }
+        if continue_final_message and idx == len(messages) - 1 and item["role"] == "assistant":
+            item["wo_eos"] = True
+        rendered_messages.append(item)
+    thinking_mode = str(Config.get("generation_deepseek_v4_thinking_mode") or "chat")
+    return module.encode_messages(rendered_messages, thinking_mode=thinking_mode, drop_thinking=True)
 
 
 def _strip_continuation_trailing_eos(tokenizer: Any, rendered: Any, *, enabled: bool) -> Any:
@@ -164,11 +203,27 @@ class VLLMRunner:
             tokenizer=model,
             **vllm_kwargs,
         )
-        self.sampling_params = SamplingParams(temperature=sampling_config.get("temperature", 0.7),
-            top_p=sampling_config.get("top_p", 0.95),
-            max_tokens=sampling_config.get("max_tokens", 256),
-            min_tokens=sampling_config.get("min_tokens", 0),
-            stop=sampling_config.get("stop", ["<<<END>>>"]))
+        sampling_kwargs = {
+            "temperature": sampling_config.get("temperature", 0.7),
+            "top_p": sampling_config.get("top_p", 0.95),
+            "max_tokens": sampling_config.get("max_tokens", 256),
+            "min_tokens": sampling_config.get("min_tokens", 0),
+            "stop": sampling_config.get("stop", ["<<<END>>>"]),
+        }
+        for key in (
+            "presence_penalty",
+            "frequency_penalty",
+            "repetition_penalty",
+            "top_k",
+            "min_p",
+            "stop_token_ids",
+            "ignore_eos",
+            "bad_words",
+            "logit_bias",
+        ):
+            if key in sampling_config:
+                sampling_kwargs[key] = sampling_config[key]
+        self.sampling_params = SamplingParams(**sampling_kwargs)
         self.tokenizer = _load_generation_tokenizer(self.model_name)
 
     @staticmethod
@@ -190,6 +245,14 @@ class VLLMRunner:
                 continue_final_message = True
             normalized_messages.append(normalized)
         normalized_messages = _normalize_chat_template_messages(normalized_messages)
+
+        deepseek_rendered = _render_deepseek_v4_messages(
+            self.model_name,
+            normalized_messages,
+            continue_final_message=continue_final_message,
+        )
+        if deepseek_rendered is not None:
+            return deepseek_rendered
 
         if hasattr(self.tokenizer, "apply_chat_template"):
             kwargs: Dict[str, Any] = {"tokenize": False}
