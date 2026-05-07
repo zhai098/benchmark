@@ -8,7 +8,7 @@ from generate import generate_case
 
 
 WORKFLOW_PURIFIED = Path(
-    "annotation_app/data/annotations/___/dev-1775126623662-xze9d4/workflow_outputs/purified/purified_cases.jsonl"
+    "generate_pipeline_test_data/purified_cases.jsonl"
 )
 
 

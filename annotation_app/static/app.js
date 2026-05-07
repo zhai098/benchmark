@@ -272,6 +272,45 @@ function hasMeaningfulProgress(progress) {
   );
 }
 
+function sampleAnnotationRichnessScore(annotation) {
+  if (!annotation || typeof annotation !== 'object') return 0;
+  const steps = Array.isArray(annotation.steps) ? annotation.steps : [];
+  const claims = Array.isArray(annotation.claims) ? annotation.claims : [];
+  const claimCount = claims.reduce((total, item) => {
+    if (item && Array.isArray(item.claims)) return total + item.claims.length;
+    return total + (item ? 1 : 0);
+  }, 0);
+  const checks = annotation.claim_checks && typeof annotation.claim_checks === 'object' ? annotation.claim_checks : {};
+  const deps = annotation.dependencies && typeof annotation.dependencies === 'object' ? annotation.dependencies : {};
+  const stepDeps = annotation.step_dependencies && typeof annotation.step_dependencies === 'object' ? annotation.step_dependencies : {};
+  return (steps.length * 10) + (claimCount * 20) + (Object.keys(checks).length * 20)
+    + (Object.keys(deps).length * 5) + (Object.keys(stepDeps).length * 5)
+    + (annotation.selected_solution_text ? 5 : 0);
+}
+
+function progressRichnessScore(progress) {
+  if (!progress || typeof progress !== 'object') return 0;
+  const workflow = progress.current_workflow_state || {};
+  const screening = workflow.problem_quality_screening || {};
+  const annotations = progress.current_annotations || {};
+  const sampleAnnotations = annotations.sample_annotations && typeof annotations.sample_annotations === 'object'
+    ? annotations.sample_annotations
+    : {};
+  const decisions = Array.isArray(progress.sample_decisions) ? progress.sample_decisions : [];
+  const correctSolutions = Array.isArray(progress.correct_solutions) ? progress.correct_solutions : [];
+  let score = Number(progress.current_step || 0) + (screening.decision ? 10 : 0);
+  decisions.forEach((item) => {
+    if (!item) return;
+    if (item.pipeline_status === 'completed') score += 100000;
+    else if (item.pipeline_status === 'discarded') score += 1000;
+    else if (item.pipeline_status && item.pipeline_status !== 'not_started') score += 500;
+  });
+  score += correctSolutions.length * 120000;
+  Object.values(sampleAnnotations).forEach((annotation) => { score += sampleAnnotationRichnessScore(annotation); });
+  score += sampleAnnotationRichnessScore(annotations);
+  return score;
+}
+
 function applyRestoredProgress(caseId, progress, source = '') {
   const st = resetCaseState(caseId);
   const c = selectedCase();
@@ -1798,18 +1837,29 @@ async function persistProgress(status = 'in_progress', silent = true) {
   if (data.client_revision) {
     st.client_revision = Math.max(st.client_revision || 0, Number(data.client_revision) || 0);
   }
+  const ts = formatUtcToLocal(data.updated_at_utc);
+  if (data.ignored_regression) {
+    st.last_saved_hash = data.content_hash || st.last_saved_hash;
+    st.last_saved_at_utc = String(data.updated_at_utc || st.last_saved_at_utc || '');
+    setSaveState(`已阻止空进度覆盖 ${ts}`, 'saved');
+    showToast('服务器已拒绝一次会清空完整标注的保存，请刷新后确认当前题目进度。', 'error');
+    return { ok: true, unchanged: true, ignored_regression: true };
+  }
+  if (data.ignored_stale) {
+    st.last_saved_hash = data.content_hash || st.last_saved_hash;
+    st.last_saved_at_utc = String(data.updated_at_utc || st.last_saved_at_utc || '');
+    setSaveState(`已忽略旧保存 ${ts}`, 'saved');
+    return { ok: true, unchanged: true, ignored_stale: true };
+  }
   st.last_saved_hash = data.content_hash || st.last_saved_hash;
   st.last_saved_fingerprint = fingerprint;
   st.last_saved_at_utc = String(data.updated_at_utc || st.last_saved_at_utc || '');
-  const ts = formatUtcToLocal(data.updated_at_utc);
-  if (data.ignored_stale) {
-    setSaveState(`已忽略旧保存 ${ts}`, 'saved');
-  } else if (data.unchanged) {
+  if (data.unchanged) {
     setSaveState(`无变更 ${ts}`, 'saved');
   } else {
     setSaveState(`已保存 ${ts}`, 'saved');
   }
-  return { ok: true, unchanged: Boolean(data.unchanged), ignored_stale: Boolean(data.ignored_stale) };
+  return { ok: true, unchanged: Boolean(data.unchanged), ignored_stale: false, ignored_regression: false };
 }
 
 function scheduleAutosave() {
@@ -1878,13 +1928,27 @@ async function restoreProgress(caseId) {
     return;
   }
   const progress = data.progress || {};
-  st = applyRestoredProgress(caseId, progress, String(data.source || ''));
+  if (cachedDraft && hasMeaningfulProgress(cachedDraft.progress)
+    && progressRichnessScore(cachedDraft.progress) > progressRichnessScore(progress)) {
+    st = applyRestoredProgress(caseId, cachedDraft.progress, 'local_draft:richer_than_server');
+    setSaveState('已恢复本地草稿（比服务器记录更完整）', 'pending');
+    showToast('服务器记录比本地草稿更空，已保留本地草稿，请再次保存确认。', 'error');
+    return;
+  }
+  const source = String(data.source || '');
+  st = applyRestoredProgress(caseId, progress, source);
   writeDraftCache(caseId, progress);
-  st.last_saved_fingerprint = payloadFingerprint(progress);
   st.last_saved_hash = progress.content_hash || st.last_saved_hash;
   st.last_saved_at_utc = String(progress.updated_at_utc || st.last_saved_at_utc || '');
-  const mode = String(data.source || '');
   const ts = formatUtcToLocal(progress.updated_at_utc);
+  if (data.recovered_from_cache || source.startsWith('cache_best')) {
+    st.last_saved_fingerprint = '';
+    setSaveState(`已从服务器恢复缓存加载 ${ts}`, 'pending');
+    showToast('已从服务器恢复缓存加载，并正在回写正式记录。', 'success');
+    await persistProgress(progress.status || 'in_progress', true);
+    return;
+  }
+  st.last_saved_fingerprint = payloadFingerprint(progress);
   setSaveState(`已恢复 ${ts}`, 'saved');
 }
 
@@ -2080,7 +2144,9 @@ window.addEventListener('beforeunload', () => {
   if (!c) return;
   const st = getCaseState(c.id);
   const payload = buildProgressPayload('in_progress', nextClientRevision(st));
-  if (!payload) return;
+  if (!payload || !hasMeaningfulProgress(payload)) return;
+  const fingerprint = payloadFingerprint(payload);
+  if (fingerprint === st.last_saved_fingerprint) return;
   writeDraftCache(c.id, payload);
   const blob = new Blob([JSON.stringify(payload)], { type: 'application/json' });
   navigator.sendBeacon('/api/save_progress', blob);

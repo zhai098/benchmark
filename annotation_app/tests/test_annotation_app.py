@@ -8,6 +8,9 @@ from annotation_app.app import (
     _normalize_presegmented_claims,
     app,
     ensure_dirs,
+    progress_cache_best_path,
+    progress_cache_history_path,
+    progress_cache_latest_path,
     progress_detail_path,
     progress_path,
     progress_summary_path,
@@ -186,6 +189,13 @@ def test_save_progress_reports_unchanged_for_noop(tmp_path, monkeypatch):
     second = client.put("/api/save_progress", json=payload)
     assert second.status_code == 200
     assert second.get_json()["unchanged"] is True
+
+    revision_only = {**payload, "client_revision": 999}
+    third = client.put("/api/save_progress", json=revision_only)
+    assert third.status_code == 200
+    assert third.get_json()["unchanged"] is True
+    assert third.get_json()["cache_written"] is True
+    assert progress_cache_history_path("u4", "d4", "c4").exists()
 
 
 def test_ensure_dirs_creates_logs_dir(tmp_path, monkeypatch):
@@ -514,6 +524,193 @@ def test_stale_client_revision_cannot_overwrite_newer_progress(tmp_path, monkeyp
     assert got.get_json()["progress"]["client_revision"] == 200
 
 
+def test_save_progress_recovery_cache_keeps_history_latest_and_best(tmp_path, monkeypatch):
+    monkeypatch.setattr("annotation_app.app.DATA_DIR", tmp_path)
+    monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
+    monkeypatch.setattr("annotation_app.app.RECORDS_DIR", tmp_path / "records")
+    app.config.pop("_logging_configured", None)
+    client = app.test_client()
+
+    completed = {
+        "annotator_id": "cache-user",
+        "device_id": "cache-dev",
+        "case_id": "cache-case",
+        "client_revision": 100,
+        "current_step": 5,
+        "current_workflow_state": {"workflow_state": "completed", "problem_quality_screening": {"decision": "pass"}},
+        "current_annotations": {
+            "sample_annotations": {
+                "0": {
+                    "selected_solution_text": "solution",
+                    "steps": ["step 1"],
+                    "claims": [{"step_id": "s1", "claims": ["claim 1"]}],
+                    "claim_checks": {"s1c1": "correct"},
+                    "workflow_state": "completed",
+                }
+            }
+        },
+        "sample_decisions": [{"sample_idx": 0, "is_correct": True, "pipeline_status": "completed"}],
+        "correct_solutions": [{"sample_idx": 0, "solution": "solution"}],
+    }
+    blank_newer = {
+        "annotator_id": "cache-user",
+        "device_id": "cache-dev",
+        "case_id": "cache-case",
+        "client_revision": 200,
+        "current_step": 1,
+        "current_workflow_state": {"workflow_state": "sample_selected", "problem_quality_screening": {"decision": "pass"}},
+        "current_annotations": {"sample_annotations": {}},
+        "sample_decisions": [{"sample_idx": 0, "is_correct": None, "pipeline_status": "not_started"}],
+        "correct_solutions": [],
+    }
+
+    first = client.put("/api/save_progress", json=completed)
+    assert first.status_code == 200
+    assert first.get_json()["cache_written"] is True
+    second = client.put("/api/save_progress", json=blank_newer)
+    assert second.status_code == 200
+    assert second.get_json()["ignored_regression"] is True
+    assert second.get_json()["cache_written"] is True
+
+    history_path = progress_cache_history_path("cache-user", "cache-dev", "cache-case")
+    latest_path = progress_cache_latest_path("cache-user", "cache-dev", "cache-case")
+    best_path = progress_cache_best_path("cache-user", "cache-dev", "cache-case")
+    assert history_path.exists()
+    assert len(history_path.read_text(encoding="utf-8").splitlines()) == 2
+    latest = json.loads(latest_path.read_text(encoding="utf-8"))
+    best = json.loads(best_path.read_text(encoding="utf-8"))
+    assert latest["client_revision"] == 200
+    assert best["client_revision"] == 100
+    assert best["detail"]["sample_decisions"][0]["pipeline_status"] == "completed"
+
+
+def test_load_progress_recovers_from_best_cache_when_formal_record_regresses(tmp_path, monkeypatch):
+    monkeypatch.setattr("annotation_app.app.DATA_DIR", tmp_path)
+    monkeypatch.setattr("annotation_app.app.GUIDE_PATH", tmp_path / "guideline.md")
+    monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
+    monkeypatch.setattr("annotation_app.app.RECORDS_DIR", tmp_path / "records")
+    app.config.pop("_logging_configured", None)
+    client = app.test_client()
+
+    completed = {
+        "annotator_id": "restore-user",
+        "device_id": "restore-dev",
+        "case_id": "restore-case",
+        "client_revision": 100,
+        "status": "completed",
+        "current_step": 5,
+        "current_workflow_state": {"workflow_state": "completed", "problem_quality_screening": {"decision": "pass"}},
+        "current_annotations": {
+            "sample_annotations": {
+                "0": {
+                    "selected_solution_text": "solution",
+                    "steps": ["step 1"],
+                    "claims": [{"step_id": "s1", "claims": ["claim 1"]}],
+                    "claim_checks": {"s1c1": "correct"},
+                    "workflow_state": "completed",
+                }
+            }
+        },
+        "sample_decisions": [{"sample_idx": 0, "is_correct": True, "pipeline_status": "completed"}],
+        "correct_solutions": [{"sample_idx": 0, "solution": "solution"}],
+    }
+    blank = {
+        "annotator_id": "restore-user",
+        "device_id": "restore-dev",
+        "case_id": "restore-case",
+        "client_revision": 200,
+        "current_step": 1,
+        "current_workflow_state": {"workflow_state": "sample_selected", "problem_quality_screening": {"decision": "pass"}},
+        "current_annotations": {"sample_annotations": {}},
+        "sample_decisions": [{"sample_idx": 0, "is_correct": None, "pipeline_status": "not_started"}],
+        "correct_solutions": [],
+        "allow_regression": True,
+    }
+
+    assert client.put("/api/save_progress", json=completed).status_code == 200
+    cleared = client.put("/api/save_progress", json=blank)
+    assert cleared.status_code == 200
+    assert cleared.get_json().get("ignored_regression") is not True
+
+    got = client.get(
+        "/api/load_progress",
+        query_string={"annotator_id": "restore-user", "device_id": "restore-dev", "case_id": "restore-case"},
+    )
+    assert got.status_code == 200
+    body = got.get_json()
+    assert body["recovered_from_cache"] is True
+    assert body["source"].startswith("cache_best")
+    assert body["progress"]["sample_decisions"][0]["pipeline_status"] == "completed"
+    assert body["cache"]["cache_score"] > body["cache"]["formal_score"]
+
+
+def test_newer_blank_progress_cannot_clear_completed_sample(tmp_path, monkeypatch):
+    monkeypatch.setattr("annotation_app.app.ANNOTATIONS_DIR", tmp_path / "annotations")
+    monkeypatch.setattr("annotation_app.app.RECORDS_DIR", tmp_path / "records")
+    client = app.test_client()
+
+    completed = {
+        "annotator_id": "u12",
+        "device_id": "d12",
+        "case_id": "c12",
+        "client_revision": 100,
+        "status": "completed",
+        "current_step": 5,
+        "current_workflow_state": {
+            "active_sample_idx": None,
+            "sample_cursor": 0,
+            "workflow_state": "completed",
+            "problem_quality_screening": {"decision": "pass"},
+        },
+        "current_annotations": {
+            "sample_annotations": {
+                "0": {
+                    "selected_solution_text": "solution",
+                    "steps": ["step 1"],
+                    "claims": [{"step_id": "s1", "claims": ["claim 1"]}],
+                    "claim_checks": {"s1c1": {"is_correct": True}},
+                    "step_dependencies": {"s1": []},
+                    "workflow_state": "completed",
+                }
+            }
+        },
+        "sample_decisions": [{"sample_idx": 0, "is_correct": True, "pipeline_status": "completed"}],
+        "correct_solutions": [{"sample_idx": 0, "solution": "solution"}],
+    }
+    blank_newer = {
+        "annotator_id": "u12",
+        "device_id": "d12",
+        "case_id": "c12",
+        "client_revision": 200,
+        "status": "in_progress",
+        "current_step": 1,
+        "current_workflow_state": {
+            "active_sample_idx": None,
+            "sample_cursor": 0,
+            "workflow_state": "sample_selected",
+            "problem_quality_screening": {"decision": "pass"},
+        },
+        "current_annotations": {"sample_annotations": {}},
+        "sample_decisions": [{"sample_idx": 0, "is_correct": None, "pipeline_status": "not_started"}],
+        "correct_solutions": [],
+    }
+
+    first = client.put("/api/save_progress", json=completed)
+    assert first.status_code == 200
+    second = client.put("/api/save_progress", json=blank_newer)
+    assert second.status_code == 200
+    body = second.get_json()
+    assert body["ignored_regression"] is True
+    assert body["regression_reason"]["completed_samples_removed"] == [0]
+
+    got = client.get("/api/load_progress", query_string={"annotator_id": "u12", "device_id": "d12", "case_id": "c12"})
+    assert got.status_code == 200
+    progress = got.get_json()["progress"]
+    assert progress["client_revision"] == 100
+    assert progress["sample_decisions"][0]["pipeline_status"] == "completed"
+    assert "s1c1" in progress["current_annotations"]["sample_annotations"]["0"]["claim_checks"]
+
+
 def test_root_route_shows_home_entry():
     client = app.test_client()
     res = client.get("/")
@@ -530,7 +727,7 @@ def test_frontend_has_katex_and_copy_ui():
     assert "styles.css', v='20260423a'" in tpl
     assert "vendor/katex/katex.min.js" in tpl
     assert "vendor/katex/auto-render.min.js" in tpl
-    assert "app.js', v='20260423a'" in tpl
+    assert "app.js', v='20260502a'" in tpl
     assert "jsdelivr" not in tpl
     assert "copySolutionRaw" in js
     assert "已复制" in js
@@ -575,10 +772,24 @@ def test_frontend_restore_logic_uses_local_draft_fallback_before_resetting_case_
     assert "function writeDraftCache" in js
     assert "function readDraftCache" in js
     assert "function hasMeaningfulProgress" in js
+    assert "function progressRichnessScore" in js
+    assert "progressRichnessScore(cachedDraft.progress) > progressRichnessScore(progress)" in js
     assert "applyRestoredProgress(caseId, cachedDraft.progress, 'local_draft:not_found')" in js
     assert "applyRestoredProgress(caseId, cachedDraft.progress, 'local_draft:error')" in js
+    assert "applyRestoredProgress(caseId, cachedDraft.progress, 'local_draft:richer_than_server')" in js
+    assert "source.startsWith('cache_best')" in js
+    assert "await persistProgress(progress.status || 'in_progress', true)" in js
     assert "已恢复本地草稿（服务器无记录）" in js
     assert "已恢复本地草稿（服务器恢复失败）" in js
+    assert "已恢复本地草稿（比服务器记录更完整）" in js
+    assert "已从服务器恢复缓存加载" in js
+
+
+def test_frontend_beforeunload_skips_empty_or_unchanged_payloads():
+    js = Path("annotation_app/static/app.js").read_text(encoding="utf-8")
+    assert "if (!payload || !hasMeaningfulProgress(payload)) return;" in js
+    assert "if (fingerprint === st.last_saved_fingerprint) return;" in js
+    assert "已阻止空进度覆盖" in js
 
 
 def test_frontend_case_list_shows_progress_percent_and_status_colors():

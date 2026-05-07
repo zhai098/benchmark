@@ -1,0 +1,26 @@
+{
+  "logs_dir": "/Users/zhaipengxiang/Desktop/benchmark/annotation_app/data/annotations/___/dev-1775126623662-xze9d4",
+  "total_files": 14,
+  "retained_cases": 10,
+  "dropped_cases": 4,
+  "structured_cases": 8,
+  "raw_fallback_cases": 2,
+  "dropped": [
+    {
+      "case_id": "q-23",
+      "reason": "empty_or_all_incorrect"
+    },
+    {
+      "case_id": "q-29",
+      "reason": "empty_or_all_incorrect"
+    },
+    {
+      "case_id": "q-31",
+      "reason": "empty_or_all_incorrect"
+    },
+    {
+      "case_id": "q-32",
+      "reason": "empty_or_all_incorrect"
+    }
+  ]
+}
