@@ -107,6 +107,7 @@ def main() -> None:
     parser.add_argument("--tokenizer-mode", default=None)
     parser.add_argument("--chat-template-kwargs-json", default="{}")
     parser.add_argument("--chat-template-no-system-role", action="store_true")
+    parser.add_argument("--min-tokens", type=int, default=16)
     parser.add_argument("--max-cases", type=int, default=100000)
     parser.add_argument("--wait-gpu-free-mib", type=int, default=50000)
     parser.add_argument("--wait-gpu-max-util", type=int, default=10)
@@ -142,6 +143,8 @@ def main() -> None:
         Config["reasoning_model_params"] = vllm_config
         Config["reasoning_model_gpus"] = args.gpus
         Config["tag"] = args.tag
+        Config["reasoning_sampling_params"] = dict(Config.get("reasoning_sampling_params", {}))
+        Config["reasoning_sampling_params"]["min_tokens"] = max(0, args.min_tokens)
         try:
             chat_template_kwargs = json.loads(args.chat_template_kwargs_json or "{}")
         except json.JSONDecodeError as exc:
@@ -156,6 +159,7 @@ def main() -> None:
             phase="generating",
             model_path=args.model_path,
             vllm_config=vllm_config,
+            sampling_min_tokens=Config["reasoning_sampling_params"].get("min_tokens"),
             chat_template_kwargs=chat_template_kwargs,
             chat_template_no_system_role=bool(args.chat_template_no_system_role),
         )

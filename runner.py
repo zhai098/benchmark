@@ -146,6 +146,7 @@ class VLLMRunner:
         self.sampling_params = SamplingParams(temperature=sampling_config.get("temperature", 0.7),
             top_p=sampling_config.get("top_p", 0.95),
             max_tokens=sampling_config.get("max_tokens", 256),
+            min_tokens=sampling_config.get("min_tokens", 0),
             stop=sampling_config.get("stop", ["<<<END>>>"]))
         self.tokenizer = _load_generation_tokenizer(self.model_name)
 
