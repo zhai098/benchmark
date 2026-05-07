@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 try:
     from vllm import LLM, SamplingParams
 except ImportError:  # pragma: no cover - allows static prompt tests without local vllm
@@ -895,13 +897,61 @@ class Kimi_API_runner:
                 http_client=http_client,
             )
         return self._tls.client
+
+    @staticmethod
+    def _normalize_messages(prompt: Union[str, List[Dict[str, Any]], Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if isinstance(prompt, dict) and "messages" in prompt:
+            messages = prompt["messages"]
+        elif isinstance(prompt, list):
+            messages = prompt
+        elif isinstance(prompt, str):
+            # This is a compatibility fallback for legacy prompt files. New Kimi
+            # generation prompts should be chat messages, not rendered template text.
+            messages = [{"role": "user", "content": prompt}]
+        else:
+            raise ValueError("Unsupported Kimi prompt format")
+
+        if not isinstance(messages, list):
+            raise ValueError("Kimi messages must be a list")
+        return [dict(message) for message in messages]
+
+    @staticmethod
+    def _prepare_moonshot_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        prepared: List[Dict[str, Any]] = []
+        for index, message in enumerate(messages):
+            if not isinstance(message, dict):
+                raise ValueError("Each Kimi message must be a dict")
+
+            role = message.get("role")
+            if not role:
+                raise ValueError("Each Kimi message must contain a role")
+
+            item: Dict[str, Any] = {
+                "role": role,
+                "content": message.get("content", ""),
+            }
+
+            is_last = index == len(messages) - 1
+            is_assistant_prefill = (
+                is_last
+                and role == "assistant"
+                and (message.get("partial") or message.get("prefix"))
+            )
+            if is_assistant_prefill:
+                # Moonshot/Kimi official continuation mode uses `partial: true`.
+                # `prefix` is an internal marker used by tokenizer/vLLM paths.
+                item["partial"] = True
+
+            prepared.append(item)
+
+        return prepared
     
     def generate_one(
         self,
-        prompt: Union[str, List[Dict[str, str]], Dict[str, Any]],
+        prompt: Union[str, List[Dict[str, Any]], Dict[str, Any]],
         max_workers_hint: int = 8,
     ) -> Dict[str, str]:
-        messages = prompt
+        messages = self._prepare_moonshot_messages(self._normalize_messages(prompt))
 
         client = self._get_client(max_workers_hint)
         print(f"[DEBUG][Thread {threading.get_ident()}] Sending request to KIMI API...")
@@ -911,12 +961,24 @@ class Kimi_API_runner:
             max_tokens=1024 * 8,
             temperature=0.6,
         )
-        print(f"[DEBUG][Thread {threading.get_ident()}] Response: {resp}")
-        msg = resp.choices[0].message
-        #reasoning = getattr(msg, "reasoning_content", "") or ""
+        choice = resp.choices[0]
+        finish_reason = getattr(choice, "finish_reason", "")
+        usage = getattr(resp, "usage", None)
+        print(
+            f"[DEBUG][Thread {threading.get_ident()}] KIMI finish_reason={finish_reason}, "
+            f"usage={usage}"
+        )
+        msg = choice.message
+        reasoning = getattr(msg, "reasoning_content", "") or ""
         content = getattr(msg, "content", "") or ""
-        #return {"reasoning": reasoning, "content": content}
-        return {"reasoning": "", "content": content}
+        if not content:
+            last_role = messages[-1].get("role") if messages else None
+            last_partial = bool(messages[-1].get("partial")) if messages else False
+            print(
+                f"[WARN][Thread {threading.get_ident()}] KIMI returned empty content; "
+                f"finish_reason={finish_reason}, last_role={last_role}, partial={last_partial}"
+            )
+        return {"reasoning": reasoning, "content": content}
 
     def generate(
         self,
