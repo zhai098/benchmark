@@ -261,6 +261,9 @@ def evaluate_status(path: Path, state: Dict[str, Any]) -> None:
     model_path = status.get("model_path")
     if not tag or phase not in {"generating", "packing_prompts"}:
         return
+    key = str(path)
+    if state.get(key, {}).get("stopped"):
+        return
     run_dir = Path(out_root or "") / f"{Path(str(model_path or '')).name}_{tag}"
     gen_file = run_dir / "gen_only.jsonl"
     stats = scan_gen_file(gen_file)
@@ -275,7 +278,6 @@ def evaluate_status(path: Path, state: Dict[str, Any]) -> None:
     elif stats["runtime_text"] > 0:
         stop_reason = "runtime_error_text_in_outputs"
 
-    key = str(path)
     now_ts = time.time()
     count = line_count(gen_file)
     rec = state.get(key, {})
