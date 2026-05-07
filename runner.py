@@ -128,6 +128,27 @@ def _normalize_chat_template_messages(messages: List[Dict[str, Any]]) -> List[Di
     return normalized
 
 
+def _strip_continuation_trailing_eos(tokenizer: Any, rendered: Any, *, enabled: bool) -> Any:
+    """Remove an EOS token that some templates append after assistant prefill.
+
+    In assistant-prefix continuation mode, the final assistant content is a
+    partial answer to be continued. A trailing EOS marker makes vLLM start
+    generation after an already-closed assistant message and can cause chat
+    template tokens to leak into the model output.
+    """
+    if not enabled or not isinstance(rendered, str):
+        return rendered
+    eos_token = getattr(tokenizer, "eos_token", None)
+    if not isinstance(eos_token, str) or not eos_token:
+        return rendered
+    if rendered.endswith(eos_token):
+        return rendered[: -len(eos_token)]
+    stripped = rendered.rstrip()
+    if stripped.endswith(eos_token):
+        return stripped[: -len(eos_token)]
+    return rendered
+
+
 class VLLMRunner:
     def __init__(self, model: str, vllm_config: dict, sampling_config: dict, gpus: str):
         if LLM is None or SamplingParams is None or (AutoTokenizer is None and PreTrainedTokenizerFast is None):
@@ -189,7 +210,12 @@ class VLLMRunner:
             if "reasoning_effort" in chat_template:
                 kwargs.setdefault("reasoning_effort", "high")
             kwargs = _apply_chat_template_kwargs(self.tokenizer, kwargs)
-            return self.tokenizer.apply_chat_template(normalized_messages, **kwargs)
+            rendered = self.tokenizer.apply_chat_template(normalized_messages, **kwargs)
+            return _strip_continuation_trailing_eos(
+                self.tokenizer,
+                rendered,
+                enabled=continue_final_message,
+            )
 
         rendered = "\n".join(
             f"{message['role']}: {message.get('content', '')}"

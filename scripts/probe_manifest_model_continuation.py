@@ -25,7 +25,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
-from runner import _load_generation_tokenizer  # noqa: E402
+from runner import _load_generation_tokenizer, _strip_continuation_trailing_eos  # noqa: E402
 
 
 def now_iso() -> str:
@@ -145,12 +145,14 @@ def probe(model_path: str, model_name: str, chat_template_kwargs: Dict[str, Any]
     try:
         rendered = tokenizer.apply_chat_template(messages, **kwargs)
         rendered_text = rendered if isinstance(rendered, str) else str(rendered)
+        cleaned_text = _strip_continuation_trailing_eos(tokenizer, rendered_text, enabled=True)
         result.update(
             {
-                "ok": bool(rendered_text.strip()),
-                "rendered_length": len(rendered_text),
-                "rendered_tail": rendered_text[-500:],
-                "assistant_prefix_present": "We have 1+1=" in rendered_text,
+                "ok": bool(cleaned_text.strip()),
+                "rendered_length": len(cleaned_text),
+                "rendered_tail": cleaned_text[-500:],
+                "assistant_prefix_present": "We have 1+1=" in cleaned_text,
+                "stripped_trailing_eos": cleaned_text != rendered_text,
             }
         )
         if not result["ok"]:

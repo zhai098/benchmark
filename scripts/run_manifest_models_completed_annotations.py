@@ -343,6 +343,17 @@ def choose_plan(rec: Dict[str, Any], size_gib: float) -> Tuple[Optional[Plan], O
             gpu_memory_utilization=0.55,
         ), None
 
+    if size_gib >= 40:
+        return Plan(
+            mode="shard4_highmem",
+            tp=1,
+            shard_count=4,
+            gpu_groups=["0", "1", "2", "3"],
+            max_model_len=8192,
+            max_num_seqs=16,
+            gpu_memory_utilization=0.85,
+        ), None
+
     return Plan(
         mode="shard4",
         tp=1,
@@ -533,6 +544,10 @@ CHAT_TEMPLATE_LEAK_MARKERS = (
     "<|im_end|>",
     "[INST]",
     "[/INST]",
+    "[SYSTEM_PROMPT]",
+    "[/SYSTEM_PROMPT]",
+    "<s>",
+    "</s>",
 )
 
 MOJIBAKE_MARKERS = (
