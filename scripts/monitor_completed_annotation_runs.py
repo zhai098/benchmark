@@ -122,7 +122,10 @@ def gpu_busy() -> bool:
 def active_status_files() -> List[Path]:
     files: List[Path] = []
     for root in LOGS_ROOT.glob("completed_annotations_manifest_models*"):
-        if root.is_dir():
+        # Historical archives keep old status files and can reuse the same
+        # tags as current runs. Never let those archived files control live
+        # processes.
+        if root.is_dir() and "aborted" not in root.name:
             files.extend(root.glob("*_status.json"))
     return sorted(files)
 
@@ -224,14 +227,20 @@ def descendants(pid: int, rows: List[Tuple[int, int, str]]) -> List[int]:
     return result
 
 
-def terminate_tag(tag: str, reason: str, evidence: Dict[str, Any]) -> None:
+def terminate_tag(tag: str, reason: str, evidence: Dict[str, Any], *, expected_out_root: str = "") -> None:
     rows = ps_rows()
-    matched = [(pid, cmd) for pid, _ppid, cmd in rows if f"--tag {tag}" in cmd]
+    matched = []
+    for pid, _ppid, cmd in rows:
+        if f"--tag {tag}" not in cmd:
+            continue
+        if expected_out_root and expected_out_root not in cmd:
+            continue
+        matched.append((pid, cmd))
     pids = sorted({pid for pid, _cmd in matched for pid in [pid, *descendants(pid, rows)]})
     if not pids:
-        append_event({"event": "stop_requested_but_no_pid", "tag": tag, "reason": reason, "evidence": evidence})
+        append_event({"event": "stop_requested_but_no_pid", "tag": tag, "reason": reason, "expected_out_root": expected_out_root, "evidence": evidence})
         return
-    append_event({"event": "terminating_run", "tag": tag, "reason": reason, "pids": pids, "evidence": evidence})
+    append_event({"event": "terminating_run", "tag": tag, "reason": reason, "pids": pids, "expected_out_root": expected_out_root, "evidence": evidence})
     for sig, delay in ((signal.SIGTERM, 10), (signal.SIGKILL, 0)):
         for pid in pids:
             try:
@@ -277,7 +286,12 @@ def evaluate_status(path: Path, state: Dict[str, Any]) -> None:
         stop_reason = "no_progress_while_gpu_busy"
 
     if stop_reason:
-        terminate_tag(tag, stop_reason, {"status_path": str(path), "gen_file": str(gen_file), "partial_stats": stats})
+        terminate_tag(
+            tag,
+            stop_reason,
+            {"status_path": str(path), "gen_file": str(gen_file), "partial_stats": stats},
+            expected_out_root=str(out_root or ""),
+        )
         state[key]["stopped"] = True
         state[key]["stop_reason"] = stop_reason
 
