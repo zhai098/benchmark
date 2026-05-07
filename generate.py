@@ -2,14 +2,16 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import json
 import logging
 import os
+import re
+import inspect
 import time
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Sequence, Tuple
 from benchmark_core.config import Config
 from benchmark_core.prompt import Generate_Prompt
-from benchmark_core.data_process import _write_jsonl_line, _write_pretty_json
 from benchmark_core.data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
 
 logger = logging.getLogger(__name__)
@@ -29,31 +31,126 @@ def build_reasoning_model(use_vllm_local: bool = False):
 
 
 def _split_generate_response(response: Any) -> Tuple[List[str], List[str]]:
+    def _as_list(value: Any) -> List[str]:
+        if value is None:
+            return []
+        if isinstance(value, str):
+            return [value]
+        return [str(item or "") for item in value]
+
     if isinstance(response, tuple) and len(response) == 2:
         reasonings, generations = response
-        return list(reasonings), list(generations)
-    generations = list(response or [])
+        generations_list = _as_list(generations)
+        reasonings_list = _as_list(reasonings)
+        if len(reasonings_list) < len(generations_list):
+            reasonings_list.extend([""] * (len(generations_list) - len(reasonings_list)))
+        return reasonings_list[: len(generations_list)], generations_list
+    generations = _as_list(response)
     return [""] * len(generations), generations
+
+
+def _call_reasoning_model(reasoning_model: Any, prompts: Sequence[Any]) -> Any:
+    """Call both schema-based runners and Kimi-style runners safely."""
+    try:
+        params = list(inspect.signature(reasoning_model.generate).parameters)
+    except (TypeError, ValueError):
+        params = []
+    second_param = params[1] if len(params) > 1 else ""
+    if second_param in {"schema", "extra_params"}:
+        return reasoning_model.generate(list(prompts), None)
+    return reasoning_model.generate(list(prompts))
+
+
+def _generate_once(
+    reasoning_model: Any,
+    prompts: Sequence[Any],
+) -> Tuple[List[str], List[str], List[int]]:
+    reasonings, generations = _split_generate_response(_call_reasoning_model(reasoning_model, prompts))
+    if len(generations) < len(prompts):
+        generations.extend([""] * (len(prompts) - len(generations)))
+    if len(reasonings) < len(prompts):
+        reasonings.extend([""] * (len(prompts) - len(reasonings)))
+
+    final_empty_indices = [
+        idx
+        for idx, text in enumerate(generations)
+        if not _normalize_generation_input(text).strip()
+    ]
+    if final_empty_indices:
+        print(f"[ERROR][GENERATE] empty generation outputs at indices {final_empty_indices}")
+    return reasonings[: len(prompts)], generations[: len(prompts)], final_empty_indices
+
+
+def _parse_legacy_step_payload(value: Any) -> Dict[str, Any] | None:
+    """Decode legacy stringified {'id': ..., 'text': ...} step payloads."""
+    if not isinstance(value, str):
+        return None
+    text = value.strip()
+    if not (text.startswith("{") and text.endswith("}") and "text" in text):
+        return None
+    try:
+        parsed = ast.literal_eval(text)
+    except (SyntaxError, ValueError):
+        return None
+    return parsed if isinstance(parsed, dict) else None
+
+
+def _clean_reference_step_text(value: Any) -> str:
+    parsed = _parse_legacy_step_payload(value)
+    if parsed is not None:
+        value = parsed.get("text") or parsed.get("content") or ""
+    return str(value or "").strip()
 
 
 def _reference_step_records(obj: Dict[str, Any]) -> List[Dict[str, Any]]:
     raw_steps = (
         obj.get("reference_steps")
         or obj.get("steps")
+        or obj.get("segments")
         or []
     )
     records: List[Dict[str, Any]] = []
     for idx, step in enumerate(raw_steps):
         if isinstance(step, dict):
-            text = str(step.get("text") or step.get("content") or "").strip()
+            text = _clean_reference_step_text(step.get("text") or step.get("content") or "")
             step_type = str(step.get("type") or "text")
         else:
-            text = str(step).strip()
+            text = _clean_reference_step_text(step)
             step_type = "text"
         if not text:
             continue
         records.append({"text": text, "type": step_type, "index": idx})
     return records
+
+
+def _reference_steps_for_output(obj: Dict[str, Any]) -> List[Dict[str, Any]]:
+    records = _reference_step_records(obj)
+    return [
+        {
+            "step_id": f"s{idx + 1}",
+            "text": record["text"],
+            "type": record["type"],
+        }
+        for idx, record in enumerate(records)
+    ]
+
+
+_SPECIAL_GENERATION_TOKENS = (
+    "<|tool_call_end|>",
+    "<|tool_call_start|>",
+    "<|tool▁call▁end|>",
+    "<|tool▁call▁start|>",
+)
+
+
+def _clean_generation_output(value: Any) -> str:
+    text = _normalize_generation_input(value)
+    if "</think>" in text:
+        text = text.split("</think>", 1)[1]
+    text = text.replace("<think>", "")
+    for token in _SPECIAL_GENERATION_TOKENS:
+        text = text.replace(token, " ")
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _reference_claims_by_step(obj: Dict[str, Any]) -> List[Dict[str, Any]]:
@@ -74,9 +171,34 @@ def _first_nonempty(*values: Any) -> Any:
     return None
 
 
-def _is_effectively_empty_generation(value: Any) -> bool:
-    return not _normalize_generation_input(value).strip()
+def _record_identity(obj: Dict[str, Any], case_id: Any, row_num: int) -> Tuple[str, str]:
+    annotation_uid = _first_nonempty(obj.get("annotation_uid"), obj.get("uid"), obj.get("uuid"))
+    if annotation_uid:
+        text = str(annotation_uid)
+        return text, text
 
+    raw_id = _first_nonempty(obj.get("id"))
+    sample_idx = obj.get("sample_idx")
+    annotator_id = obj.get("annotator_id")
+    device_id = obj.get("device_id")
+    case_text = str(case_id)
+
+    if sample_idx is not None:
+        parts = [case_text]
+        if annotator_id:
+            parts.append(str(annotator_id))
+        if device_id:
+            parts.append(str(device_id))
+        parts.append(f"sample_{sample_idx}")
+        text = "__".join(parts)
+        return text, text
+
+    if raw_id and str(raw_id) != case_text:
+        text = str(raw_id)
+        return text, text
+
+    text = f"{case_text}__row_{row_num:06d}"
+    return text, text
 
 def generate_case(obj: Dict[str, Any], reasoning_model) -> Dict[str, Any]:
     """复用 main.py 的生成阶段：逐步 add_step -> run()，直到用尽参考步骤。
@@ -118,10 +240,10 @@ def generate_case(obj: Dict[str, Any], reasoning_model) -> Dict[str, Any]:
         i += 1
     # 一次性生成所有步骤
     prompts = prompt_lists 
-    reasonings, generations = _split_generate_response(reasoning_model.generate(prompts, None))
-    gen_output.extend(generations)
-    for gen in generations:
-        current_output = _normalize_generation_input(gen)
+    reasonings, generations, empty_generation_indices = _generate_once(reasoning_model, prompts)
+    cleaned_generations = [_clean_generation_output(gen) for gen in generations]
+    gen_output.extend(cleaned_generations)
+    for current_output in cleaned_generations:
         gen_sents_all = processor.sentence_split_en(current_output)
         K = max(1, min(Config["max prefix_num"], len(gen_sents_all)))
         gen_sents = gen_sents_all[:K]
@@ -138,6 +260,8 @@ def generate_case(obj: Dict[str, Any], reasoning_model) -> Dict[str, Any]:
         "gen_output": gen_output,   # 待评测的模型生成
         "gen_prefix": gen_prefixes,
         "reasoning": reasonings,
+        "empty_generation_indices": empty_generation_indices,
+        "empty_generation_count": len(empty_generation_indices),
         "difficulty": float(obj.get("difficulty", 0.0)),
     }
 
@@ -191,9 +315,9 @@ def main():
             num += 1
 
             res = generate_case(obj, reasoning_model)
+            output_steps = _reference_steps_for_output(obj)
             case_id = _first_nonempty(obj.get("case_id"), obj.get("original_case_id"), f"q-{num}")
-            record_id = _first_nonempty(obj.get("id"), obj.get("annotation_uid"), case_id, num)
-            annotation_uid = _first_nonempty(obj.get("annotation_uid"), record_id)
+            record_id, annotation_uid = _record_identity(obj, case_id, num)
 
             # 携带 id，方便第二阶段对齐
             out_record = {
@@ -215,10 +339,12 @@ def main():
                 "gen_output": res["gen_output"],    # 评测要用
                 "gen_prefix": res["gen_prefix"],    # 评测要用
                 "reasoning_content": res["reasoning"],
+                "empty_generation_indices": res["empty_generation_indices"],
+                "empty_generation_count": res["empty_generation_count"],
                 "has_correct_sample": obj.get("has_correct_sample", False),
                 "correct_sample_idx": obj.get("correct_sample_idx"),
                 "correct_sample_solution": obj.get("correct_sample_solution", ""),
-                "steps": obj.get("reference_steps") or obj.get("steps", []),
+                "steps": output_steps,
                 "claims_by_step": _reference_claims_by_step(obj),
                 "step_dependencies": _reference_step_dependencies(obj),
             }

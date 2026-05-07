@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from benchmark_core.config import Config
 import inspect
 import json
@@ -98,15 +100,33 @@ class GeneratePromptFormatter:
             except Exception:
                 self.tokenizer = None
 
+    def _uses_moonshot_chat_api(self) -> bool:
+        """Kimi/Moonshot API prompts must stay as messages so `partial` is preserved."""
+        model_name = (self.model_name or "").lower()
+        if "/" in model_name or os.path.exists(self.model_name or ""):
+            return False
+        return model_name.startswith("kimi-") or model_name.startswith("moonshot-")
+
     def render(self, messages: list[dict[str, Any]]) -> Any:
+        if self._uses_moonshot_chat_api():
+            return messages
+
         if self.tokenizer is None or not hasattr(self.tokenizer, "apply_chat_template"):
             return messages
 
         try:
-            messages = _normalize_chat_template_messages(messages)
+            tokenizer_messages = [
+                {k: v for k, v in message.items() if k != "partial"}
+                for message in messages
+            ]
+            tokenizer_messages = _normalize_chat_template_messages(tokenizer_messages)
             kwargs: dict[str, Any] = {"tokenize": False}
             sig = inspect.signature(self.tokenizer.apply_chat_template)
-            has_prefill = bool(messages) and messages[-1].get("role") == "assistant" and messages[-1].get("prefix")
+            has_prefill = (
+                bool(tokenizer_messages)
+                and tokenizer_messages[-1].get("role") == "assistant"
+                and tokenizer_messages[-1].get("prefix")
+            )
             supports_continue = "continue_final_message" in sig.parameters or _signature_accepts_kwargs(self.tokenizer.apply_chat_template)
             if has_prefill and not supports_continue:
                 raise ValueError(
@@ -118,7 +138,7 @@ class GeneratePromptFormatter:
             if supports_continue and has_prefill:
                 kwargs["continue_final_message"] = True
             kwargs = _apply_chat_template_kwargs(self.tokenizer, kwargs)
-            return self.tokenizer.apply_chat_template(messages, **kwargs)
+            return self.tokenizer.apply_chat_template(tokenizer_messages, **kwargs)
         except Exception:
             raise
 
@@ -156,7 +176,7 @@ class Generate_Prompt:
             message = [
                 {"role": "system", "content": self.system_message},
                 {"role": "user", "content": f"Solve the Problem:\n{self.query}"},
-                {"role": "assistant", "content": self.current_solution, "prefix": True}
+                {"role": "assistant", "content": self.current_solution, "prefix": True, "partial": True}
             ]
         else:
             message = [
