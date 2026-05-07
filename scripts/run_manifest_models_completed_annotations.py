@@ -37,8 +37,8 @@ PY = Path("/home/zhaipengxiang/miniconda3/envs/vllm/bin/python3.12")
 MANIFEST = REPO / "model/download_manifest.tsv"
 TEST_INPUT = REPO / "workflow_data/annotation_exports/completed_annotation_records_test_subset/purified_cases.jsonl"
 FULL_INPUT = REPO / "workflow_data/annotation_exports/completed_annotation_records/purified_cases.jsonl"
-OUT_ROOT = REPO / "artifacts/model_outputs/completed_annotations_manifest_models"
-LOG_ROOT = REPO / "logs/completed_annotations_manifest_models"
+OUT_ROOT = Path(os.environ.get("COMPLETED_MANIFEST_OUT_ROOT", str(REPO / "artifacts/model_outputs/completed_annotations_manifest_models")))
+LOG_ROOT = Path(os.environ.get("COMPLETED_MANIFEST_LOG_ROOT", str(REPO / "logs/completed_annotations_manifest_models")))
 STATUS_PATH = LOG_ROOT / "summary.json"
 SUMMARY_JSONL = LOG_ROOT / "model_results.jsonl"
 CONTINUATION_ISSUES_MD = LOG_ROOT / "continuation_issues.md"
@@ -905,6 +905,15 @@ def main() -> None:
     LOG_ROOT.mkdir(parents=True, exist_ok=True)
     OUT_ROOT.mkdir(parents=True, exist_ok=True)
     models = resolve_model_paths()
+    allowlist_raw = os.environ.get("COMPLETED_MANIFEST_MODEL_ALLOWLIST", "").strip()
+    allowlist = {
+        item.strip()
+        for item in re.split(r"[,\n]", allowlist_raw)
+        if item.strip()
+    }
+    unknown_allowlist = sorted(allowlist - {m.get("model_name") for m in models})
+    if allowlist:
+        models = [m for m in models if m.get("model_name") in allowlist]
     available = [m for m in models if m.get("exists")]
 
     # Prioritize small and known-working models, then larger/special models.
@@ -924,6 +933,10 @@ def main() -> None:
         "missing_models": len(missing),
         "ordered_models": [m["model_name"] for m in ordered],
         "missing_model_names": [m["model_name"] for m in missing],
+        "model_allowlist": sorted(allowlist),
+        "unknown_allowlist": unknown_allowlist,
+        "log_root": str(LOG_ROOT),
+        "out_root": str(OUT_ROOT),
     }
     write_status(plan_summary)
     (LOG_ROOT / "resolved_manifest_models.json").write_text(json.dumps(models, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
