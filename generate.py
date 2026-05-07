@@ -78,61 +78,6 @@ def _is_effectively_empty_generation(value: Any) -> bool:
     return not _normalize_generation_input(value).strip()
 
 
-def _with_continuation_cue(prompt: Any) -> Any:
-    """Make an assistant-continuation prompt less likely to terminate at EOS.
-
-    Some instruct checkpoints treat a prefixed assistant message as already
-    complete and immediately return EOS. For empty generations we retry with an
-    explicit continuation cue while preserving the same mathematical context.
-    """
-    cue = "\n\nContinue the solution from here with the next mathematical derivation. Do not repeat the previous text.\n"
-    if isinstance(prompt, str):
-        return prompt + cue
-    if isinstance(prompt, dict) and isinstance(prompt.get("messages"), list):
-        retry_prompt = json.loads(json.dumps(prompt))
-        messages = retry_prompt["messages"]
-        if messages and isinstance(messages[-1], dict) and messages[-1].get("role") == "assistant":
-            messages[-1]["content"] = str(messages[-1].get("content") or "") + cue
-            messages[-1]["prefix"] = True
-        else:
-            messages.append({"role": "assistant", "content": cue.strip(), "prefix": True})
-        return retry_prompt
-    if isinstance(prompt, list) and prompt and isinstance(prompt[-1], dict):
-        retry_prompt = json.loads(json.dumps(prompt))
-        if retry_prompt[-1].get("role") == "assistant":
-            retry_prompt[-1]["content"] = str(retry_prompt[-1].get("content") or "") + cue
-            retry_prompt[-1]["prefix"] = True
-        else:
-            retry_prompt.append({"role": "assistant", "content": cue.strip(), "prefix": True})
-        return retry_prompt
-    return prompt
-
-
-def _split_and_retry_empty_generations(reasoning_model: Any, prompts: List[Any], response: Any) -> Tuple[List[str], List[str]]:
-    reasonings, generations = _split_generate_response(response)
-    if not prompts:
-        return reasonings, generations
-    if len(generations) != len(prompts):
-        return reasonings, generations
-
-    empty_indices = [idx for idx, gen in enumerate(generations) if _is_effectively_empty_generation(gen)]
-    if not empty_indices:
-        return reasonings, generations
-
-    retry_prompts = [_with_continuation_cue(prompts[idx]) for idx in empty_indices]
-    retry_reasonings, retry_generations = _split_generate_response(reasoning_model.generate(retry_prompts, None))
-    for offset, idx in enumerate(empty_indices):
-        if offset >= len(retry_generations):
-            continue
-        retry_generation = retry_generations[offset]
-        if not _is_effectively_empty_generation(retry_generation):
-            generations[idx] = retry_generation
-            if idx < len(reasonings) and offset < len(retry_reasonings):
-                reasonings[idx] = retry_reasonings[offset]
-            prompts[idx] = retry_prompts[offset]
-    return reasonings, generations
-
-
 def generate_case(obj: Dict[str, Any], reasoning_model) -> Dict[str, Any]:
     """复用 main.py 的生成阶段：逐步 add_step -> run()，直到用尽参考步骤。
        逻辑等价于 execute_evaluation() 中生成部分。"""
@@ -173,11 +118,7 @@ def generate_case(obj: Dict[str, Any], reasoning_model) -> Dict[str, Any]:
         i += 1
     # 一次性生成所有步骤
     prompts = prompt_lists 
-    reasonings, generations = _split_and_retry_empty_generations(
-        reasoning_model,
-        prompts,
-        reasoning_model.generate(prompts, None),
-    )
+    reasonings, generations = _split_generate_response(reasoning_model.generate(prompts, None))
     gen_output.extend(generations)
     for gen in generations:
         current_output = _normalize_generation_input(gen)

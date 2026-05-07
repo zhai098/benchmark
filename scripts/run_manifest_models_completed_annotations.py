@@ -41,6 +41,7 @@ OUT_ROOT = REPO / "artifacts/model_outputs/completed_annotations_manifest_models
 LOG_ROOT = REPO / "logs/completed_annotations_manifest_models"
 STATUS_PATH = LOG_ROOT / "summary.json"
 SUMMARY_JSONL = LOG_ROOT / "model_results.jsonl"
+CONTINUATION_ISSUES_MD = LOG_ROOT / "continuation_issues.md"
 WRAPPER = REPO / "scripts/run_completed_annotations_generate_and_pack.py"
 
 
@@ -130,6 +131,114 @@ def append_result(row: Dict[str, Any]) -> None:
     row["updated_at_utc"] = now()
     with SUMMARY_JSONL.open("a", encoding="utf-8") as f:
         f.write(json.dumps(row, ensure_ascii=False) + "\n")
+
+
+def classify_continuation_issue(result: Dict[str, Any]) -> Optional[Dict[str, str]]:
+    """Return a human-facing continuation issue classification, if present."""
+    text = json.dumps(result, ensure_ascii=False)
+    lower = text.lower()
+    if "does not support continue_final_message" in text:
+        return {
+            "issue_type": "tokenizer_does_not_support_continue_final_message",
+            "likely_cause": "tokenizer_or_chat_template_capability",
+            "analysis": (
+                "该模型的 tokenizer.apply_chat_template 不支持 continue_final_message，"
+                "或当前 transformers/tokenizer 版本暴露的签名不包含该参数。"
+                "这不是生成数学内容失败，而是当前续写式 prompt 格式无法被 tokenizer 正确渲染。"
+            ),
+        }
+    for key in ("smoke_validation", "full_validation"):
+        validation = result.get(key) or {}
+        count = validation.get("scored_empty_output_count") or 0
+        if count:
+            return {
+                "issue_type": "empty_generation_under_continuation",
+                "likely_cause": "model_behavior_or_chat_template_mismatch",
+                "analysis": (
+                    f"{key} 中有 {count} 个处在 judge 评分窗口内的续写输出为空。"
+                    "这说明 continue_final_message 渲染链路技术上可执行，但模型可能把前缀视为完整回答并直接 EOS，"
+                    "也可能是该模型 chat template 与 assistant prefix 续写任务不匹配。按当前要求，不改用 cue/fallback。"
+                ),
+            }
+    if "continue_final_message" in lower and ("error" in lower or "exception" in lower or "traceback" in lower):
+        return {
+            "issue_type": "continuation_render_or_runtime_error",
+            "likely_cause": "code_or_tokenizer_runtime",
+            "analysis": (
+                "日志中出现 continue_final_message 相关运行错误。需要优先检查 tokenizer/chat_template 签名、"
+                "transformers 版本以及 runner 的 prompt 渲染分支。"
+            ),
+        }
+    return None
+
+
+def refresh_continuation_issue_doc() -> None:
+    LOG_ROOT.mkdir(parents=True, exist_ok=True)
+    rows: List[Dict[str, Any]] = []
+    if SUMMARY_JSONL.exists():
+        for line in SUMMARY_JSONL.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+            except Exception:
+                continue
+            issue = classify_continuation_issue(row)
+            if issue:
+                rows.append({**row, "continuation_issue": issue})
+
+    lines = [
+        "# continue_final_message 续写问题记录",
+        "",
+        f"更新时间：{now()}",
+        "",
+        "规则：如果某模型不能稳定使用 `continue_final_message` 做 assistant-prefix 续写，本轮不尝试其它生成方式，不使用 cue/fallback，不改 prompt 语义绕过；只记录问题、证据和归因。", 
+        "",
+        "归因口径：",
+        "- `tokenizer_or_chat_template_capability`：tokenizer/chat_template 不支持 `continue_final_message`。",
+        "- `model_behavior_or_chat_template_mismatch`：渲染可执行，但模型在评分窗口内直接返回空输出/EOS。",
+        "- `code_or_tokenizer_runtime`：runner 或 tokenizer 渲染分支出现运行时错误，需要修代码或版本适配。",
+        "",
+    ]
+    if not rows:
+        lines += ["当前尚无 continue_final_message 续写异常。", ""]
+    else:
+        for row in rows:
+            issue = row["continuation_issue"]
+            model = row.get("model_name")
+            lines += [
+                f"## {model}",
+                "",
+                f"- 状态：`{row.get('status')}`",
+                f"- resolved_path：`{row.get('resolved_path')}`",
+                f"- 问题类型：`{issue['issue_type']}`",
+                f"- 初步归因：`{issue['likely_cause']}`",
+                f"- 分析：{issue['analysis']}",
+            ]
+            for key in ("smoke_validation", "full_validation", "prior_validation_failed"):
+                validation = row.get(key)
+                if isinstance(validation, dict):
+                    evidence = {
+                        "rows": validation.get("rows"),
+                        "expected_rows": validation.get("expected_rows"),
+                        "scored_empty_output_count": validation.get("scored_empty_output_count"),
+                        "scored_empty_output_examples": validation.get("scored_empty_output_examples"),
+                        "suspicious_output_count": validation.get("suspicious_output_count"),
+                        "error": validation.get("error"),
+                    }
+                    evidence = {k: v for k, v in evidence.items() if v not in (None, [], "")}
+                    if evidence:
+                        lines += [f"- 证据 `{key}`：", "```json", json.dumps(evidence, ensure_ascii=False, indent=2), "```"]
+            status = row.get("smoke_validation", {}).get("status") if isinstance(row.get("smoke_validation"), dict) else None
+            if status:
+                lines += ["- 状态片段：", "```json", json.dumps(status, ensure_ascii=False, indent=2)[:4000], "```"]
+            lines.append("")
+    CONTINUATION_ISSUES_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
+def append_result_and_refresh(row: Dict[str, Any]) -> None:
+    append_result(row)
+    refresh_continuation_issue_doc()
 
 
 def resolve_model_paths() -> List[Dict[str, Any]]:
@@ -461,7 +570,7 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
 
     if not rec.get("exists"):
         result.update({"status": "missing_local_model", "ok": False})
-        append_result(result)
+        append_result_and_refresh(result)
         return result
 
     model_path = Path(str(rec["resolved_path"]))
@@ -470,7 +579,7 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
     plan, blocked = choose_plan(rec, size_gib)
     if blocked or plan is None:
         result.update({"status": "blocked", "blocked_reason": blocked, "ok": False})
-        append_result(result)
+        append_result_and_refresh(result)
         return result
     result["plan"] = asdict(plan)
 
@@ -481,7 +590,7 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
             val = validate_artifact(prior, FULL_INPUT, 317)
             if val.get("ok"):
                 result.update({"status": "already_completed_prior", "full_validation": val, "ok": True})
-                append_result(result)
+                append_result_and_refresh(result)
                 return result
             result["prior_validation_failed"] = val
 
@@ -503,7 +612,7 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
     result["smoke_validation"] = smoke_validation
     if smoke_code != 0 or not smoke_validation.get("ok"):
         result.update({"status": "smoke_failed", "ok": False})
-        append_result(result)
+        append_result_and_refresh(result)
         return result
 
     full_tag = f"manifest_full_{model_slug}"
@@ -547,7 +656,7 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
         result["full_shard_exit_codes"] = codes
         if any(code != 0 for code in codes):
             result.update({"status": "full_shard_failed", "ok": False})
-            append_result(result)
+            append_result_and_refresh(result)
             return result
         full_dir, merge_validation = merge_shards(model_path, model_slug, full_tag, shard_tags, FULL_INPUT)
         result["merge_validation"] = merge_validation
@@ -557,7 +666,7 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
     full_validation = validate_artifact(full_dir, FULL_INPUT, expected_full) if full_code == 0 else {"ok": False}
     result["full_validation"] = full_validation
     result.update({"status": "completed" if full_validation.get("ok") else "full_validation_failed", "ok": bool(full_validation.get("ok"))})
-    append_result(result)
+    append_result_and_refresh(result)
     return result
 
 
@@ -606,7 +715,7 @@ def main() -> None:
 
     for m in missing:
         if m["model_name"] not in completed_names:
-            append_result({"model_name": m["model_name"], "family": m.get("family"), "tier": m.get("tier"), "status": "missing_local_model", "ok": False, "manifest_local_dir": m.get("local_dir")})
+            append_result_and_refresh({"model_name": m["model_name"], "family": m.get("family"), "tier": m.get("tier"), "status": "missing_local_model", "ok": False, "manifest_local_dir": m.get("local_dir")})
 
     for idx, rec in enumerate(ordered, 1):
         if rec["model_name"] in completed_names:
@@ -616,7 +725,7 @@ def main() -> None:
             run_model(rec)
         except Exception as exc:
             row = {"model_name": rec.get("model_name"), "status": "orchestrator_exception", "ok": False, "error": str(exc), "traceback": traceback.format_exc()}
-            append_result(row)
+            append_result_and_refresh(row)
 
     rows = [json.loads(line) for line in SUMMARY_JSONL.read_text(encoding="utf-8").splitlines() if line.strip()]
     final = {
