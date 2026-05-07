@@ -456,6 +456,10 @@ def make_wrapper_cmd(
     max_cases: int,
     status_path: Path,
 ) -> List[str]:
+    # Avoid starting beside unrelated GPU jobs. vLLM can OOM during weight
+    # loading even when 30-40 GiB is free, so require essentially idle cards.
+    wait_gpu_free_mib = 76000
+    wait_gpu_max_util = 20
     cmd = [
         str(PY),
         str(WRAPPER),
@@ -482,9 +486,9 @@ def make_wrapper_cmd(
         "--max-cases",
         str(max_cases),
         "--wait-gpu-free-mib",
-        "30000",
+        str(wait_gpu_free_mib),
         "--wait-gpu-max-util",
-        "100",
+        str(wait_gpu_max_util),
         "--wait-poll-seconds",
         "60",
         "--status-path",
