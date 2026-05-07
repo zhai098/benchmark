@@ -12,6 +12,7 @@ if str(REPO_ROOT) not in sys.path:
 import argparse
 import json
 import os
+import re
 from typing import Any, Dict, List, Tuple
 
 from benchmark_core.config import Config
@@ -28,13 +29,13 @@ processor = Processor()
 
 
 def _safe_case_id(rec: Dict[str, Any], fallback_i: int) -> str:
-    for key in ("case_id", "id", "uid", "qid", "uuid"):
+    for key in ("annotation_uid", "id", "uid", "qid", "uuid", "case_id"):
         value = rec.get(key)
         if value is None:
             continue
         text = str(value).strip()
         if text:
-            return text
+            return re.sub(r"[^A-Za-z0-9_.-]+", "_", text)
     return f"{fallback_i:06d}"
 
 
