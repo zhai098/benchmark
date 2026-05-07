@@ -26,6 +26,13 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
 
+# vLLM may JIT-compile model kernels and shell out to helper binaries such as
+# ninja. The wrapper is often launched via an absolute conda Python path from
+# tmux, so PATH can miss the active env's bin directory even though the Python
+# executable is from that env.
+ENV_BIN = Path(sys.executable).resolve().parent
+os.environ["PATH"] = f"{ENV_BIN}{os.pathsep}{os.environ.get('PATH', '')}"
+
 
 def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
