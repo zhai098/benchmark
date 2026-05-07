@@ -42,7 +42,9 @@ LOG_ROOT = REPO / "logs/completed_annotations_manifest_models"
 STATUS_PATH = LOG_ROOT / "summary.json"
 SUMMARY_JSONL = LOG_ROOT / "model_results.jsonl"
 CONTINUATION_ISSUES_MD = LOG_ROOT / "continuation_issues.md"
+CONTINUATION_COMPAT_MD = LOG_ROOT / "continuation_compatibility_report.md"
 WRAPPER = REPO / "scripts/run_completed_annotations_generate_and_pack.py"
+PROBE = REPO / "scripts/probe_manifest_model_continuation.py"
 
 
 def now() -> str:
@@ -137,6 +139,16 @@ def classify_continuation_issue(result: Dict[str, Any]) -> Optional[Dict[str, st
     """Return a human-facing continuation issue classification, if present."""
     text = json.dumps(result, ensure_ascii=False)
     lower = text.lower()
+    probe = result.get("continuation_probe")
+    if isinstance(probe, dict) and not probe.get("ok"):
+        return {
+            "issue_type": str(probe.get("issue_type") or "preflight_continuation_failed"),
+            "likely_cause": str(probe.get("likely_cause") or "tokenizer_or_chat_template_capability"),
+            "analysis": (
+                "tokenizer 预检阶段无法稳定渲染 assistant-prefix 续写 prompt，"
+                "因此按本轮规则跳过模型加载和生成，不尝试其它 prompt 或 fallback。"
+            ),
+        }
     if "does not support continue_final_message" in text:
         return {
             "issue_type": "tokenizer_does_not_support_continue_final_message",
@@ -340,6 +352,98 @@ def choose_plan(rec: Dict[str, Any], size_gib: float) -> Tuple[Optional[Plan], O
     ), None
 
 
+def chat_template_kwargs_for_model(rec: Dict[str, Any]) -> Dict[str, Any]:
+    if "special_mistral" in (rec.get("vllm_track") or ""):
+        return {}
+    note = (rec.get("continue_note") or "").lower()
+    kwargs: Dict[str, Any] = {}
+    if "enable_thinking=false" in note:
+        kwargs["enable_thinking"] = False
+    if "enable_thinking=true" in note:
+        kwargs["enable_thinking"] = True
+    if "thinking=false" in note or "think_tags_off" in note:
+        kwargs["thinking"] = False
+        kwargs.setdefault("enable_thinking", False)
+    if "reasoning_effort=none" in note or "non_reasoning_mode" in note:
+        kwargs["reasoning_effort"] = "none"
+        kwargs.setdefault("enable_thinking", False)
+        kwargs.setdefault("thinking", False)
+    return kwargs
+
+
+def no_system_role_for_model(rec: Dict[str, Any]) -> bool:
+    return (rec.get("model_name") or "").lower() == "gemma-2-27b-it"
+
+
+def run_continuation_probe(
+    model_name: str,
+    model_path: Path,
+    chat_template_kwargs: Dict[str, Any],
+    *,
+    no_system_role: bool,
+) -> Dict[str, Any]:
+    out_json = LOG_ROOT / "continuation_probes" / f"{safe_slug(model_name)}.json"
+    cmd = [
+        str(PY),
+        str(PROBE),
+        "--model-path",
+        str(model_path),
+        "--model-name",
+        model_name,
+        "--chat-template-kwargs-json",
+        json.dumps(chat_template_kwargs, ensure_ascii=False),
+    ]
+    if no_system_role:
+        cmd.append("--no-system-role")
+    cmd += ["--out-json", str(out_json)]
+    code = run(cmd, log=LOG_ROOT / "continuation_probes" / f"{safe_slug(model_name)}.log")
+    probe = load_json(out_json)
+    if not probe:
+        probe = {"ok": False, "exit_code": code, "error": "probe produced no json"}
+    probe["exit_code"] = code
+    return probe
+
+
+def refresh_continuation_compatibility_doc() -> None:
+    probe_dir = LOG_ROOT / "continuation_probes"
+    lines = [
+        "# tokenizer 续写兼容性预检",
+        "",
+        f"更新时间：{now()}",
+        "",
+        "本表只检查 tokenizer/chat_template 是否能渲染 assistant-prefix 续写；通过后仍需跑 10 条小样本验证模型是否会正常续写而不是直接 EOS。",
+        "",
+    ]
+    probe_paths = sorted(probe_dir.glob("*.json")) if probe_dir.exists() else []
+    if not probe_paths:
+        lines += ["尚未产生预检结果。", ""]
+    for path in probe_paths:
+        probe = load_json(path)
+        model = probe.get("model_name") or path.stem
+        lines += [
+            f"## {model}",
+            "",
+            f"- 预检结论：`{'通过' if probe.get('ok') else '不通过'}`",
+            f"- tokenizer：`{probe.get('tokenizer_class')}`",
+            f"- supports_continue_final_message：`{probe.get('supports_continue_final_message')}`",
+            f"- template kwargs：`{json.dumps(probe.get('chat_template_kwargs_used') or probe.get('chat_template_kwargs_requested') or {}, ensure_ascii=False)}`",
+            f"- no_system_role：`{probe.get('no_system_role')}`",
+        ]
+        if not probe.get("ok"):
+            lines += [
+                f"- 问题类型：`{probe.get('issue_type')}`",
+                f"- 初步归因：`{probe.get('likely_cause')}`",
+                f"- 错误：{str(probe.get('error', ''))[:1000]}",
+            ]
+        else:
+            lines += [
+                f"- rendered_length：`{probe.get('rendered_length')}`",
+                f"- assistant_prefix_present：`{probe.get('assistant_prefix_present')}`",
+            ]
+        lines.append("")
+    CONTINUATION_COMPAT_MD.write_text("\n".join(lines) + "\n", encoding="utf-8")
+
+
 def make_wrapper_cmd(
     *,
     input_path: Path,
@@ -347,6 +451,8 @@ def make_wrapper_cmd(
     model_path: Path,
     gpus: str,
     plan: Plan,
+    chat_template_kwargs: Dict[str, Any],
+    no_system_role: bool,
     max_cases: int,
     status_path: Path,
 ) -> List[str]:
@@ -391,6 +497,10 @@ def make_wrapper_cmd(
         cmd += ["--load-format", plan.load_format]
     if plan.tokenizer_mode:
         cmd += ["--tokenizer-mode", plan.tokenizer_mode]
+    if chat_template_kwargs:
+        cmd += ["--chat-template-kwargs-json", json.dumps(chat_template_kwargs, ensure_ascii=False)]
+    if no_system_role:
+        cmd.append("--chat-template-no-system-role")
     return cmd
 
 
@@ -582,6 +692,23 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
         append_result_and_refresh(result)
         return result
     result["plan"] = asdict(plan)
+    chat_template_kwargs = chat_template_kwargs_for_model(rec)
+    no_system_role = no_system_role_for_model(rec)
+    result["chat_template_kwargs"] = chat_template_kwargs
+    result["chat_template_no_system_role"] = no_system_role
+
+    continuation_probe = run_continuation_probe(
+        model_name,
+        model_path,
+        chat_template_kwargs,
+        no_system_role=no_system_role,
+    )
+    refresh_continuation_compatibility_doc()
+    result["continuation_probe"] = continuation_probe
+    if not continuation_probe.get("ok"):
+        result.update({"status": "preflight_continuation_failed", "ok": False})
+        append_result_and_refresh(result)
+        return result
 
     # Skip rerunning Granite if the previous full audited artifact exists.
     if model_name == "granite-4.1-8b":
@@ -602,6 +729,8 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
         model_path=model_path,
         gpus=plan.gpu_groups[0],
         plan=Plan(**{**asdict(plan), "shard_count": 1, "gpu_groups": [plan.gpu_groups[0]]}),
+        chat_template_kwargs=chat_template_kwargs,
+        no_system_role=no_system_role,
         max_cases=10,
         status_path=smoke_status,
     )
@@ -625,6 +754,8 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
             model_path=model_path,
             gpus=plan.gpu_groups[0],
             plan=plan,
+            chat_template_kwargs=chat_template_kwargs,
+            no_system_role=no_system_role,
             max_cases=100000,
             status_path=status_path,
         )
@@ -646,6 +777,8 @@ def run_model(rec: Dict[str, Any]) -> Dict[str, Any]:
                         model_path=model_path,
                         gpus=plan.gpu_groups[i],
                         plan=shard_plan,
+                        chat_template_kwargs=chat_template_kwargs,
+                        no_system_role=no_system_role,
                         max_cases=100000,
                         status_path=LOG_ROOT / f"{model_slug}_full_shard{i:02d}_status.json",
                     ),
@@ -710,7 +843,7 @@ def main() -> None:
                 row = json.loads(line)
             except Exception:
                 continue
-            if row.get("status") in {"completed", "already_completed_prior", "blocked", "missing_local_model", "smoke_failed", "full_validation_failed", "full_shard_failed"}:
+            if row.get("status") in {"completed", "already_completed_prior", "blocked", "missing_local_model", "preflight_continuation_failed", "smoke_failed", "full_validation_failed", "full_shard_failed"}:
                 completed_names.add(row.get("model_name"))
 
     for m in missing:
@@ -735,6 +868,7 @@ def main() -> None:
         "failed_or_blocked": sum(1 for r in rows if r.get("ok") is not True),
         "summary_jsonl": str(SUMMARY_JSONL),
     }
+    refresh_continuation_compatibility_doc()
     write_status(final)
 
 

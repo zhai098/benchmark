@@ -105,6 +105,8 @@ def main() -> None:
     parser.add_argument("--config-format", default=None)
     parser.add_argument("--load-format", default=None)
     parser.add_argument("--tokenizer-mode", default=None)
+    parser.add_argument("--chat-template-kwargs-json", default="{}")
+    parser.add_argument("--chat-template-no-system-role", action="store_true")
     parser.add_argument("--max-cases", type=int, default=100000)
     parser.add_argument("--wait-gpu-free-mib", type=int, default=50000)
     parser.add_argument("--wait-gpu-max-util", type=int, default=10)
@@ -140,8 +142,23 @@ def main() -> None:
         Config["reasoning_model_params"] = vllm_config
         Config["reasoning_model_gpus"] = args.gpus
         Config["tag"] = args.tag
+        try:
+            chat_template_kwargs = json.loads(args.chat_template_kwargs_json or "{}")
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Invalid --chat-template-kwargs-json: {exc}") from exc
+        if not isinstance(chat_template_kwargs, dict):
+            raise ValueError("--chat-template-kwargs-json must decode to an object")
+        Config["generation_chat_template_kwargs"] = chat_template_kwargs
+        Config["generation_chat_template_no_system_role"] = bool(args.chat_template_no_system_role)
 
-        write_status(status_path, phase="generating", model_path=args.model_path, vllm_config=vllm_config)
+        write_status(
+            status_path,
+            phase="generating",
+            model_path=args.model_path,
+            vllm_config=vllm_config,
+            chat_template_kwargs=chat_template_kwargs,
+            chat_template_no_system_role=bool(args.chat_template_no_system_role),
+        )
         import generate
 
         sys.argv = [

@@ -70,6 +70,62 @@ def _load_generation_tokenizer(model_name: str):
             tokenizer.chat_template = chat_template_file.read_text()
         return tokenizer
 
+
+def _signature_accepts_kwargs(callable_obj: Any) -> bool:
+    try:
+        sig = inspect.signature(callable_obj)
+    except (TypeError, ValueError):
+        return False
+    return any(param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values())
+
+
+def _configured_chat_template_kwargs(tokenizer: Any) -> Dict[str, Any]:
+    configured = Config.get("generation_chat_template_kwargs") or {}
+    if not isinstance(configured, dict) or not hasattr(tokenizer, "apply_chat_template"):
+        return {}
+    sig = inspect.signature(tokenizer.apply_chat_template)
+    accepts_kwargs = _signature_accepts_kwargs(tokenizer.apply_chat_template)
+    return {
+        key: value
+        for key, value in configured.items()
+        if accepts_kwargs or key in sig.parameters
+    }
+
+
+def _filter_chat_template_base_kwargs(tokenizer: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    sig = inspect.signature(tokenizer.apply_chat_template)
+    accepts_kwargs = _signature_accepts_kwargs(tokenizer.apply_chat_template)
+    filtered: Dict[str, Any] = {}
+    for key, value in kwargs.items():
+        if key in sig.parameters:
+            filtered[key] = value
+        elif accepts_kwargs and key not in {"add_generation_prompt"}:
+            filtered[key] = value
+    return filtered
+
+
+def _apply_chat_template_kwargs(tokenizer: Any, base_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    kwargs = dict(_configured_chat_template_kwargs(tokenizer))
+    kwargs.update(_filter_chat_template_base_kwargs(tokenizer, base_kwargs))
+    return kwargs
+
+
+def _normalize_chat_template_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    normalized = [dict(message) for message in messages]
+    if (
+        Config.get("generation_chat_template_no_system_role")
+        and len(normalized) >= 2
+        and normalized[0].get("role") == "system"
+        and normalized[1].get("role") == "user"
+    ):
+        system_text = str(normalized[0].get("content") or "")
+        user_text = str(normalized[1].get("content") or "")
+        merged_user = dict(normalized[1])
+        merged_user["content"] = f"{system_text}\n\n{user_text}".strip()
+        normalized = [merged_user] + normalized[2:]
+    return normalized
+
+
 class VLLMRunner:
     def __init__(self, model: str, vllm_config: dict, sampling_config: dict, gpus: str):
         if LLM is None or SamplingParams is None or (AutoTokenizer is None and PreTrainedTokenizerFast is None):
@@ -109,11 +165,12 @@ class VLLMRunner:
             if is_prefill and idx == len(messages) - 1 and normalized["role"] == "assistant":
                 continue_final_message = True
             normalized_messages.append(normalized)
+        normalized_messages = _normalize_chat_template_messages(normalized_messages)
 
         if hasattr(self.tokenizer, "apply_chat_template"):
             kwargs: Dict[str, Any] = {"tokenize": False}
             sig = inspect.signature(self.tokenizer.apply_chat_template)
-            supports_continue = "continue_final_message" in sig.parameters
+            supports_continue = "continue_final_message" in sig.parameters or _signature_accepts_kwargs(self.tokenizer.apply_chat_template)
             if continue_final_message and not supports_continue:
                 raise ValueError(
                     f"Tokenizer for {self.model_name} does not support continue_final_message, "
@@ -123,11 +180,10 @@ class VLLMRunner:
                 kwargs["add_generation_prompt"] = not continue_final_message
             if supports_continue and continue_final_message:
                 kwargs["continue_final_message"] = True
-            if "enable_thinking" in sig.parameters:
-                kwargs["enable_thinking"] = True
             chat_template = getattr(self.tokenizer, "chat_template", "") or ""
             if "reasoning_effort" in chat_template:
                 kwargs.setdefault("reasoning_effort", "high")
+            kwargs = _apply_chat_template_kwargs(self.tokenizer, kwargs)
             return self.tokenizer.apply_chat_template(normalized_messages, **kwargs)
 
         rendered = "\n".join(
@@ -228,23 +284,30 @@ class VLLMRunner:
             {"role": "system", "content": system_message},
             {"role": "user", "content": user_message},
         ]
+        prefix_message = _normalize_chat_template_messages(prefix_message)
+        prefix_kwargs = _apply_chat_template_kwargs(self.tokenizer, {"tokenize": False})
         prefix_prompt = self.tokenizer.apply_chat_template(
             prefix_message,
-            tokenize=False,
-            enable_thinking=True,
+            **prefix_kwargs,
         )
         full_message = [
             {"role": "system", "content": system_message},
             {"role": "user", "content": user_message},
             {"role": "assistant", "content": solution},
         ]
+        full_message = _normalize_chat_template_messages(full_message)
         #print(full_message)
+        prompt_kwargs = _apply_chat_template_kwargs(
+            self.tokenizer,
+            {
+                "tokenize": False,
+                "add_generation_prompt": False,
+                "continue_final_message": True,
+            },
+        )
         prompt = self.tokenizer.apply_chat_template(
             full_message,
-            tokenize=False,
-            add_generation_prompt=False,
-            continue_final_message=True,
-            enable_thinking=True,
+            **prompt_kwargs,
         )
         boundary = len(self.tokenizer.encode(prefix_prompt, add_special_tokens=False))
 
@@ -376,6 +439,7 @@ class TransformersLogProbRunner:
     def _apply_chat_template(self, messages: List[Dict[str, str]], *, tokenize: bool) -> List[int]:
         if not hasattr(self.tokenizer, "apply_chat_template"):
             raise AttributeError("Tokenizer does not support chat template")
+        messages = _normalize_chat_template_messages(messages)
 
         sig = inspect.signature(self.tokenizer.apply_chat_template)
         kwargs: dict[str, Any] = {"tokenize": tokenize}
@@ -383,8 +447,7 @@ class TransformersLogProbRunner:
             kwargs["add_generation_prompt"] = False
         if "continue_final_message" in sig.parameters:
             kwargs["continue_final_message"] = True
-        if "enable_thinking" in sig.parameters:
-            kwargs["enable_thinking"] = True
+        kwargs = _apply_chat_template_kwargs(self.tokenizer, kwargs)
 
         res = self.tokenizer.apply_chat_template(messages, **kwargs)
         if isinstance(res, dict):

@@ -24,6 +24,61 @@ def _manual_chat_prompt(system: str, user: str) -> dict:
     }
 
 
+def _signature_accepts_kwargs(callable_obj: Any) -> bool:
+    try:
+        sig = inspect.signature(callable_obj)
+    except (TypeError, ValueError):
+        return False
+    return any(param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values())
+
+
+def _configured_chat_template_kwargs(tokenizer: Any) -> dict[str, Any]:
+    configured = Config.get("generation_chat_template_kwargs") or {}
+    if not isinstance(configured, dict) or not hasattr(tokenizer, "apply_chat_template"):
+        return {}
+    sig = inspect.signature(tokenizer.apply_chat_template)
+    accepts_kwargs = _signature_accepts_kwargs(tokenizer.apply_chat_template)
+    return {
+        key: value
+        for key, value in configured.items()
+        if accepts_kwargs or key in sig.parameters
+    }
+
+
+def _filter_chat_template_base_kwargs(tokenizer: Any, kwargs: dict[str, Any]) -> dict[str, Any]:
+    sig = inspect.signature(tokenizer.apply_chat_template)
+    accepts_kwargs = _signature_accepts_kwargs(tokenizer.apply_chat_template)
+    filtered: dict[str, Any] = {}
+    for key, value in kwargs.items():
+        if key in sig.parameters:
+            filtered[key] = value
+        elif accepts_kwargs and key not in {"add_generation_prompt"}:
+            filtered[key] = value
+    return filtered
+
+
+def _apply_chat_template_kwargs(tokenizer: Any, base_kwargs: dict[str, Any]) -> dict[str, Any]:
+    kwargs = dict(_configured_chat_template_kwargs(tokenizer))
+    kwargs.update(_filter_chat_template_base_kwargs(tokenizer, base_kwargs))
+    return kwargs
+
+
+def _normalize_chat_template_messages(messages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    normalized = [dict(message) for message in messages]
+    if (
+        Config.get("generation_chat_template_no_system_role")
+        and len(normalized) >= 2
+        and normalized[0].get("role") == "system"
+        and normalized[1].get("role") == "user"
+    ):
+        system_text = str(normalized[0].get("content") or "")
+        user_text = str(normalized[1].get("content") or "")
+        merged_user = dict(normalized[1])
+        merged_user["content"] = f"{system_text}\n\n{user_text}".strip()
+        normalized = [merged_user] + normalized[2:]
+    return normalized
+
+
 class GeneratePromptFormatter:
     """
     Only generation prompts need tokenizer-aligned chat formatting.
@@ -48,10 +103,11 @@ class GeneratePromptFormatter:
             return messages
 
         try:
+            messages = _normalize_chat_template_messages(messages)
             kwargs: dict[str, Any] = {"tokenize": False}
             sig = inspect.signature(self.tokenizer.apply_chat_template)
             has_prefill = bool(messages) and messages[-1].get("role") == "assistant" and messages[-1].get("prefix")
-            supports_continue = "continue_final_message" in sig.parameters
+            supports_continue = "continue_final_message" in sig.parameters or _signature_accepts_kwargs(self.tokenizer.apply_chat_template)
             if has_prefill and not supports_continue:
                 raise ValueError(
                     f"Tokenizer for {self.model_name or 'current model'} does not support "
@@ -61,8 +117,7 @@ class GeneratePromptFormatter:
                 kwargs["add_generation_prompt"] = not has_prefill
             if supports_continue and has_prefill:
                 kwargs["continue_final_message"] = True
-            if "enable_thinking" in sig.parameters:
-                kwargs["enable_thinking"] = True
+            kwargs = _apply_chat_template_kwargs(self.tokenizer, kwargs)
             return self.tokenizer.apply_chat_template(messages, **kwargs)
         except Exception:
             raise
@@ -729,5 +784,3 @@ class Claim_Segment_Prompt:
         if isinstance(payload, dict):
             return payload
         return json.loads(payload)
-
-
