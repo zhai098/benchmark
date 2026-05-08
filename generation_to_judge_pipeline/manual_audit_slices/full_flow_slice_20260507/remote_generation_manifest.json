@@ -1,0 +1,65 @@
+{
+  "remote_cwd": "/home/zhaipengxiang/benchmark",
+  "gen_only_path": "artifacts/model_outputs/completed_annotations/granite-4.1-8b_completed_annotations_full_granite_4_1_8b_4shard_combined/gen_only.jsonl",
+  "gen_only_sha256": "e4189821c497693a6484e65645dfe6ee2bdd4cbba7dd824847ffe1d6ac5520ef",
+  "cache_path": "artifacts/model_outputs/completed_annotations/granite-4.1-8b_completed_annotations_full_granite_4_1_8b_4shard_combined/packed_prompts/cache_prompts/ALL_cache.jsonl",
+  "cache_sha256": "f421c684480cced9e39492f975e05d4e8e84a755f4d4985b1de5cd52b73e1044",
+  "run_info_path": "artifacts/model_outputs/completed_annotations/granite-4.1-8b_completed_annotations_full_granite_4_1_8b_4shard_combined/run_info.json",
+  "run_info": {},
+  "selected_uids": [
+    "q-1__WangZX__dev-1776827054895-o7cnww__sample_2",
+    "q-235__Xiechenzhe__dev-1777129480081-jcqn72__sample_0",
+    "q-122__chenmingrui__dev-1777734001062-awk0xz__sample_1",
+    "q-565__liyanheng__dev-1776655631702-gk38nd__sample_5",
+    "q-341__qutianyi__dev-1776655218740-88nccp__sample_0",
+    "q-441__qutianyi__dev-1776932087401-vma9h3__sample_1",
+    "q-448__qutianyi__dev-1776932087401-vma9h3__sample_0"
+  ],
+  "gen_only_records": 7,
+  "generate_prompt_rows": 41,
+  "judge_cache_rows": 245,
+  "judge_route_counts_by_uid": {
+    "q-1__WangZX__dev-1776827054895-o7cnww__sample_2": {
+      "pairwise": 1,
+      "holistic": 3,
+      "selfjudge_without_reference": 3,
+      "selfjudge_with_reference": 16
+    },
+    "q-235__Xiechenzhe__dev-1777129480081-jcqn72__sample_0": {
+      "pairwise": 6,
+      "holistic": 4,
+      "selfjudge_without_reference": 4,
+      "selfjudge_with_reference": 31
+    },
+    "q-122__chenmingrui__dev-1777734001062-awk0xz__sample_1": {
+      "pairwise": 7,
+      "holistic": 5,
+      "selfjudge_without_reference": 5,
+      "selfjudge_with_reference": 9
+    },
+    "q-565__liyanheng__dev-1776655631702-gk38nd__sample_5": {
+      "pairwise": 4,
+      "holistic": 4,
+      "selfjudge_without_reference": 4,
+      "selfjudge_with_reference": 18
+    },
+    "q-341__qutianyi__dev-1776655218740-88nccp__sample_0": {
+      "pairwise": 10,
+      "holistic": 5,
+      "selfjudge_without_reference": 5,
+      "selfjudge_with_reference": 50
+    },
+    "q-441__qutianyi__dev-1776932087401-vma9h3__sample_1": {
+      "pairwise": 2,
+      "holistic": 2,
+      "selfjudge_without_reference": 2,
+      "selfjudge_with_reference": 7
+    },
+    "q-448__qutianyi__dev-1776932087401-vma9h3__sample_0": {
+      "pairwise": 3,
+      "holistic": 4,
+      "selfjudge_without_reference": 4,
+      "selfjudge_with_reference": 27
+    }
+  }
+}

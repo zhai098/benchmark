@@ -58,6 +58,7 @@ def test_generate_case_prefers_annotation_reference_steps_from_workflow_outputs(
     assert first_prompt[1]["role"] == "user"
     assert first_prompt[2]["role"] == "assistant"
     assert first_prompt[2]["prefix"] is True
+    assert "partial" not in first_prompt[2]
     assert first_prompt[2]["content"] == record["reference_steps"][0]["text"]
 
     assert result["gen_output"][0].startswith("Generated prefix 1")
@@ -108,3 +109,30 @@ def test_vllm_runner_source_contains_message_to_text_prompt_normalization():
     assert 'if isinstance(first, list) and first and self._is_chat_message(first[0]):' in source
     assert 'kwargs["add_generation_prompt"] = not continue_final_message' in source
     assert 'kwargs["continue_final_message"] = True' in source
+
+
+def test_generate_prompt_pack_auto_is_vllm_messages_without_api_partial():
+    from tools.prompts.build_generate_prompt_pack import _format_prompt
+
+    prompt, actual_format = _format_prompt("Find x.", "We have x=1.", "kimi-k2.5", "auto")
+
+    assert actual_format == "vllm-messages"
+    assert prompt[-1]["role"] == "assistant"
+    assert prompt[-1]["prefix"] is True
+    assert "partial" not in prompt[-1]
+
+
+def test_prompt_pack_runner_is_vllm_only():
+    source = Path("tools/prompts/run_generate_prompt_pack.py").read_text(encoding="utf-8")
+
+    assert 'choices=["vllm"]' in source
+    assert "Kimi_API_runner" not in source
+    assert "DEEPSEEK_API_runner" not in source
+
+
+def test_generate_py_builds_vllm_runner_only():
+    source = Path("generate.py").read_text(encoding="utf-8")
+
+    assert "from runner import VLLMRunner" in source
+    assert "DEEPSEEK_API_runner" not in source
+    assert "return reasoning_model.generate(list(prompts), None)" in source
