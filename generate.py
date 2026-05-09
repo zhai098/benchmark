@@ -55,10 +55,16 @@ def _generate_once(
     prompts: Sequence[Any],
 ) -> Tuple[List[str], List[str], List[int]]:
     reasonings, generations = _split_generate_response(_call_reasoning_model(reasoning_model, prompts))
-    if len(generations) < len(prompts):
-        generations.extend([""] * (len(prompts) - len(generations)))
-    if len(reasonings) < len(prompts):
-        reasonings.extend([""] * (len(prompts) - len(reasonings)))
+    assert len(generations) == len(prompts), (
+        "Reasoning model returned a different number of generations than prompts: "
+        f"prompts={len(prompts)}, generations={len(generations)}. "
+        "Runner implementations must preserve one output slot per prompt; "
+        "do not drop failed middle items."
+    )
+    assert len(reasonings) == len(prompts), (
+        "Reasoning model returned a different number of reasonings than prompts: "
+        f"prompts={len(prompts)}, reasonings={len(reasonings)}."
+    )
 
     final_empty_indices = [
         idx
@@ -67,7 +73,7 @@ def _generate_once(
     ]
     if final_empty_indices:
         print(f"[ERROR][GENERATE] empty generation outputs at indices {final_empty_indices}")
-    return reasonings[: len(prompts)], generations[: len(prompts)], final_empty_indices
+    return reasonings, generations, final_empty_indices
 
 
 def _parse_legacy_step_payload(value: Any) -> Dict[str, Any] | None:
