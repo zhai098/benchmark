@@ -13,7 +13,8 @@ import argparse
 import json
 import os
 import re
-from typing import Any, Dict, List, Tuple
+from dataclasses import dataclass
+from typing import Any, Callable, Dict, Iterable, List, Tuple
 
 from benchmark_core.config import Config
 from benchmark_core.data_process import Processor, _normalize_generation_input
@@ -26,6 +27,20 @@ class _NullModel:
 
 
 processor = Processor()
+
+
+DEFAULT_GENPREFIX_TOKENIZER = "/data/pretrain/Qwen/Qwen3-32B"
+DEFAULT_MAX_GENPREFIX_TOKENS = 900
+
+
+@dataclass(frozen=True)
+class StepWindow:
+    """One generated prefix aligned to one reference-step position."""
+
+    idx: int
+    step_id: str
+    gen_prefix: str
+    prior_ref: str
 
 
 def _safe_case_id(rec: Dict[str, Any], fallback_i: int) -> str:
@@ -44,6 +59,42 @@ def _build_gen_prefix(gen_output_item: str) -> str:
     gen_sents_all = processor.sentence_split_en(current_output)
     k = max(1, min(Config["max prefix_num"], len(gen_sents_all)))
     return " ".join(gen_sents_all[:k]).strip()
+
+
+def _load_tokenizer(tokenizer_name_or_path: str):
+    try:
+        from transformers import AutoTokenizer
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError(
+            "transformers 未安装，无法按 token 截断 gen_prefix。"
+            "请在包含 transformers 的环境中运行（例如 conda run -n vllm-qwen36 ...）。"
+        ) from exc
+
+    return AutoTokenizer.from_pretrained(
+        tokenizer_name_or_path,
+        use_fast=True,
+        trust_remote_code=True,
+    )
+
+
+def _truncate_by_tokens(text: str, *, tokenizer: Any, max_tokens: int) -> str:
+    if not text:
+        return ""
+    max_tokens = int(max_tokens)
+    if max_tokens <= 0:
+        return ""
+
+    try:
+        ids = tokenizer.encode(text, add_special_tokens=False)
+    except TypeError:
+        ids = tokenizer.encode(text)
+
+    if len(ids) <= max_tokens:
+        return text
+
+    truncated_ids = ids[:max_tokens]
+    # decode back to text to keep downstream prompt templates unchanged
+    return tokenizer.decode(truncated_ids, skip_special_tokens=True).strip()
 
 
 def _iter_scored_prefixes(
@@ -86,113 +137,152 @@ def _prior_reference_text(record: Dict[str, Any], idx: int) -> str:
     return "\n".join(steps).strip()
 
 
+def _scored_windows(rec: Dict[str, Any], *, exclude_last_positions: int) -> List[StepWindow]:
+    windows: List[StepWindow] = []
+    tokenizer = rec.get("__genprefix_tokenizer")
+    max_tokens = rec.get("__max_genprefix_tokens")
+    for idx, gen_prefix in _iter_scored_prefixes(
+        rec,
+        exclude_last_positions=exclude_last_positions,
+    ):
+        if tokenizer is not None and max_tokens is not None:
+            gen_prefix = _truncate_by_tokens(gen_prefix, tokenizer=tokenizer, max_tokens=int(max_tokens))
+        windows.append(
+            StepWindow(
+                idx=idx,
+                step_id=step_id_at_index(rec, idx) or f"s{idx + 1}",
+                gen_prefix=gen_prefix,
+                prior_ref=_prior_reference_text(rec, idx),
+            )
+        )
+    return windows
+
+
+def _request(
+    *,
+    request_id: str,
+    route: str,
+    window: StepWindow,
+    prompt_builder: Any,
+    ref_idx: int | None = None,
+    meta: Dict[str, Any] | None = None,
+) -> Dict[str, Any]:
+    return {
+        "request_id": request_id,
+        "route": route,
+        "idx": window.idx,
+        "ref_idx": ref_idx,
+        "prompt": prompt_builder.return_prompt(),
+        "schema": prompt_builder.output_schema,
+        "meta": meta or {},
+    }
+
+
 def _pairwise_requests(
     rec: Dict[str, Any],
-    idx: int,
-    gen_prefix: str,
+    window: StepWindow,
     pairwise: Pairwise_Prompt,
 ) -> List[Dict[str, Any]]:
     requests: List[Dict[str, Any]] = []
-    prior_ref = _prior_reference_text(rec, idx)
-    dependency_claims = dependency_claims_for_step(rec, idx)
-    step_label = step_id_at_index(rec, idx) or f"s{idx + 1}"
-
-    for dep_idx, claim in enumerate(dependency_claims):
-        pairwise.build_user(gen_prefix, claim["text"], prefix=prior_ref)
+    for dep_idx, claim in enumerate(dependency_claims_for_step(rec, window.idx)):
+        pairwise.build_user(window.gen_prefix, claim["text"], prefix=window.prior_ref)
         requests.append(
-            {
-                "request_id": f"pairwise_i{idx:04d}_d{dep_idx:04d}",
-                "route": "pairwise",
-                "idx": idx,
-                "ref_idx": dep_idx,
-                "prompt": pairwise.return_prompt(),
-                "schema": pairwise.output_schema,
-                "meta": {
-                    "current_step_id": step_label,
+            _request(
+                request_id=f"pairwise_i{window.idx:04d}_d{dep_idx:04d}",
+                route="pairwise",
+                window=window,
+                prompt_builder=pairwise,
+                ref_idx=dep_idx,
+                meta={
+                    "current_step_id": window.step_id,
                     "dependency_claim_id": claim["id"],
                     "dependency_claim_text": claim["text"],
-                    "prior_ref_len_chars": len(prior_ref),
-                    "gen_prefix_len_chars": len(gen_prefix),
+                    "prior_ref_len_chars": len(window.prior_ref),
+                    "gen_prefix_len_chars": len(window.gen_prefix),
                 },
-            }
+            )
         )
     return requests
 
 
 def _holistic_request(
-    rec: Dict[str, Any],
-    idx: int,
-    gen_prefix: str,
+    _rec: Dict[str, Any],
+    window: StepWindow,
     holistic: Holistic_Prompt,
 ) -> Dict[str, Any]:
-    prior_ref = _prior_reference_text(rec, idx)
-    step_label = step_id_at_index(rec, idx) or f"s{idx + 1}"
-    holistic.build_user(gen_prefix, prior_ref)
-    return {
-        "request_id": f"holistic_i{idx:04d}",
-        "route": "holistic",
-        "idx": idx,
-        "ref_idx": None,
-        "prompt": holistic.return_prompt(),
-        "schema": holistic.output_schema,
-        "meta": {
-            "step_id": step_label,
-            "prior_ref_len_chars": len(prior_ref),
-            "gen_prefix_len_chars": len(gen_prefix),
+    holistic.build_user(window.gen_prefix, window.prior_ref)
+    return _request(
+        request_id=f"holistic_i{window.idx:04d}",
+        route="holistic",
+        window=window,
+        prompt_builder=holistic,
+        meta={
+            "step_id": window.step_id,
+            "prior_ref_len_chars": len(window.prior_ref),
+            "gen_prefix_len_chars": len(window.gen_prefix),
         },
-    }
+    )
 
 
 def _selfjudge_without_reference_request(
-    rec: Dict[str, Any],
-    idx: int,
-    gen_prefix: str,
+    _rec: Dict[str, Any],
+    window: StepWindow,
     selfjudge: SelfJudge_Prompt,
 ) -> Dict[str, Any]:
-    step_label = step_id_at_index(rec, idx) or f"s{idx + 1}"
-    selfjudge.build_user_without_reference(gen_prefix)
-    return {
-        "request_id": f"selfjudge_without_reference_i{idx:04d}",
-        "route": "selfjudge_without_reference",
-        "idx": idx,
-        "ref_idx": None,
-        "prompt": selfjudge.return_prompt(),
-        "schema": selfjudge.output_schema,
-        "meta": {"current_step_id": step_label, "gen_prefix_len_chars": len(gen_prefix)},
-    }
+    selfjudge.build_user_without_reference(window.gen_prefix)
+    return _request(
+        request_id=f"selfjudge_without_reference_i{window.idx:04d}",
+        route="selfjudge_without_reference",
+        window=window,
+        prompt_builder=selfjudge,
+        meta={"current_step_id": window.step_id, "gen_prefix_len_chars": len(window.gen_prefix)},
+    )
 
 
 def _selfjudge_with_reference_requests(
     rec: Dict[str, Any],
-    idx: int,
-    gen_prefix: str,
+    window: StepWindow,
     selfjudge: SelfJudge_Prompt,
 ) -> List[Dict[str, Any]]:
     requests: List[Dict[str, Any]] = []
-    step_claims = claims_for_step(rec, idx)
-    step_label = step_id_at_index(rec, idx) or f"s{idx + 1}"
-    for claim_idx, claim in enumerate(step_claims):
-        selfjudge.build_user_with_reference(gen_prefix, claim["text"], step_label=step_label)
+    for claim_idx, claim in enumerate(claims_for_step(rec, window.idx)):
+        selfjudge.build_user_with_reference(
+            window.gen_prefix,
+            claim["text"],
+            step_label=window.step_id,
+        )
         requests.append(
-            {
-                "request_id": f"selfjudge_with_reference_i{idx:04d}_c{claim_idx:04d}",
-                "route": "selfjudge_with_reference",
-                "idx": idx,
-                "ref_idx": claim_idx,
-                "prompt": selfjudge.return_prompt(),
-                "schema": selfjudge.output_schema,
-                "meta": {
-                    "current_step_id": step_label,
+            _request(
+                request_id=f"selfjudge_with_reference_i{window.idx:04d}_c{claim_idx:04d}",
+                route="selfjudge_with_reference",
+                window=window,
+                prompt_builder=selfjudge,
+                ref_idx=claim_idx,
+                meta={
+                    "current_step_id": window.step_id,
                     "current_step_claim_id": claim["id"],
                     "current_step_claim_text": claim["text"],
-                    "gen_prefix_len_chars": len(gen_prefix),
+                    "gen_prefix_len_chars": len(window.gen_prefix),
                 },
-            }
+            )
         )
     return requests
 
 
-def _iter_case_requests_cache_optimal(
+def _extend_requests(
+    output: List[Dict[str, Any]],
+    builder: Callable[[StepWindow], Dict[str, Any] | Iterable[Dict[str, Any]]],
+    windows: List[StepWindow],
+) -> None:
+    for window in windows:
+        built = builder(window)
+        if isinstance(built, dict):
+            output.append(built)
+        else:
+            output.extend(built)
+
+
+def _case_requests(
     rec: Dict[str, Any],
     pairwise: Pairwise_Prompt,
     holistic: Holistic_Prompt,
@@ -200,21 +290,13 @@ def _iter_case_requests_cache_optimal(
     *,
     exclude_last_positions: int,
 ) -> List[Dict[str, Any]]:
+    windows = _scored_windows(rec, exclude_last_positions=exclude_last_positions)
     requests: List[Dict[str, Any]] = []
-    scored_prefixes = _iter_scored_prefixes(rec, exclude_last_positions=exclude_last_positions)
-
-    for idx, gen_prefix in scored_prefixes:
-        requests.extend(_pairwise_requests(rec, idx, gen_prefix, pairwise))
-
-    for idx, gen_prefix in scored_prefixes:
-        requests.append(_holistic_request(rec, idx, gen_prefix, holistic))
-
-    for idx, gen_prefix in scored_prefixes:
-        requests.append(_selfjudge_without_reference_request(rec, idx, gen_prefix, selfjudge))
-
-    for idx, gen_prefix in scored_prefixes:
-        requests.extend(_selfjudge_with_reference_requests(rec, idx, gen_prefix, selfjudge))
-
+    # Keep the old output order: all pairwise, then holistic, then self-judge.
+    _extend_requests(requests, lambda w: _pairwise_requests(rec, w, pairwise), windows)
+    _extend_requests(requests, lambda w: _holistic_request(rec, w, holistic), windows)
+    _extend_requests(requests, lambda w: _selfjudge_without_reference_request(rec, w, selfjudge), windows)
+    _extend_requests(requests, lambda w: _selfjudge_with_reference_requests(rec, w, selfjudge), windows)
     return requests
 
 
@@ -236,8 +318,23 @@ def main() -> None:
         default=2,
         help="Exclude this many final generated-prefix positions from judge-prompt construction",
     )
+    parser.add_argument(
+        "--genprefix_tokenizer",
+        type=str,
+        default=DEFAULT_GENPREFIX_TOKENIZER,
+        help="固定 tokenizer（HF name/path），用于对 gen_prefix 做 token 截断",
+    )
+    parser.add_argument(
+        "--max_genprefix_tokens",
+        type=int,
+        default=DEFAULT_MAX_GENPREFIX_TOKENS,
+        help="若 gen_prefix token 数超过该值，则截断到该 token 数（默认 900）",
+    )
     parser.add_argument("--write_all", action="store_true", help="Also write a concatenated ALL_cache.jsonl")
     args = parser.parse_args()
+
+    genprefix_tokenizer = _load_tokenizer(args.genprefix_tokenizer)
+    max_genprefix_tokens = int(args.max_genprefix_tokens)
 
     gen_file = os.path.abspath(args.gen_file)
     out_dir = (
@@ -258,6 +355,9 @@ def main() -> None:
             if not line.strip():
                 continue
             record = json.loads(line)
+            # pass truncation settings to downstream helpers without changing their public signatures
+            record["__genprefix_tokenizer"] = genprefix_tokenizer
+            record["__max_genprefix_tokens"] = max_genprefix_tokens
             case_id = _safe_case_id(record, i)
             cases.append((case_id, record))
             if args.max_cases is not None and len(cases) >= args.max_cases:
@@ -266,7 +366,7 @@ def main() -> None:
     all_rows: List[Dict[str, Any]] = []
     manifest_cases: List[Dict[str, Any]] = []
     for idx, (case_id, record) in enumerate(cases, start=1):
-        requests = _iter_case_requests_cache_optimal(
+        requests = _case_requests(
             record,
             pairwise,
             holistic,

@@ -28,6 +28,10 @@ class _NullModel:
 processor = Processor()
 
 
+DEFAULT_GENPREFIX_TOKENIZER = "/data/pretrain/Qwen/Qwen3-32B"
+DEFAULT_MAX_GENPREFIX_TOKENS = 900
+
+
 def _safe_case_id(rec: Dict[str, Any], fallback_i: int) -> str:
     for key in ("annotation_uid", "id", "uid", "qid", "uuid", "case_id"):
         value = rec.get(key)
@@ -46,6 +50,41 @@ def _build_gen_prefix(gen_output_item: str) -> str:
     return " ".join(gen_sents_all[:k]).strip()
 
 
+def _load_tokenizer(tokenizer_name_or_path: str):
+    try:
+        from transformers import AutoTokenizer
+    except Exception as exc:  # pragma: no cover
+        raise RuntimeError(
+            "transformers 未安装，无法按 token 截断 gen_prefix。"
+            "请在包含 transformers 的环境中运行（例如 conda run -n vllm-qwen36 ...）。"
+        ) from exc
+
+    return AutoTokenizer.from_pretrained(
+        tokenizer_name_or_path,
+        use_fast=True,
+        trust_remote_code=True,
+    )
+
+
+def _truncate_by_tokens(text: str, *, tokenizer: Any, max_tokens: int) -> str:
+    if not text:
+        return ""
+    max_tokens = int(max_tokens)
+    if max_tokens <= 0:
+        return ""
+
+    try:
+        ids = tokenizer.encode(text, add_special_tokens=False)
+    except TypeError:
+        ids = tokenizer.encode(text)
+
+    if len(ids) <= max_tokens:
+        return text
+
+    truncated_ids = ids[:max_tokens]
+    return tokenizer.decode(truncated_ids, skip_special_tokens=True).strip()
+
+
 def _iter_scored_prefixes(
     rec: Dict[str, Any],
     *,
@@ -59,12 +98,16 @@ def _iter_scored_prefixes(
     upper = min(upper, len(gen_output))
 
     scored: List[Tuple[int, str]] = []
+    tokenizer = rec.get("__genprefix_tokenizer")
+    max_tokens = rec.get("__max_genprefix_tokens")
     for idx in range(upper):
         prefix = ""
         if idx < len(stored_prefixes):
             prefix = str(stored_prefixes[idx] or "").strip()
         if not prefix:
             prefix = _build_gen_prefix(gen_output[idx])
+        if prefix and tokenizer is not None and max_tokens is not None:
+            prefix = _truncate_by_tokens(prefix, tokenizer=tokenizer, max_tokens=int(max_tokens))
         if prefix:
             scored.append((idx, prefix))
     return scored
@@ -236,8 +279,23 @@ def main() -> None:
         default=2,
         help="Exclude this many final generated-prefix positions from judge-prompt construction",
     )
+    parser.add_argument(
+        "--genprefix_tokenizer",
+        type=str,
+        default=DEFAULT_GENPREFIX_TOKENIZER,
+        help="固定 tokenizer（HF name/path），用于对 gen_prefix 做 token 截断",
+    )
+    parser.add_argument(
+        "--max_genprefix_tokens",
+        type=int,
+        default=DEFAULT_MAX_GENPREFIX_TOKENS,
+        help="若 gen_prefix token 数超过该值，则截断到该 token 数（默认 900）",
+    )
     parser.add_argument("--write_all", action="store_true", help="Also write a concatenated ALL_cache.jsonl")
     args = parser.parse_args()
+
+    genprefix_tokenizer = _load_tokenizer(args.genprefix_tokenizer)
+    max_genprefix_tokens = int(args.max_genprefix_tokens)
 
     gen_file = os.path.abspath(args.gen_file)
     out_dir = (
@@ -258,6 +316,8 @@ def main() -> None:
             if not line.strip():
                 continue
             record = json.loads(line)
+            record["__genprefix_tokenizer"] = genprefix_tokenizer
+            record["__max_genprefix_tokens"] = max_genprefix_tokens
             case_id = _safe_case_id(record, i)
             cases.append((case_id, record))
             if args.max_cases is not None and len(cases) >= args.max_cases:
