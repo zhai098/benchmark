@@ -100,7 +100,7 @@ def _truncate_by_tokens(text: str, *, tokenizer: Any, max_tokens: int) -> str:
 def _iter_scored_prefixes(
     rec: Dict[str, Any],
     *,
-    exclude_last_positions: int = 2,
+    exclude_last_positions: int = 1,
 ) -> List[Tuple[int, str]]:
     """Select evaluated generated-prefix positions and prefer stored prefixes."""
     gen_output: List[str] = rec.get("gen_output") or []
@@ -315,7 +315,7 @@ def main() -> None:
     parser.add_argument(
         "--exclude_last_positions",
         type=int,
-        default=2,
+        default=1,
         help="Exclude this many final generated-prefix positions from judge-prompt construction",
     )
     parser.add_argument(
