@@ -72,8 +72,7 @@ class Pairwise_Prompt:
         self.model = model
         self.user_message = ""
         self.system_message = self.system_message = (
-        """Reasoning: High.
-
+        """
 You are a local mathematical consistency judge.
 
 Your task is to score how well CURRENT_STEP preserves and locally uses one
@@ -264,7 +263,6 @@ class Holistic_Prompt:
         self.user_message = ""
         self.system_message = (
             """
-            Reasoning: High.
 
             ## Role
 
@@ -433,8 +431,6 @@ class SelfJudge_Prompt:
         self.model = model
         self.user_message = ""
         self.system_message_without_reference = """
-# Reasoning: High
-
 You are a reference-free local mathematical internal-consistency judge.
 
 Your task is to evaluate GEN for explicit internal mathematical errors and
@@ -481,8 +477,6 @@ Output only one valid JSON object:
 where k is one integer in {0,1,2,3,4,5}.
 """
         self.system_message_with_reference = """
-# Reasoning: High
-
 You are a local mathematical claim-consistency judge.
 
 Your task is to evaluate whether CURRENT_STEP is consistent with one
