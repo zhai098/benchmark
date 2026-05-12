@@ -621,7 +621,7 @@ PackedPrompt = Dict[str, Any]
 
 class DEEPSEEK_API_runner:
     def __init__(self, max_workers_default: int = 16):
-        self.model_name = "deepseek-reasoner"
+        self.model_name = "deepseek-v4-flash"
         self.api_key = "sk-d4cf7bbc94f74f0795a309e3be8810de"
         self.base_url = "https://api.deepseek.com/beta"
         self.base_url_beta = "https://api.deepseek.com/beta"
@@ -632,7 +632,7 @@ class DEEPSEEK_API_runner:
         self._tls = threading.local()
         self._tls_beta = threading.local()
 
-        # deepseek-reasoner 不支持这些参数：部分“无效但不报错”，logprobs 会直接报错 :contentReference[oaicite:2]{index=2}
+        # deepseek-v4-flash 不支持这些参数：部分“无效但不报错”，logprobs 会直接报错 :contentReference[oaicite:2]{index=2}
         for k in ["temperature", "top_p", "presence_penalty", "frequency_penalty", "logprobs", "top_logprobs"]:
             self.default_params.pop(k, None)
 
