@@ -71,122 +71,135 @@ class Pairwise_Prompt:
     def __init__(self, model: Any):
         self.model = model
         self.user_message = ""
-        self.system_message = self.system_message = (
-        """Reasoning: High.
-
+        self.system_message = (
+        """
         ## Role
 
-        You are tasked with determining whether the **current reasoning step** (CURRENT_STEP) **violates or distorts** the logic, assumptions, or conclusions established in a single **dependency claim** (DEPENDENCY_CLAIM). This evaluation identifies contradictions, hallucinations, or inconsistencies between the current step and the claims it explicitly depends on.
+        You are a strict evaluator for local dependency faithfulness in a
+        mathematical proof.
+
+        ## **Key Information**
+
+        > **Primary target:** judge whether CURRENT_STEP faithfully preserves,
+        > uses, or locally continues DEPENDENCY_CLAIM.
+
+        > **Hallucination focus:** this route should detect dependency-level
+        > hallucination, distortion, contradiction, condition loss, or unsupported
+        > strengthening of the dependency claim.
+
+        > **Non-use is not automatically hallucination.** If CURRENT_STEP does
+        > not clearly use DEPENDENCY_CLAIM but also does not contradict, distort,
+        > or misuse it, treat this as weak dependency evidence and usually score 3.
+
+        > **Additional context is allowed.** CURRENT_STEP may use other prior
+        > facts or continue the proof beyond DEPENDENCY_CLAIM, provided it does
+        > not change, misuse, or conflict with DEPENDENCY_CLAIM.
+
+        > **Do not reward mere compatibility.** If CURRENT_STEP is only weakly
+        > related to DEPENDENCY_CLAIM, phase-misaligned, or jumps beyond local
+        > support, score at most 3.
+
+        > **Hard failure:** if CURRENT_STEP changes, misuses, or contradicts
+        > DEPENDENCY_CLAIM, lower the score according to severity.
 
         You are given three texts:
 
-        - GLOBAL_PREFIX: The earlier reference steps that precede CURRENT_STEP. This is provided **for context only**, and should only be used to verify notation or local context when necessary. It should **not** be used as an additional source of constraints.
+        - GLOBAL_PREFIX: earlier reference steps before CURRENT_STEP. Use it
+        only to understand notation or disambiguate symbols. Do not use it as
+        an additional source of proof obligations.
 
-        - DEPENDENCY_CLAIM: One claim that the current step depends on. This serves as your **local anchor** for comparison.
+        - DEPENDENCY_CLAIM: the single local claim that CURRENT_STEP is
+        supposed to depend on.
 
-        - CURRENT_STEP: The current generated step that you must evaluate for consistency against DEPENDENCY_CLAIM.
+        - CURRENT_STEP: the generated reasoning step to evaluate.
 
-        ---
+        Your task is not to judge whether CURRENT_STEP solves the whole
+        problem. Your task is to judge whether CURRENT_STEP faithfully
+        preserves, uses, or locally continues DEPENDENCY_CLAIM.
 
-        ## Key Responsibilities
+        ## Decision Priorities
 
-        1. **Your primary task is to evaluate CURRENT_STEP** in relation to DEPENDENCY_CLAIM. Specifically, determine whether CURRENT_STEP introduces contradictions, alters conditions without justification, or misinterprets symbols and conclusions.
+        Judge in this order:
 
-        2. **DEPENDENCY_CLAIM is your normative reference**. All judgments must be made **solely** by comparing CURRENT_STEP to DEPENDENCY_CLAIM. This is your local contract.
+        1. Does CURRENT_STEP contradict, reverse, weaken, strengthen, or change
+        the meaning of DEPENDENCY_CLAIM?
+        2. Does CURRENT_STEP preserve the symbols, conditions, quantifiers, and
+        scope of DEPENDENCY_CLAIM?
+        3. Does CURRENT_STEP actually use or locally continue DEPENDENCY_CLAIM?
+        4. Does CURRENT_STEP make a conclusion that DEPENDENCY_CLAIM does not
+        locally support?
+        5. Is CURRENT_STEP merely compatible with DEPENDENCY_CLAIM but not
+        meaningfully connected to it?
 
-        3. **GLOBAL_PREFIX is read-only background**. You may reference GLOBAL_PREFIX **only** to **verify** that any perceived contradiction is not due to a lack of context in DEPENDENCY_CLAIM and CURRENT_STEP alone. If the perceived conflict can be explained or resolved by GLOBAL_PREFIX, do not treat it as an inconsistency.
+        ## Important Scoring Constraints
 
-        ---
+        - Mere compatibility is not enough for score 5.
+        - If CURRENT_STEP is compatible with DEPENDENCY_CLAIM but the
+        dependency relation is weak, unclear, or only implicit, score at most 3.
+        - If CURRENT_STEP does not clearly use DEPENDENCY_CLAIM but also does
+        not contradict, distort, or misuse it, this is weak dependency evidence;
+        score 3 rather than treating it as a severe hallucination.
+        - If CURRENT_STEP relies on other prior facts, do not penalize this by
+        itself. Penalize only if it changes, misuses, ignores in a harmful way,
+        or conflicts with DEPENDENCY_CLAIM.
+        - If CURRENT_STEP jumps directly to a broad or final conclusion that is
+        not locally supported by DEPENDENCY_CLAIM, score at most 3.
+        - If CURRENT_STEP uses DEPENDENCY_CLAIM but omits an important
+        condition or changes its scope, score at most 2.
+        - If CURRENT_STEP directly contradicts DEPENDENCY_CLAIM, score 0 or 1.
+        - Use GLOBAL_PREFIX only to clarify notation. Do not use it to rescue
+        a distorted, contradicted, or unsupported use of DEPENDENCY_CLAIM.
+        - When uncertain between adjacent scores, choose the lower score unless
+        CURRENT_STEP clearly and faithfully uses DEPENDENCY_CLAIM.
 
-        ## Hard Information Constraints
+        ## What Counts as Faithful Use
 
-        You must adhere to the following strict rules:
+        CURRENT_STEP faithfully uses DEPENDENCY_CLAIM when it:
 
-        1. **Only use the information** explicitly present in:
-        - DEPENDENCY_CLAIM
-        - CURRENT_STEP
-        - Optionally, you may use GLOBAL_PREFIX to verify whether the perceived conflict between CURRENT_STEP and DEPENDENCY_CLAIM is due to incomplete information (but **not** to judge directly).
+        - preserves the claim's exact conditions and scope;
+        - applies the claim to the same objects or symbols, or explicitly maps
+        them without distortion;
+        - makes a local inference that follows from the claim;
+        - does not turn a local claim into a stronger global conclusion without
+        support.
 
-        2. **You must ignore** any of the following:
-        - Any steps that occur after the dependency claim, even if they appear in GLOBAL_PREFIX.
-        - The original textual problem statement (unless it is explicitly included in DEPENDENCY_CLAIM).
-        - Any background mathematical knowledge that is not explicitly derived from DEPENDENCY_CLAIM.
+        ## Scoring Rules
 
-        3. **You may use basic logical and algebraic reasoning**, but **only** for the specific expressions, variables, and conditions appearing in DEPENDENCY_CLAIM and CURRENT_STEP.
+        Give an integer score from 0 to 5.
 
-        4. If a contradiction is suspected between DEPENDENCY_CLAIM and CURRENT_STEP, **first check whether this contradiction can be resolved by GLOBAL_PREFIX**. If GLOBAL_PREFIX explains or justifies the conflict, **treat CURRENT_STEP as consistent**.
+        5: Strong faithful continuation. CURRENT_STEP clearly uses
+        DEPENDENCY_CLAIM, preserves its meaning and scope, and makes a valid
+        local continuation.
 
-        5. If you are unsure whether a true contradiction exists, you must **err on the side of consistency** and assign CURRENT_STEP the **higher score**.
+        4: Mostly faithful. CURRENT_STEP uses or preserves DEPENDENCY_CLAIM
+        with a minor omission, mild compression, or small under-justified
+        transition, but no meaningful distortion.
 
-        ---
+        3: Weak dependency evidence. CURRENT_STEP is compatible with
+        DEPENDENCY_CLAIM but only weakly related, does not clearly use it,
+        moves beyond it using other context, is under-justified, or is
+        phase-misaligned, without contradiction or distortion.
 
-        ## Types of Inconsistencies / Hallucinations (Relative to DEPENDENCY_CLAIM)
+        2: Significant problem. CURRENT_STEP partially misuses
+        DEPENDENCY_CLAIM, drops an important condition, makes an unsupported
+        local leap, or changes scope in a way that affects the reasoning.
 
-        CURRENT_STEP is considered **inconsistent** or hallucinatory if one or more of the following occurs:
+        1: Severe misuse. CURRENT_STEP largely distorts or misapplies
+        DEPENDENCY_CLAIM, or makes claims that depend on it while ignoring an
+        essential condition.
 
-        ### 1. Direct Logical Conflict
-        - **CURRENT_STEP reverses, negates, or alters a condition** stated in DEPENDENCY_CLAIM without any valid explanation or justification.
+        0: Direct contradiction. CURRENT_STEP fundamentally contradicts
+        DEPENDENCY_CLAIM.
 
-        ### 2. Symbol or Context Inconsistency
-        - A symbol or condition used in both DEPENDENCY_CLAIM and CURRENT_STEP is given **inconsistent meanings**.
+        ## Output Format
 
-        - CURRENT_STEP introduces assumptions that **contradict** the conditions in DEPENDENCY_CLAIM.
-
-        ### 3. Ignoring Explicit Constraints
-        - DEPENDENCY_CLAIM gives a crucial condition or assumption, and CURRENT_STEP **proceeds as if this condition does not exist**, making logical conclusions or claims incompatible with it.
-
-        ### 4. **Scope Distortion (Weakening or Strengthening Conditions)**
-        - CURRENT_STEP **weakens** a condition or conclusion established in DEPENDENCY_CLAIM. This can lead to an erroneous generalization or misunderstanding of the scope.
-        
-        - CURRENT_STEP **strengthens** a condition without proper justification.
-
-        - **Any distortion of scope** (either weakening or strengthening) must be clearly explained or justified by CURRENT_STEP. If not, it is considered inconsistent.
-
-        ---
-
-        ## What IS Allowed
-
-        CURRENT_STEP **can**:
-
-        - Introduce **subcases or auxiliary reasoning constructs** that do not contradict or weaken any part of DEPENDENCY_CLAIM.
-
-        - Introduce **new assumptions or definitions**, provided they do not contradict any explicitly stated or implied assumption in DEPENDENCY_CLAIM.
-
-        - Extend the reasoning in a way that **preserves the validity** of the original conclusions in DEPENDENCY_CLAIM.
-
-        ---
-
-        ## Scoring Rules (0–5)
-
-        Your judgment reflects **how severely CURRENT_STEP violates** the consistency and logic of DEPENDENCY_CLAIM, not whether it is globally incorrect.
-
-        - **5 – Fully Consistent:** CURRENT_STEP fully respects and extends the reasoning of DEPENDENCY_CLAIM.
-
-        - **4 – Minor Issues:** CURRENT_STEP introduces small ambiguities or unusual inferences, but these do not conflict directly with DEPENDENCY_CLAIM.
-
-        - **3 – Weak Consistency:** CURRENT_STEP mostly aligns with DEPENDENCY_CLAIM but may be poorly argued or introduce some unclear logic.
-
-        - **2 – Significant Conflict:** CURRENT_STEP clearly contradicts or omits important elements from DEPENDENCY_CLAIM.
-
-        - **1 – Severe Misalignment:** CURRENT_STEP largely ignores or misuses the conditions or conclusions established in DEPENDENCY_CLAIM.
-
-        - **0 – Direct Contradiction:** CURRENT_STEP fundamentally contradicts DEPENDENCY_CLAIM. The contradiction is irreconcilable and cannot be resolved by GLOBAL_PREFIX.
-
-        When you are truly unsure between two adjacent scores, you must always choose the **higher score** to ensure the most favorable judgment.
-
-        ---
-
-        ## Output Format (Strict)
-
-        Return **only** a JSON object of the following form:
+        Return only one JSON object:
 
         `{"score": k}`
 
-        Where `k` is an integer from `{0,1,2,3,4,5}`.  
+        where k is one of 0, 1, 2, 3, 4, 5.
 
-        - No explanations, comments, or natural language text.  
-        - No additional keys like `"analysis"`, `"score"`, or `"tags"`.  
-        - The entire reply must **only** contain one **JSON object**.
+        Do not output explanations, comments, markdown, or additional keys.
 
         """)
 
@@ -198,25 +211,18 @@ class Pairwise_Prompt:
                 "score": {
                     "type": "number",
                     "enum": [0, 1, 2, 3, 4, 5],
-                    "description": "discrete consistency score (0–5), higher = more consistent"
+                    "description": "discrete consistency score (0-5), higher = more consistent"
                 }
             },
             "required": ["score"],
             "additionalProperties": False
         }
-        # 新增：缓存一份全局前缀，方便多次复用
         self.global_prefix = ""
 
     def set_global_prefix(self, prefix: str | None):
-        """在一轮实验开始前，先把整段前缀传进来缓存一下。"""
         self.global_prefix = prefix or ""
 
     def build_user(self, gen_text: str, ref_text: str, prefix: str | None = None) -> None:
-        """
-        prefix:
-            - 如果传入，则覆盖 self.global_prefix
-            - 如果为 None，则使用之前 set_global_prefix 的缓存
-        """
         if prefix is None:
             prefix = self.global_prefix
 
@@ -224,10 +230,14 @@ class Pairwise_Prompt:
             "## GLOBAL_PREFIX (background only; DO NOT use it as a source of constraints)\n"
             f"{prefix}\n\n"
             "## Task\n"
-            "- Perform a **pairwise contradiction / hallucination check** between the current step **CURRENT_STEP** and the single dependency claim **DEPENDENCY_CLAIM** that this step depends on.\n"
-            "- Treat **DEPENDENCY_CLAIM as your only normative local context for judging inconsistency**.\n"
-            "- You may read GLOBAL_PREFIX only to understand notation, but you MUST NOT use it as extra evidence of conflict.\n"
-            "- When uncertain whether there is a conflict based on DEPENDENCY_CLAIM alone, treat CURRENT_STEP as **consistent** and choose the **higher score**.\n"
+            "- Evaluate whether CURRENT_STEP faithfully preserves, uses, or locally continues the single DEPENDENCY_CLAIM.\n"
+            "- DEPENDENCY_CLAIM is the only normative local anchor for this pairwise check.\n"
+            "- GLOBAL_PREFIX may be used only to understand notation or resolve local ambiguity.\n"
+            "- Do not reward mere compatibility as score 5. If the relation to DEPENDENCY_CLAIM is weak, unclear, or phase-misaligned, score at most 3.\n"
+            "- If CURRENT_STEP does not clearly use DEPENDENCY_CLAIM but does not contradict, distort, or misuse it, treat this as weak dependency evidence and score 3.\n"
+            "- CURRENT_STEP may rely on other prior facts; penalize only if it changes, misuses, or conflicts with DEPENDENCY_CLAIM.\n"
+            "- If CURRENT_STEP jumps to a broad/final conclusion not locally supported by DEPENDENCY_CLAIM, score at most 3.\n"
+            "- If CURRENT_STEP changes, weakens, strengthens, or contradicts DEPENDENCY_CLAIM, lower the score according to severity.\n"
             "\n"
             "## DEPENDENCY_CLAIM (local dependency-claim anchor for CURRENT_STEP)\n"
             f"{ref_text}\n\n"
@@ -250,17 +260,10 @@ class Pairwise_Prompt:
         }
 
     def run(self, gen_claim: str, ref: list[str], prefix: str | None = None) -> dict:
-        """
-        gen_claim: 当前要评估的 GEN（完整一步或前缀）
-        ref:       多个 REF_STEP（依赖 claim 文本），逐个和 GEN 做 pairwise 检查
-        prefix:    整段 GLOBAL_PREFIX（通常就是完整的已有解答前缀）
-                    - 可以传入；如果为 None，则使用 self.global_prefix
-        """
         prompts = []
         scores = []
 
         for ref_step in ref:
-            # 这里所有 ref_step 共用同一个 prefix
             self.build_user(gen_claim, ref_step, prefix=prefix)
             prompt = self.return_prompt()
             prompts.append(prompt)
@@ -271,7 +274,6 @@ class Pairwise_Prompt:
             score = extract_last_score_part(out)
             scores.append(score)
 
-        #print("pairwise scores:", scores)
         return {
             "scores": scores,
             "raw_outputs": outs,
@@ -287,11 +289,17 @@ class Holistic_Prompt:
         self.user_message = ""
         self.system_message = (
             """
-            Reasoning: High.
-
             ## Role
 
             You are tasked with evaluating the **continuity of reasoning structure** in a step-by-step mathematical solution.
+
+            ## **Key Information**
+
+            > **Primary target:** judge whether GEN faithfully continues REF's method, proof phase, and active subgoal.
+
+            > **This is a structural route.** Do not require a full correctness proof, but do not reward a structurally similar step that is not faithful to REF.
+
+            > **Important caps:** broad/final conclusion jumps, changed targets/phases, or explicit contradictions to REF commitments should be capped according to the guardrails below.
 
             Your job is **not to solve the entire problem**, but to assess whether the **next step (GEN)** logically follows and continues the reasoning structure established in the **reference (REF)**. This means focusing on the **logical flow** of the solution, not on specific mathematical details (such as arithmetic or algebraic calculations). Your goal is to determine if GEN **advances the reasoning structure** appropriately, according to the methods and approach established in REF.
 
@@ -355,6 +363,24 @@ class Holistic_Prompt:
 
             - **Example**: If REF establishes that `x > 0`, and GEN later assumes `x ≤ 0` without addressing this contradiction, the reasoning is at a **dead end**.
 
+            ### 5. Light Fidelity Guardrails
+
+            This route primarily evaluates structural continuation, not full mathematical correctness. However, structural continuity must be faithful to REF.
+
+            - Do not give score 5 merely because GEN uses similar vocabulary or the same general topic.
+
+            - GEN must continue the active proof phase and subgoal established by REF.
+
+            - Do not penalize a small amount of repetition or local restatement when GEN stays faithful to REF and continues in the correct direction.
+
+            - If GEN jumps directly to a broad or final conclusion without continuing the missing intermediate reasoning, score at most 2.
+
+            - If GEN changes the target theorem, bound, construction, case, or proof phase established by REF, score at most 2.
+
+            - If GEN contradicts an explicit commitment in REF, such as a symbol meaning, assumption, case condition, or active subgoal, score at most 2.
+
+            - Minor local arithmetic or algebra slips that do not affect the reasoning flow may still receive 4, but not 5 if they obscure the next-step connection.
+
             ---
 
             ## Scoring (0–5)
@@ -362,16 +388,16 @@ class Holistic_Prompt:
             Give an integer score `"score"`. `{0,1,2,3,4,5}`:
 
             - **5 – Excellent Structural Continuity**  
-            GEN follows REF’s plan flawlessly. The logic is well-connected, and GEN makes **significant progress** in the proof, without introducing unnecessary deviations or dead ends.
+            GEN follows REF’s plan, active proof phase, and current subgoal. The logic is well-connected, GEN makes **significant next-step progress**, and it does not break explicit commitments from REF.
 
             - **4 – Good Structural Continuity, but with Minor Issues**  
-            GEN largely follows the reasoning in REF and is logically coherent, with **minor issues** (e.g., slight vagueness, minor deviations in the logical flow, or slightly rushed transitions). The overall structure remains intact.
+            GEN largely follows the reasoning in REF and is logically coherent, with **minor issues** (e.g., slight vagueness, a minor local slip, or a slightly rushed transition). The overall structure and proof phase remain intact.
 
             - **3 – Weak Structural Continuity, but Acceptable**  
-            GEN maintains a connection to REF, but the reasoning is vague or unclear. The logical connections are not strong, and GEN adds limited value in terms of **advancing the solution**.
+            GEN maintains a connection to REF, but the reasoning is vague, stalled, mostly repetitive without new progress, or only loosely connected. GEN adds limited value in terms of **advancing the solution**.
 
             - **2 – Questionable Structure**  
-            GEN diverges noticeably from the reasoning in REF. The logical connections are **weak**, and GEN introduces issues like **logical gaps**, irrelevant steps, or unaddressed contradictions that make the reasoning unclear.
+            GEN diverges noticeably from the reasoning in REF. The logical connections are **weak**, and GEN introduces issues like **route/target/phase shifts**, unsupported final jumps, irrelevant steps, or broken REF commitments.
 
             - **1 – Poor Structural Continuity**  
             GEN significantly deviates from the reasoning established in REF. There are **major logical flaws**, contradictions, or **abandoned reasoning** that make GEN largely unrelated to REF's plan.
@@ -410,8 +436,9 @@ class Holistic_Prompt:
     def build_user(self, gen_text: str, ref_text: str) -> str:
         self.user_message = (
             "## Task\n"
-            "Judge whether **GEN** faithfully **CONTINUES THE SAME METHOD / FLOW** committed in **REF** (all prior steps).\n"
-            "Penalize **route switching**, **jumping ahead** (skipping moves implied by REF), or **breaking prior commitments**.\n"
+            "Judge whether **GEN** faithfully continues the same method, proof phase, and active subgoal committed in **REF** (all prior steps).\n"
+            "Penalize **route switching**, unproductive repetition without forward progress, jumping ahead, changing the target, or breaking explicit REF commitments.\n"
+            "Focus on structural continuation. Do not require a full correctness proof, but do not reward a structurally similar step that is not faithful to REF.\n"
             "Use **REF only**; no outside knowledge. When uncertain between two scores, **choose the lower**.\n"
             "\n"
             "## Inputs\n"
@@ -455,49 +482,187 @@ class SelfJudge_Prompt:
     def __init__(self, model: Any):
         self.model = model
         self.user_message = ""
-        self.system_message = (
+        self.system_message_without_reference = (
             """
-            # Reasoning: High
-
             ## Role:
-            You are an automated evaluator for **reference-free factual soundness** and **internal consistency**.
+            You are an automated evaluator for reference-free mathematical hallucination risk,
+            internal soundness, and self-consistency.
 
-            ## Task:
-            Without any REF, inspect **GEN** for internal mathematical correctness and self-consistency. Identify **arithmetic/algebraic mistakes**, **illegal operations**, **undefined or redefined symbols**, **incompatible constraints**, and **self-contradictions**.
+            ## **Key Information**
+
+            > **Primary target:** judge whether GEN contains detectable mathematical
+            > hallucination, self-contradiction, illegal inference, or internally unsupported
+            > assertions presented as established facts.
+
+            > **Do not over-penalize incompleteness.** A missing derivation is not by itself
+            > hallucination unless GEN asserts an unsupported fact as established, relies on a
+            > false or unstated assumption, contradicts itself, or makes an invalid inference.
+
+            > **Do not give full credit too easily.** If the direction is plausible but a key
+            > derivation is missing, the score should usually be 3. If only routine details are
+            > omitted, the score can be 4. Score 5 requires strong internal support.
+
+            ## Task
+
+            Inspect GEN for internal mathematical correctness and self-consistency. Identify
+            arithmetic/algebraic mistakes, illegal operations, undefined or redefined symbols,
+            incompatible constraints, unsupported final conclusions, and self-contradictions.
 
             ## Rules:
-            - **No outside knowledge**: Judge only by **logic/maths** that are explicitly stated or standardly valid given the expressions in GEN. You should only evaluate facts that are **explicitly available** in the GEN step. If the context is missing, assume that certain details are unavailable for evaluation, and **do not speculate**.
+            - Use only GEN. Do not use claims from other steps or the original problem statement.
+
+            - You may use basic mathematical facts and direct consequences of definitions
+            explicitly present in GEN. For example, you may check algebra, counting, domain
+            restrictions, quantifiers, and standard implications of stated definitions.
             
-            - **Focus on immediate internal coherence**: Assess the **internal logic and math** in the GEN excerpt, such as:
-            - **Variable definitions**
-            - **Domain restrictions**
-            - **Equation manipulations**
-            - **Sign/inequality directions**
-            - **Step-to-step consistency within GEN**
+            - Focus on immediate internal coherence:
+              - **Variable definitions**
+              - **Domain restrictions**
+              - **Equation manipulations**
+              - **Sign/inequality directions**
+              - **Step-to-step consistency within GEN**
+              - **Counting or set-size claims**
+              - **Whether central claims are supported by preceding lines**
             
-            - **Conservative approach for unverifiable claims**: If GEN introduces results or statements that are **unverifiable** due to missing context or the need for additional derivations, apply **caution**. Do not assume or extrapolate results beyond what is given in the GEN step.
+            - If GEN jumps to a final answer, broad theorem, or major conclusion without the
+            needed derivation inside GEN, but there is no detectable contradiction, false step,
+            or invalid assumption, score at most 3.
 
-            - **Penalize unverifiable claims**: If a result is presented without sufficient derivation, and derivation is needed within the GEN step to substantiate the result, **penalize appropriately**.
+            - If GEN's unsupported conclusion relies on a false step, contradicts earlier text,
+            changes conditions, or introduces an unjustified assumption as fact, score at most 2.
 
-            - **Bias to caution when uncertain**: If uncertain about a step or claim due to incomplete context, **give the benefit of the doubt**, erring on the side of **caution**.
+            - If a central mathematical, algebraic, counting, or constraint error appears in GEN, score at most 2.
 
-            ## Input:
-            - **GEN**: a short mathematical reasoning excerpt.
+            - If a result is plausible but a key derivation is missing or unclear, score at most 3.
+
+            - If GEN omits only routine intermediate details while the core reasoning is clear
+            and internally sound, score at most 4.
+
+            - Do not penalize a long answer or small amount of repetition by itself. If the
+            direction is correct and the reasoning is internally sound, only reduce the score
+            for real loss of focus, missing support, unsupported assertions, or errors.
+
+            - When uncertain between two adjacent scores, choose the lower score unless the
+            evaluated text clearly justifies the higher one.
 
             ## Output (strict):
-            - **JSON only**: `{"score": k}` where `k` ∈ `{0,1,2,3,4,5}`; higher = fewer detectable internal errors/contradictions.
+            - **JSON only**: `{"score": k}` where `k` ∈ `{0,1,2,3,4,5}`; higher = lower
+            detectable hallucination risk and stronger internal soundness.
 
             ## Scoring Guide:
-            - **5**: No detectable internal errors; operations and symbols are coherent and consistent.
-            - **4**: Minor slips/omissions that do not change correctness.
-            - **3**: Generally sound but with one or two questionable/under-justified links.
-            - **2**: Clear error(s) in manipulation or conflicting constraints.
-            - **1**: Multiple errors; reasoning largely unsound.
+            - **5**: Core reasoning is internally sound, symbols and constraints are consistent,
+            and central conclusions are sufficiently derived. No detectable hallucination.
+            - **4**: Mostly sound, with only routine omitted details, mild under-justification,
+            or small expression issues that do not affect the central reasoning.
+            - **3**: Plausible direction and no clear hallucination, but a key derivation is
+            missing/unclear, or a central conclusion is under-supported.
+            - **2**: Central mathematical error, unsupported conclusion relying on a false or
+            unstated assumption, conflicting constraint, or invalid inference.
+            - **1**: Multiple central errors; reasoning is largely unsound or hallucinated.
             - **0**: Nonsensical or self-contradictory throughout.
 
             ## Instruction:
-            Evaluate GEN’s **internal mathematical correctness** and **self-consistency** only, ensuring that any information is **explicitly available** in the GEN step. Be cautious when context is incomplete, and avoid extrapolating information that isn't directly given. Output only `{"score": k}`.
+            Output only `{"score": k}`.
         """)
+        self.system_message_with_reference = (
+            """
+            ## Role:
+            You are an automated evaluator for same-step claim faithfulness, mathematical
+            hallucination risk, and internal soundness.
+
+            ## **Key Information**
+
+            > **Primary target:** first judge whether CURRENT_STEP covers, preserves, or
+            > correctly uses CURRENT_STEP_CLAIM.
+
+            > **Neutral non-coverage:** if CURRENT_STEP does not cover CURRENT_STEP_CLAIM
+            > but also does not contradict, distort, or misuse it, fall back to internal
+            > soundness and score at most 3.
+
+            > **Do not over-penalize incompleteness.** If CURRENT_STEP is directionally
+            > correct but the proof is incomplete, do not give a low score solely for
+            > incompleteness. However, do not give full credit unless key support is present.
+
+            > **Hallucination focus:** penalize false assertions, changed conditions,
+            > symbol/scope distortion, unsupported assumptions presented as facts, and
+            > contradictions.
+
+            ## Task
+
+            Evaluate CURRENT_STEP against one CURRENT_STEP_CLAIM from the same generated
+            step. The claim is a local anchor for support, contradiction, omission, and misuse
+            checking.
+
+            ## Rules:
+            - Use only CURRENT_STEP and CURRENT_STEP_CLAIM. Do not use claims from other
+            steps or the original problem statement.
+
+            - First check whether CURRENT_STEP covers, preserves, or correctly uses
+            CURRENT_STEP_CLAIM.
+
+            - If CURRENT_STEP mentions claim-related content but misquotes it, changes symbols,
+            drops conditions, changes scope, or uses the claim incorrectly, score at most 2.
+
+            - If CURRENT_STEP does not cover CURRENT_STEP_CLAIM and does not conflict with it,
+            treat this as neutral non-coverage. Fall back to judging CURRENT_STEP's internal
+            correctness, but do not give a score above 3.
+
+            - If CURRENT_STEP is in the correct direction but incomplete or compressed, do not
+            score below 3 unless there is a false step, contradiction, condition change, or
+            unsupported new assumption.
+
+            - If CURRENT_STEP covers CURRENT_STEP_CLAIM but a key derivation for the central
+            conclusion is missing, score at most 3.
+
+            - If CURRENT_STEP covers CURRENT_STEP_CLAIM and omits only routine intermediate
+            details while remaining faithful and internally sound, score at most 4.
+
+            - A score of 5 requires CURRENT_STEP to cover and correctly use CURRENT_STEP_CLAIM,
+            remain internally sound, and sufficiently derive its central conclusion.
+
+            - You may use basic mathematical facts and direct consequences of definitions
+            explicitly present in CURRENT_STEP. For example, you may check algebra, counting,
+            domain restrictions, quantifiers, and standard implications of stated definitions.
+
+            - If CURRENT_STEP jumps to a final answer, broad theorem, or major conclusion
+            without the needed derivation inside CURRENT_STEP, but there is no detectable
+            contradiction, false step, or invalid assumption, score at most 3.
+
+            - If the unsupported conclusion relies on a false step, contradicts earlier text,
+            changes conditions, or introduces an unjustified assumption as fact, score at most 2.
+
+            - If a central mathematical, algebraic, counting, or constraint error appears in
+            CURRENT_STEP, score at most 2.
+
+            - Do not penalize a long answer or small amount of repetition by itself. If the
+            direction is correct and the reasoning is internally sound, only reduce the score
+            for real loss of focus, missing support, unsupported assertions, or errors.
+
+            - When uncertain between two adjacent scores, choose the lower score unless
+            CURRENT_STEP clearly justifies the higher one.
+
+            ## Output (strict):
+            - **JSON only**: `{"score": k}` where `k` ∈ `{0,1,2,3,4,5}`; higher = better
+            same-step claim faithfulness and lower hallucination risk.
+
+            ## Scoring Guide:
+            - **5**: CURRENT_STEP covers and correctly uses CURRENT_STEP_CLAIM, remains
+            internally sound, and sufficiently derives its central conclusion.
+            - **4**: CURRENT_STEP covers CURRENT_STEP_CLAIM and is mostly sound, with only
+            routine omitted details, mild under-justification, or small expression issues.
+            - **3**: CURRENT_STEP does not cover CURRENT_STEP_CLAIM but is internally plausible;
+            or it covers the claim only weakly; or the direction is plausible but a key derivation
+            is missing.
+            - **2**: Clear misuse of CURRENT_STEP_CLAIM, central mathematical error, unsupported
+            conclusion relying on a false or unstated assumption, condition/scope change, or
+            conflicting constraint.
+            - **1**: Severe distortion of CURRENT_STEP_CLAIM or multiple central errors.
+            - **0**: Direct contradiction, nonsensical reasoning, or self-contradiction throughout.
+
+            ## Instruction:
+            Output only `{"score": k}`.
+        """)
+        self.system_message = self.system_message_without_reference
 
         self.prompt = ""
         self.output_schema = {
@@ -506,7 +671,7 @@ class SelfJudge_Prompt:
                 "score": {
                     "type": "number",
                     "enum": [0, 1, 2, 3, 4, 5],
-                    "description": "discrete degree of entailment (0–5), higher = stronger entailment"
+                    "description": "discrete degree of entailment (0-5), higher = stronger entailment"
                 }
             },
             "required": [
@@ -516,11 +681,21 @@ class SelfJudge_Prompt:
         }
         
     def build_user_without_reference(self, gen_text: str) -> None:
+        self.system_message = self.system_message_without_reference
         self.user_message = (
-            "Task: Reference-free evaluation of GEN’s internal mathematical correctness and self-consistency.\n"
+            "Task: Reference-free evaluation of GEN's internal mathematical soundness and hallucination risk.\n"
             "Check symbol definitions, domain/constraint compatibility, legality of operations, sign/inequality directions, "
-            "and step-to-step coherence within GEN. Penalize unverifiable claims that require derivation inside GEN.\n"
-            "Use no outside knowledge. When uncertain between two scores, choose the lower.\n"
+            "counting/set-size claims, and step-to-step coherence within GEN.\n"
+            "Use only GEN. You may use basic mathematical facts and direct consequences of definitions explicitly stated in GEN.\n"
+            "Do not treat missing derivation as hallucination by itself. It becomes serious only when GEN asserts an unsupported fact as established, "
+            "relies on a false or unstated assumption, contradicts itself, or makes an invalid inference.\n"
+            "If GEN contains a central mathematical, algebraic, counting, or constraint error, score at most 2.\n"
+            "If GEN jumps to a final answer, broad theorem, or major conclusion without needed derivation but has no clear false step or contradiction, score at most 3.\n"
+            "If GEN is plausible but a key derivation is missing or unclear, score at most 3.\n"
+            "If only routine details are omitted and the core reasoning is internally sound, score at most 4.\n"
+            "Do not penalize length or a small amount of repetition by itself; penalize only loss of focus, missing support, unsupported assertions, or errors.\n"
+            "A score of 5 requires core reasoning to be sound and sufficiently derived, with no detectable hallucination.\n"
+            "When uncertain between two scores, choose the lower.\n"
             "Output strictly JSON: {{\"score\": k}} where k ∈ {{0,1,2,3,4,5}}.\n"
             "GEN:\n"
             f"{gen_text}\n"
@@ -529,11 +704,20 @@ class SelfJudge_Prompt:
 
     def build_user_with_reference(self, gen_text: str, ref_claim_text: str, step_label: str | None = None) -> None:
         label = step_label or "same reference step"
+        self.system_message = self.system_message_with_reference
         self.user_message = (
-            "Task: Evaluate the CURRENT_STEP against one claim from the same current step.\n"
-            "Use the current-step claim as a local anchor for support, contradiction, and omission checking.\n"
-            "Do not use claims from other steps. Do not use outside knowledge.\n"
-            "If CURRENT_STEP conflicts with the current-step claim, lower the score. If CURRENT_STEP is merely under-justified, score conservatively.\n"
+            "Task: Evaluate CURRENT_STEP against one claim from the same current step.\n"
+            "First check whether CURRENT_STEP covers, preserves, or correctly uses CURRENT_STEP_CLAIM.\n"
+            "If CURRENT_STEP mentions claim-related content but misquotes it, changes symbols, drops conditions, changes scope, or uses it incorrectly, score at most 2.\n"
+            "If CURRENT_STEP does not cover CURRENT_STEP_CLAIM and does not conflict with it, treat this as neutral non-coverage; fall back to internal correctness, but score at most 3.\n"
+            "If CURRENT_STEP is directionally correct but incomplete or compressed, do not score below 3 unless there is a false step, contradiction, condition change, or unsupported new assumption.\n"
+            "If CURRENT_STEP covers CURRENT_STEP_CLAIM but misses a key derivation for its central conclusion, score at most 3.\n"
+            "If CURRENT_STEP covers CURRENT_STEP_CLAIM and omits only routine intermediate details while remaining faithful and internally sound, score at most 4.\n"
+            "A score of 5 requires CURRENT_STEP to cover and correctly use CURRENT_STEP_CLAIM, remain internally sound, and sufficiently derive its central conclusion.\n"
+            "If CURRENT_STEP jumps to a final answer, broad theorem, or major conclusion without needed derivation but has no clear false step or contradiction, score at most 3.\n"
+            "If CURRENT_STEP contains a central mathematical, algebraic, counting, or constraint error, score at most 2.\n"
+            "Do not use claims from other steps or the original problem statement. You may use basic mathematical facts and direct consequences of definitions explicitly stated in CURRENT_STEP.\n"
+            "When uncertain between two scores, choose the lower.\n"
             "Output strictly JSON: {{\"score\": k}} where k ∈ {{0,1,2,3,4,5}}.\n"
             f"CURRENT_STEP_LABEL:\n{label}\n"
             f"CURRENT_STEP_CLAIM:\n{ref_claim_text}\n"
