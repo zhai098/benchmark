@@ -3,7 +3,6 @@ from __future__ import annotations
 
 import argparse
 import hashlib
-import inspect
 import json
 import re
 import sys
@@ -12,6 +11,9 @@ from collections import Counter
 from pathlib import Path
 from typing import Any, Iterable
 
+import httpx
+from openai import OpenAI
+
 REPO_ROOT = Path(__file__).resolve().parents[2]
 if str(REPO_ROOT) not in sys.path:
     sys.path.insert(0, str(REPO_ROOT))
@@ -19,22 +21,30 @@ if str(REPO_ROOT) not in sys.path:
 from benchmark_core.config import Config
 from benchmark_core.data_process import _normalize_generation_input
 from benchmark_core.prompt import Generate_Prompt
-from runner import VLLMRunner
-
-try:
-    from transformers import AutoTokenizer
-except ImportError:  # pragma: no cover
-    AutoTokenizer = None
+from generate_ds import (
+    DEEPSEEK_CONFIG,
+    DeepSeekContinuationRunner,
+    _api_sampling_params_from_config,
+    _ensure_deepseek_prefix_messages,
+    _looks_like_json_schema,
+    _non_retryable_error,
+)
 
 
 MOJIBAKE_RE = re.compile(
     r"�|ï¿½|(?:Ã[\x80-\xBF])|(?:Â[\x80-\xBF])|(?:â[\x80-\xBF]{1,2})|[\x00-\x08\x0b\x0c\x0e-\x1f]"
 )
 SENT_SPLIT_RE = re.compile(r"(?<=[.!?。！？])\s+|\n+")
-
+SPECIAL_GENERATION_TOKENS = (
+    "<|tool_call_end|>",
+    "<|tool_call_start|>",
+    "<|tool▁call▁end|>",
+    "<|tool▁call▁start|>",
+)
 
 DEFAULT_RUNAWAY_MIN_CHARS = 30000
 MAX_EMPTY_RETRIES = 2
+FALLBACK_MAX_TOKENS = 2048
 
 
 class DummyModel:
@@ -101,6 +111,16 @@ def repeat_metrics(text: str) -> dict[str, Any]:
     }
 
 
+def clean_generation(value: Any) -> str:
+    text = _normalize_generation_input(value)
+    if "</think>" in text:
+        text = text.split("</think>", 1)[1]
+    text = text.replace("<think>", "")
+    for token in SPECIAL_GENERATION_TOKENS:
+        text = text.replace(token, " ")
+    return re.sub(r"\s+", " ", text).strip()
+
+
 def step_texts(row: dict[str, Any]) -> list[str]:
     raw_steps = row.get("steps") or row.get("reference_steps") or []
     texts: list[str] = []
@@ -125,52 +145,6 @@ def build_prompt_like_generate_py(row: dict[str, Any], prompt_index: int, model_
     if hasattr(builder, "return_prompt_ids"):
         return builder.return_prompt_ids()
     return builder.return_prompt()
-
-
-def signature_accepts_kwargs(callable_obj: Any) -> bool:
-    try:
-        sig = inspect.signature(callable_obj)
-    except (TypeError, ValueError):
-        return False
-    return any(param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values())
-
-
-def strip_prefix_flags(prompt: Any) -> list[dict[str, Any]] | None:
-    if isinstance(prompt, list) and all(isinstance(message, dict) and "role" in message for message in prompt):
-        return [{"role": message["role"], "content": message.get("content", "")} for message in prompt]
-    return None
-
-
-def render_with_tokenizer(prompt: Any, model_name: str) -> tuple[Any, list[int] | None, str, str | None]:
-    messages = strip_prefix_flags(prompt)
-    if messages is None:
-        return prompt, None, "already_rendered", None
-    if AutoTokenizer is None:
-        return prompt, None, "messages_unrendered_no_transformers", "transformers is not installed"
-    try:
-        try:
-            tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True, use_fast=True)
-        except Exception:
-            tokenizer = AutoTokenizer.from_pretrained(model_name, trust_remote_code=True, use_fast=False)
-        sig = inspect.signature(tokenizer.apply_chat_template)
-        accepts_kwargs = signature_accepts_kwargs(tokenizer.apply_chat_template)
-        kwargs: dict[str, Any] = {"tokenize": False}
-        if "add_generation_prompt" in sig.parameters or accepts_kwargs:
-            kwargs["add_generation_prompt"] = False
-        if "continue_final_message" in sig.parameters or accepts_kwargs:
-            kwargs["continue_final_message"] = True
-        if "enable_thinking" in sig.parameters or accepts_kwargs:
-            kwargs.setdefault("enable_thinking", True)
-        chat_template = getattr(tokenizer, "chat_template", "") or ""
-        if "reasoning_effort" in chat_template and ("reasoning_effort" in sig.parameters or accepts_kwargs):
-            kwargs.setdefault("reasoning_effort", "high")
-        rendered = tokenizer.apply_chat_template(messages, **kwargs)
-        token_ids = tokenizer.encode(rendered, add_special_tokens=False)
-        if rendered and not token_ids:
-            raise ValueError("tokenizer produced an empty token id list for a non-empty rendered prompt")
-        return rendered, token_ids, "tokenizer_apply_chat_template", None
-    except Exception as exc:
-        return prompt, None, "messages_unrendered_tokenizer_error", f"{type(exc).__name__}: {exc}"
 
 
 def empty_repeat_metrics() -> dict[str, Any]:
@@ -213,16 +187,6 @@ def write_jsonl(path: Path, rows: Iterable[dict[str, Any]]) -> None:
             handle.write(json.dumps(row, ensure_ascii=False) + "\n")
 
 
-def clean_generation(value: Any) -> str:
-    text = _normalize_generation_input(value)
-    if "</think>" in text:
-        text = text.split("</think>", 1)[1]
-    text = text.replace("<think>", "")
-    for token in ("<|tool_call_end|>", "<|tool_call_start|>", "<|tool▁call▁end|>", "<|tool▁call▁start|>"):
-        text = text.replace(token, " ")
-    return re.sub(r"\s+", " ", text).strip()
-
-
 def resolve_gen_only(path: Path) -> Path:
     resolved = path.expanduser().resolve()
     if resolved.is_dir():
@@ -232,34 +196,135 @@ def resolve_gen_only(path: Path) -> Path:
     return resolved
 
 
-def read_jsonl(path: Path) -> list[dict[str, Any]]:
-    rows: list[dict[str, Any]] = []
-    with path.open(encoding="utf-8") as handle:
-        for line_no, line in enumerate(handle, 1):
-            if not line.strip():
-                continue
-            obj = json.loads(line)
-            if not isinstance(obj, dict):
-                raise ValueError(f"{path}:{line_no} is not a JSON object")
-            rows.append(obj)
-    return rows
-
-
 def chunks(rows: list[dict[str, Any]], size: int) -> Iterable[list[dict[str, Any]]]:
     for start in range(0, len(rows), size):
         yield rows[start : start + size]
 
 
-def build_runner(model: str) -> VLLMRunner:
-    return VLLMRunner(
-        model=model,
-        vllm_config=dict(Config["reasoning_model_params"]),
-        sampling_config=dict(Config["reasoning_sampling_params"]),
-        gpus=str(Config["reasoning_model_gpus"]),
+def api_sampling_params(model_name: str, max_tokens_override: int | None = None) -> dict[str, Any]:
+    extra_sampling: dict[str, Any] = {}
+    for key in ("max_tokens", "temperature", "top_p", "stop"):
+        if DEEPSEEK_CONFIG.get(key) is not None:
+            extra_sampling[key] = DEEPSEEK_CONFIG[key]
+    if isinstance(DEEPSEEK_CONFIG.get("extra_params"), dict):
+        extra_sampling.update(DEEPSEEK_CONFIG["extra_params"])
+
+    params = _api_sampling_params_from_config(model_name, extra_sampling)
+    # In DeepSeek beta prefix-continuation repair, the generic stop list can
+    # terminate otherwise valid continuations immediately for some prefixes.
+    params.pop("stop", None)
+    if max_tokens_override is not None:
+        params["max_tokens"] = max(1, int(max_tokens_override))
+    min_tokens = int((Config.get("reasoning_sampling_params") or {}).get("min_tokens") or 1)
+    params["min_tokens"] = max(1, min_tokens)
+    return params
+
+
+class DeepSeekRepairRunner(DeepSeekContinuationRunner):
+    def _get_client(self, max_workers: int) -> OpenAI:
+        if getattr(self._tls, "client", None) is None:
+            limits = httpx.Limits(
+                max_connections=max(32, max_workers * 4),
+                max_keepalive_connections=max(16, max_workers * 2),
+                keepalive_expiry=30,
+            )
+            http_client = httpx.Client(
+                timeout=httpx.Timeout(600.0, connect=10.0),
+                limits=limits,
+                http2=False,
+            )
+            self._tls.client = OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url,
+                http_client=http_client,
+            )
+        return self._tls.client
+
+    def generate_one(
+        self,
+        prompt: Any,
+        extra_params: dict | None = None,
+        *,
+        max_workers_hint: int = 8,
+    ) -> dict[str, str]:
+        params = dict(self.default_params)
+        min_tokens = params.pop("min_tokens", None)
+        schema = None
+        if extra_params:
+            if _looks_like_json_schema(extra_params):
+                schema = extra_params
+            else:
+                params.update(extra_params)
+        if schema is not None:
+            params.setdefault("response_format", {"type": "json_object"})
+
+        messages = _ensure_deepseek_prefix_messages(prompt)
+        client = self._get_client(max_workers_hint)
+
+        extra_body: dict[str, Any] = {}
+        if self.thinking_type and self.thinking_type != "none":
+            extra_body["thinking"] = {"type": self.thinking_type}
+        if min_tokens is not None:
+            extra_body["min_tokens"] = max(1, int(min_tokens))
+
+        last_error: Exception | None = None
+        for attempt in range(self.request_max_retries + 1):
+            try:
+                kwargs: dict[str, Any] = {
+                    "model": self.model_name,
+                    "messages": messages,
+                    **params,
+                }
+                if extra_body:
+                    kwargs["extra_body"] = extra_body
+
+                resp = client.chat.completions.create(**kwargs)
+                msg = resp.choices[0].message
+                reasoning = getattr(msg, "reasoning_content", "") or ""
+                content = getattr(msg, "content", "") or ""
+                return {"reasoning": reasoning, "content": content}
+            except Exception as exc:
+                last_error = exc
+                if _non_retryable_error(exc) or attempt >= self.request_max_retries:
+                    break
+                sleep_s = self.retry_sleep_seconds * (2 ** attempt)
+                print(
+                    f"[WARN][DEEPSEEK] request failed at attempt "
+                    f"{attempt + 1}/{self.request_max_retries + 1}: {exc}; "
+                    f"retry in {sleep_s:.1f}s"
+                )
+                time.sleep(sleep_s)
+
+        assert last_error is not None
+        return {"reasoning": "", "content": f"<Error: {last_error}" + ">"}
+
+
+def build_deepseek_runner(model_name: str, *, max_tokens_override: int | None = None) -> DeepSeekContinuationRunner:
+    return DeepSeekRepairRunner(
+        model_name=model_name,
+        api_key=str(DEEPSEEK_CONFIG["api_key"]),
+        base_url=str(DEEPSEEK_CONFIG["base_url"]),
+        max_workers_default=int(DEEPSEEK_CONFIG["max_workers"]),
+        default_params=api_sampling_params(model_name, max_tokens_override=max_tokens_override),
+        thinking_type=str(DEEPSEEK_CONFIG["thinking_type"]),
+        request_max_retries=int(DEEPSEEK_CONFIG["request_max_retries"]),
+        retry_sleep_seconds=float(DEEPSEEK_CONFIG["retry_sleep_seconds"]),
     )
 
 
-def build_prompt_rows(gen_file: Path, model: str, out_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+def is_api_error(text: Any) -> bool:
+    stripped = str(text or "").strip()
+    return stripped.startswith("<Error:") or stripped.startswith("Error code:")
+
+
+def prompt_with_assistant_trailing_space(prompt: Any) -> Any:
+    copied = json.loads(json.dumps(prompt, ensure_ascii=False))
+    if isinstance(copied, list) and copied and isinstance(copied[-1], dict):
+        copied[-1]["content"] = str(copied[-1].get("content") or "") + " "
+    return copied
+
+
+def build_prompt_rows(gen_file: Path, model_name: str, out_dir: Path) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
     parsed_rows, parse_errors = jsonl_rows(gen_file)
     source_model_dir = gen_file.parent.name
     prompt_rows: list[dict[str, Any]] = []
@@ -269,27 +334,20 @@ def build_prompt_rows(gen_file: Path, model: str, out_dir: Path) -> tuple[list[d
         total_prefixes = len(outputs)
         old_prompts = row.get("prompts") or []
         for idx, output in enumerate(outputs):
-            issue_types, metrics = detect_issue_types(
-                output,
-                idx,
-                total_prefixes,
-                DEFAULT_RUNAWAY_MIN_CHARS,
-            )
+            issue_types, metrics = detect_issue_types(output, idx, total_prefixes, DEFAULT_RUNAWAY_MIN_CHARS)
             if not issue_types:
                 continue
 
             repair_id = f"{source_model_dir}__line_{source_line:06d}__idx_{idx:04d}"
-            rebuilt_prompt = build_prompt_like_generate_py(row, idx, model)
+            rebuilt_prompt = build_prompt_like_generate_py(row, idx, model_name)
             old_prompt = old_prompts[idx] if idx < len(old_prompts) else None
-
-            prompt_for_pack, prompt_token_ids, prompt_render_mode, prompt_render_error = render_with_tokenizer(
-                rebuilt_prompt,
-                model,
-            )
-            if prompt_render_error and isinstance(old_prompt, str) and old_prompt:
+            prompt_for_pack = rebuilt_prompt
+            prompt_format = "generate_py_messages"
+            prompt_render_error = None
+            if not prompt_for_pack and old_prompt:
                 prompt_for_pack = old_prompt
-                prompt_token_ids = None
-                prompt_render_mode = "fallback_old_rendered_prompt"
+                prompt_format = "fallback_old_prompt"
+                prompt_render_error = "rebuilt prompt was empty"
 
             prompt_rows.append(
                 {
@@ -315,12 +373,10 @@ def build_prompt_rows(gen_file: Path, model: str, out_dir: Path) -> tuple[list[d
                     "old_prompt_sha256": sha256_obj(old_prompt) if old_prompt is not None else "",
                     "rebuilt_prompt_sha256": sha256_obj(rebuilt_prompt),
                     "pack_prompt_sha256": sha256_obj(prompt_for_pack),
-                    "model_name": model,
-                    "prompt_format": prompt_render_mode,
+                    "model_name": model_name,
+                    "prompt_format": prompt_format,
                     "prompt_render_error": prompt_render_error,
-                    "prompt_messages": rebuilt_prompt,
                     "prompt": prompt_for_pack,
-                    "prompt_token_ids": prompt_token_ids,
                     "question": row.get("question") or row.get("problem") or "",
                     "problem": row.get("problem") or row.get("question") or "",
                     "answer": row.get("answer") or "",
@@ -342,43 +398,72 @@ def build_prompt_rows(gen_file: Path, model: str, out_dir: Path) -> tuple[list[d
     return prompt_rows, parse_errors
 
 
-def generate_batch(model: VLLMRunner, rows: list[dict[str, Any]]) -> list[str]:
+def generate_batch(runner: DeepSeekContinuationRunner, rows: list[dict[str, Any]]) -> tuple[list[str], list[str], list[str]]:
     prompts = [row["prompt"] for row in rows]
-    generations = model.generate(prompts, None)
+    prompt_variants = ["original"] * len(prompts)
+    reasonings, generations = runner.generate(prompts, None)
     if len(generations) < len(prompts):
         generations.extend([""] * (len(prompts) - len(generations)))
+    if len(reasonings) < len(prompts):
+        reasonings.extend([""] * (len(prompts) - len(reasonings)))
     generations = generations[: len(prompts)]
+    reasonings = reasonings[: len(prompts)]
+
     for attempt in range(1, MAX_EMPTY_RETRIES + 1):
-        empty_indices = [
+        retry_indices = [
             idx
             for idx, text in enumerate(generations)
-            if not _normalize_generation_input(text).strip()
+            if not _normalize_generation_input(text).strip() or is_api_error(text)
         ]
-        if not empty_indices:
+        if not retry_indices:
             break
-        print(f"[WARN] empty outputs at local indices {empty_indices}; retry {attempt}/{MAX_EMPTY_RETRIES}")
-        retry_prompts = [prompts[idx] for idx in empty_indices]
-        retry_generations = model.generate(retry_prompts, None)
-        for local_idx, original_idx in enumerate(empty_indices):
+        print(f"[WARN] failed API outputs at local indices {retry_indices}; retry {attempt}/{MAX_EMPTY_RETRIES}")
+        retry_prompts = [prompts[idx] for idx in retry_indices]
+        retry_reasonings, retry_generations = runner.generate(retry_prompts, None)
+        for local_idx, original_idx in enumerate(retry_indices):
             retry_text = retry_generations[local_idx] if local_idx < len(retry_generations) else ""
-            if _normalize_generation_input(retry_text).strip():
+            if _normalize_generation_input(retry_text).strip() and not is_api_error(retry_text):
                 generations[original_idx] = retry_text
-    return generations
+                reasonings[original_idx] = retry_reasonings[local_idx] if local_idx < len(retry_reasonings) else ""
+    retry_indices = [
+        idx
+        for idx, text in enumerate(generations)
+        if not _normalize_generation_input(text).strip() or is_api_error(text)
+    ]
+    if retry_indices:
+        print(f"[WARN] using trailing-space fallback for local indices {retry_indices}")
+        fallback_runner = build_deepseek_runner(runner.model_name, max_tokens_override=FALLBACK_MAX_TOKENS)
+        fallback_prompts = [prompt_with_assistant_trailing_space(prompts[idx]) for idx in retry_indices]
+        fallback_reasonings, fallback_generations = fallback_runner.generate(
+            fallback_prompts,
+            None,
+            max_workers=min(len(fallback_prompts), int(DEEPSEEK_CONFIG["max_workers"])),
+        )
+        for local_idx, original_idx in enumerate(retry_indices):
+            fallback_text = fallback_generations[local_idx] if local_idx < len(fallback_generations) else ""
+            if _normalize_generation_input(fallback_text).strip() and not is_api_error(fallback_text):
+                generations[original_idx] = fallback_text
+                reasonings[original_idx] = (
+                    fallback_reasonings[local_idx] if local_idx < len(fallback_reasonings) else ""
+                )
+                prompt_variants[original_idx] = "assistant_trailing_space_max_tokens_2048"
+    return reasonings, generations, prompt_variants
 
 
-def run_regeneration(prompt_rows: list[dict[str, Any]], model_path: str, out_dir: Path) -> list[dict[str, Any]]:
-    batch_size = int(Config["reasoning_model_params"].get("max_num_seqs") or 16)
-    batch_size = max(1, batch_size)
-    runner = build_runner(model_path)
+def run_regeneration(prompt_rows: list[dict[str, Any]], model_name: str, out_dir: Path) -> list[dict[str, Any]]:
+    batch_size = max(1, int(DEEPSEEK_CONFIG["max_workers"]))
+    runner = build_deepseek_runner(model_name)
     output_rows: list[dict[str, Any]] = []
     processed = 0
 
     for batch in chunks(prompt_rows, batch_size):
-        generations = generate_batch(runner, batch)
+        reasonings, generations, prompt_variants = generate_batch(runner, batch)
         for idx, row in enumerate(batch):
             raw_generation = generations[idx] if idx < len(generations) else ""
+            reasoning = reasonings[idx] if idx < len(reasonings) else ""
             cleaned = clean_generation(raw_generation)
             repeat = repeat_metrics(cleaned)
+            api_error = is_api_error(raw_generation) or is_api_error(cleaned)
             output_rows.append(
                 {
                     "prompt_id": row["prompt_id"],
@@ -394,9 +479,12 @@ def run_regeneration(prompt_rows: list[dict[str, Any]], model_path: str, out_dir
                     "issue_types": row["issue_types"],
                     "old_output_sha256": row["old_output_sha256"],
                     "old_output_len": row["old_output_len"],
-                    "model": model_path,
+                    "model": model_name,
+                    "raw_reasoning": reasoning,
                     "raw_generation": raw_generation,
                     "generation": cleaned,
+                    "repair_prompt_variant": prompt_variants[idx] if idx < len(prompt_variants) else "original",
+                    "api_error": api_error,
                     "is_empty": not _normalize_generation_input(cleaned).strip(),
                     "mojibake": bool(MOJIBAKE_RE.search(cleaned)),
                     "large_repeat": repeat["large_repeat"],
@@ -432,13 +520,13 @@ def issue_summary(rows: list[dict[str, Any]]) -> dict[str, Any]:
 def main() -> None:
     parser = argparse.ArgumentParser(
         description=(
-            "Detect non-final empty prefixes in one gen_only.jsonl, rebuild regeneration prompts, "
-            "and run them with local VLLMRunner. vLLM and sampling parameters come from benchmark_core/config.py."
+            "Detect non-final empty prefixes in a DeepSeek API gen_only.jsonl, rebuild prompts, "
+            "and regenerate them through generate_ds.py's DeepSeek prefix API runner."
         )
     )
-    parser.add_argument("--model", required=True, help="Local model path or model id to pass to VLLMRunner.")
-    parser.add_argument("--gen-only", required=True, type=Path, help="Path to gen_only.jsonl, or a directory containing it.")
-    parser.add_argument("--out-dir", required=True, type=Path, help="Directory for prompt pack and regeneration outputs.")
+    parser.add_argument("--model", default=str(DEEPSEEK_CONFIG["model"]))
+    parser.add_argument("--gen-only", required=True, type=Path)
+    parser.add_argument("--out-dir", required=True, type=Path)
     parser.add_argument("--max-prompts", type=int, default=None, help=argparse.SUPPRESS)
     args = parser.parse_args()
 
@@ -450,7 +538,7 @@ def main() -> None:
     print(f"[INFO] gen_only={gen_file}")
     print(f"[INFO] model={args.model}")
     print(f"[INFO] out_dir={out_dir}")
-    print(f"[INFO] gpus={Config['reasoning_model_gpus']}")
+    print(f"[INFO] deepseek_min_tokens={api_sampling_params(args.model).get('min_tokens')}")
 
     detected_prompt_rows, parse_errors = build_prompt_rows(gen_file, args.model, out_dir)
     prompt_rows = detected_prompt_rows
@@ -464,13 +552,15 @@ def main() -> None:
     else:
         output_rows = []
         write_jsonl(out_dir / "prompt_outputs.jsonl", output_rows)
+
     summary = {
         "gen_only": str(gen_file),
         "out_dir": str(out_dir),
         "model": args.model,
-        "gpus": str(Config["reasoning_model_gpus"]),
-        "config_reasoning_model_params": Config["reasoning_model_params"],
-        "config_reasoning_sampling_params": Config["reasoning_sampling_params"],
+        "base_url": DEEPSEEK_CONFIG["base_url"],
+        "max_workers": DEEPSEEK_CONFIG["max_workers"],
+        "thinking_type": DEEPSEEK_CONFIG["thinking_type"],
+        "api_sampling_params": api_sampling_params(args.model),
         "detection_policy": "nonfinal_empty_only",
         "runaway_min_chars": DEFAULT_RUNAWAY_MIN_CHARS,
         "max_empty_retries": MAX_EMPTY_RETRIES,
@@ -482,6 +572,7 @@ def main() -> None:
         "empty_count": sum(1 for row in output_rows if row["is_empty"]),
         "mojibake_count": sum(1 for row in output_rows if row["mojibake"]),
         "large_repeat_count": sum(1 for row in output_rows if row["large_repeat"]),
+        "api_error_count": sum(1 for row in output_rows if row.get("api_error")),
         "elapsed_sec": time.time() - started,
     }
     (out_dir / "run_info.json").write_text(json.dumps(summary, ensure_ascii=False, indent=2), encoding="utf-8")
