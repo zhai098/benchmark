@@ -5,6 +5,7 @@ __pycache__/
 .venv/
 artifacts/
 workflow_data/
+packed_prompt/
 
 gen_output/
 frontend/.next/
