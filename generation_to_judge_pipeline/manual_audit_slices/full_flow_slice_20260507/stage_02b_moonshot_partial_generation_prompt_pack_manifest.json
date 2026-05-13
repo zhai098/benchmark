@@ -1,0 +1,12 @@
+{
+  "input_path": "/Users/zhaipengxiang/Desktop/benchmark/generation_to_judge_pipeline/manual_audit_slices/full_flow_slice_20260507/stage_01_clean_input_slice.jsonl",
+  "output": "/Users/zhaipengxiang/Desktop/benchmark/generation_to_judge_pipeline/manual_audit_slices/full_flow_slice_20260507/stage_02b_moonshot_partial_generation_prompt_pack_slice.jsonl",
+  "model": "kimi-k2.5",
+  "requested_prompt_format": "moonshot-partial",
+  "case_count_seen": 7,
+  "prompt_count": 34,
+  "skipped_count": 0,
+  "skipped": [],
+  "include_final_prefix": false,
+  "schema": "one_jsonl_row_per_generation_prompt"
+}

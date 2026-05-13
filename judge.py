@@ -3,10 +3,11 @@ from __future__ import annotations
 
 import os, json, time, argparse, logging, math
 from typing import Dict, Any, List, Tuple
-from config import Config
+from benchmark_core.config import Config
 from runner import VLLMRunner, DEEPSEEK_API_runner, DOUBAO_deepseek_API_runner
-from data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
-from prompt import Judge_Prompt, Pairwise_Prompt, Holistic_Prompt, SelfJudge_Prompt
+from benchmark_core.data_process import Processor, _write_jsonl_line, _write_pretty_json, _normalize_generation_input
+from benchmark_core.log_reference import claims_for_step, dependency_claims_for_step, step_id_at_index
+from benchmark_core.prompt import Judge_Prompt, Pairwise_Prompt, Holistic_Prompt, SelfJudge_Prompt
 import numpy as np
 from openai import OpenAI
 
@@ -21,7 +22,8 @@ def build_judge_model():
     # 三路 evaluator
     pairwise = Pairwise_Prompt(judge_model)
     holistic = Holistic_Prompt(judge_model)
-    return pairwise, holistic
+    selfjudge = SelfJudge_Prompt(judge_model)
+    return pairwise, holistic, selfjudge
 
 
 # ---- 聚合器实现：可用 Config 选择 ----
@@ -99,33 +101,69 @@ def _evaluate_step_multiroute(
     time_hol = time.time()
     hol_res = builders["holistic"].run(gen_step, prior_ref)
     time_hol_fin = time.time() - time_hol
-    #print(f"[DEBUG] Holistic result: {hol_res}")
+
     # --- Pairwise
     time_pair = time.time()
-    pairs_res = builders["pairwise"].run(gen_step, ref_steps[: idx + 1], prior_ref)
+    dependency_claims = [claim["text"] for claim in dependency_claims_for_step(builders["record"], idx)]
+    if dependency_claims:
+        pairs_res = builders["pairwise"].run(gen_step, dependency_claims, prior_ref)
+    else:
+        pairs_res = {
+            "scores": [],
+            "raw_outputs": [],
+            "reasoning_outputs": [],
+            "gen": gen_step,
+            "refs": [],
+        }
     time_pair_fin = time.time() - time_pair
-    #print(f"[DEBUG] Pairwise result: {pairs_res}")
-    
-    
 
-    
-        
-    # --- Self-judge
-    # self_res = builders["selfjudge"].run(gen_step)
+    # --- Self-judge without reference
+    time_self_without = time.time()
+    self_without_res = builders["selfjudge"].run_without_reference(gen_step)
+    time_self_without_fin = time.time() - time_self_without
 
-    #pair_score = agg_top_k_mean(pairs_res["scores"], k=math.ceil(len(pairs_res["scores"])/2))[0]
-    pair_score = sum(sorted(pairs_res["scores"])[:2]) / 2
-    # --- aggregate
-    agg = pair_score + hol_res["score"]  # + self_res["score"]
-    agg /= 2  # 3 路平均
+    # --- Self-judge with same-step reference claims
+    time_self_with = time.time()
+    same_step_claims = [claim["text"] for claim in claims_for_step(builders["record"], idx)]
+    step_label = step_id_at_index(builders["record"], idx) or f"s{idx + 1}"
+    self_with_res = builders["selfjudge"].run_with_reference(gen_step, same_step_claims, step_label=step_label)
+    time_self_with_fin = time.time() - time_self_with
 
-    per_route = {"pairwise": float(pair_score), "holistic": float(hol_res["score"])}  # , "selfjudge": float(self_res["score"])}
+    available_routes: Dict[str, float] = {
+        "holistic": float(hol_res["score"]),
+        "selfjudge_without_reference": float(self_without_res["score"]),
+    }
+    pair_scores = [float(score) for score in pairs_res["scores"] if float(score) >= 0]
+    if pair_scores:
+        available_routes["pairwise"] = sum(pair_scores) / len(pair_scores)
+
+    self_with_scores = [float(score) for score in self_with_res.get("scores", []) if float(score) >= 0]
+    if self_with_scores:
+        available_routes["selfjudge_with_reference"] = sum(self_with_scores) / len(self_with_scores)
+
+    weight_sum = sum(builders["route_weights"][name] for name in available_routes)
+    agg = sum(
+        score * builders["route_weights"][name]
+        for name, score in available_routes.items()
+    ) / weight_sum
+
+    per_route = {
+        "pairwise": float(available_routes.get("pairwise", 0.0)),
+        "holistic": float(available_routes["holistic"]),
+        "selfjudge_without_reference": float(available_routes["selfjudge_without_reference"]),
+        "selfjudge_with_reference": float(available_routes.get("selfjudge_with_reference", 0.0)),
+    }
+
     detail = {
         "pairwise": pairs_res,
         "holistic": hol_res,
         "time_holistic": time_hol_fin,
         "time_pairwise": time_pair_fin,
-        # "selfjudge": self_res,
+        "selfjudge_without_reference": self_without_res,
+        "selfjudge_with_reference": self_with_res,
+        "time_selfjudge_without_reference": time_self_without_fin,
+        "time_selfjudge_with_reference": time_self_with_fin,
+        "available_routes": sorted(available_routes.keys()),
     }
     return float(agg), per_route, detail
 
@@ -156,7 +194,12 @@ def score_case(rec: Dict[str, Any], builders: Dict[str, Any]) -> Dict[str, Any]:
                 "index": i,
                 "score": step_score,
                 "hallucination": 1,
-                "routes": {"pairwise": 0.0, "holistic": 0.0},
+                "routes": {
+                    "pairwise": 0.0,
+                    "holistic": 0.0,
+                    "selfjudge_without_reference": 0.0,
+                    "selfjudge_with_reference": 0.0,
+                },
             })
             i += 1
             continue
@@ -172,8 +215,20 @@ def score_case(rec: Dict[str, Any], builders: Dict[str, Any]) -> Dict[str, Any]:
         step_contrib = step_score / max(1, N - 1) * 20.0  
         total_score += step_contrib
 
-        print(f"[DEBUG] Step {i}: pair={per_route['pairwise']:.2f}, hol={per_route['holistic']:.2f} -> agg={step_score:.2f}, contrib={step_contrib:.4f}")
-        print(f"[DEBUG] Step {i} detail: {detail['time_holistic']:.2f}s hol, {detail['time_pairwise']:.2f}s pair")
+        print(
+            f"[DEBUG] Step {i}: pair={per_route['pairwise']:.2f}, "
+            f"hol={per_route['holistic']:.2f}, "
+            f"self_wo={per_route['selfjudge_without_reference']:.2f}, "
+            f"self_w={per_route['selfjudge_with_reference']:.2f} "
+            f"-> agg={step_score:.2f}, contrib={step_contrib:.4f}"
+        )
+        print(
+            f"[DEBUG] Step {i} detail: {detail['time_holistic']:.2f}s hol, "
+            f"{detail['time_pairwise']:.2f}s pair, "
+            f"{detail['time_selfjudge_without_reference']:.2f}s self_wo, "
+            f"{detail['time_selfjudge_with_reference']:.2f}s self_w, "
+            f"routes={','.join(detail['available_routes'])}"
+        )
 
         steps_log.append({
             "index": i,
@@ -209,10 +264,17 @@ def main():
     out_cases = os.path.join(run_dir, "case_results.jsonl")
     out_cases_pretty = os.path.join(run_dir, "case_results_pretty.json")
     
-    pairwise, holistic = build_judge_model()
+    pairwise, holistic, selfjudge = build_judge_model()
     builders = {
         "pairwise": pairwise,
         "holistic": holistic,
+        "selfjudge": selfjudge,
+        "route_weights": {
+            "pairwise": 0.35,
+            "holistic": 0.25,
+            "selfjudge_without_reference": 0.20,
+            "selfjudge_with_reference": 0.20,
+        },
     }
     scores: List[float] = []
     num = 0
@@ -230,6 +292,7 @@ def main():
                 continue
             rec = json.loads(line)
             num += 1
+            builders["record"] = rec
             eval_res = score_case(rec, builders)
             score = float(eval_res["total_score"])
             scores.append(score)

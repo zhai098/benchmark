@@ -1,0 +1,501 @@
+{
+  "annotator_id": "张璟旭",
+  "device_id": "dev-1775126623662-xze9d4",
+  "case_id": "q-30",
+  "status": "in_progress",
+  "current_step": 1,
+  "current_workflow_state": {
+    "active_sample_idx": null,
+    "sample_cursor": 2,
+    "workflow_state": "sample_selected",
+    "problem_quality_screening": {
+      "decision": "pass",
+      "reason": "",
+      "other_text": "",
+      "rejected_at": ""
+    }
+  },
+  "current_annotations": {
+    "selected_solution_text": "",
+    "cut_points": [],
+    "steps": [],
+    "presegmented_claims": [],
+    "claims": [],
+    "claim_checks": {},
+    "dependencies": {},
+    "step_dependencies": {},
+    "sample_annotations": {
+      "0": {
+        "selected_solution_text": "Alternative Solution 1:\n\nLet\n\\[\nf_k(x)=g(x)+kx \\qquad (k=0,1,\\dots,100).\n\\]\nWe are looking for those \\(n\\) for which all \\(f_0,f_1,\\dots,f_{100}\\) can be bijections of \\(\\mathbb{Z}/n\\mathbb{Z}\\).\n\nWe will show that this happens exactly when \\(n\\) is relatively prime to \\(101!\\).\n\n### 1. Sufficiency\nAssume \\(\\gcd(n,101!)=1\\). Then each integer \\(1,2,\\dots,101\\) is invertible modulo \\(n\\).\n\nTake\n\\[\ng(x)=x.\n\\]\nThen\n\\[\nf_k(x)=g(x)+kx=(k+1)x.\n\\]\nSince \\(k+1\\) is invertible modulo \\(n\\) for every \\(k=0,1,\\dots,100\\), multiplication by \\(k+1\\) is a bijection on \\(\\mathbb{Z}/n\\mathbb{Z}\\). Hence all \\(101\\) functions are bijections.\n\n### 2. Necessity\nNow suppose such a bijection \\(g\\) exists. We will prove that no prime \\(p\\le 101\\) can divide \\(n\\).\n\nAssume for contradiction that some prime \\(p\\le 101\\) divides \\(n\\). Reduce everything modulo \\(p\\). Since each \\(f_k\\) is a bijection on \\(\\mathbb{Z}/n\\mathbb{Z}\\), its reduction modulo \\(p\\) is a surjection from \\(\\mathbb{Z}/n\\mathbb{Z}\\) onto \\(\\mathbb{Z}/p\\mathbb{Z}\\); more importantly, because congruent inputs modulo \\(p\\) produce congruent outputs modulo \\(p\\), we may view the induced maps\n\\[\n\\overline{f_k}(x)=\\overline{g}(x)+kx\n\\]\non \\(\\mathbb{Z}/p\\mathbb{Z}\\), and these must be permutations of \\(\\mathbb{Z}/p\\mathbb{Z}\\).\n\nThus over the field \\(\\mathbb{F}_p\\), there is a function \\(\\overline{g}:\\mathbb{F}_p\\to\\mathbb{F}_p\\) such that\n\\[\n\\overline{g}(x),\\ \\overline{g}(x)+x,\\ \\dots,\\ \\overline{g}(x)+(p-1)x\n\\]\nare all permutations of \\(\\mathbb{F}_p\\).\n\nNow every function \\(\\mathbb{F}_p\\to\\mathbb{F}_p\\) is represented by a polynomial of degree at most \\(p-1\\). Let that polynomial be \\(h(x)\\). Then for every \\(a\\in\\mathbb{F}_p\\), the polynomial\n\\[\nh(x)+ax\n\\]\ninduces a permutation of \\(\\mathbb{F}_p\\).\n\nA standard fact about permutation polynomials over \\(\\mathbb{F}_p\\) is that if \\(P(x)\\) is a permutation polynomial, then\n\\[\n\\sum_{x\\in\\mathbb{F}_p} P(x)^{p-1} = -1,\n\\]\nwhile for a non-permutation this sum is not \\(-1\\). Consider\n\\[\nS(a)=\\sum_{x\\in\\mathbb{F}_p}(h(x)+ax)^{p-1}.\n\\]\nSince \\(h(x)+ax\\) is a permutation for every \\(a\\in\\mathbb{F}_p\\), we have \\(S(a)=-1\\) for all \\(a\\).\n\nSo \\(S(a)\\) is a constant polynomial in \\(a\\). But when we expand it as a polynomial in \\(a\\), the coefficient of \\(a^{p-1}\\) is\n\\[\n\\sum_{x\\in\\mathbb{F}_p} x^{p-1}= -1 \\neq 0.\n\\]\nHence \\(S(a)\\) has degree \\(p-1\\), so it cannot be constant. This contradiction shows that no such prime \\(p\\le 101\\) can divide \\(n\\).\n\nTherefore \\(n\\) is relatively prime to every prime \\(\\le 101\\), i.e.\n\\[\n\\gcd(n,101!)=1.\n\\]\n\n### Verification\n- If \\(\\gcd(n,101!)=1\\), choosing \\(g(x)=x\\) gives \\(f_k(x)=(k+1)x\\), and each multiplier \\(k+1\\) is invertible mod \\(n\\), so all \\(101\\) maps are bijections.\n- If some prime \\(p\\le 101\\) divides \\(n\\), the reduction mod \\(p\\) argument above gives a contradiction.\n\nFinal Answer: \\(\\text{All positive integers } n \\text{ relatively prime to } 101!\\)",
+        "cut_points": [],
+        "steps": [],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "Let \\[ f_k(x)=g(x)+kx \\qquad (k=0,1,\\dots,100). \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p2",
+            "text": "We are looking for those \\(n\\) for which all \\(f_0,f_1,\\dots,f_{100}\\) can be bijections of \\(\\mathbb{Z}/n\\mathbb{Z}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p3",
+            "text": "We will show that this happens exactly when \\(n\\) is relatively prime to \\(101!\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p4",
+            "text": "Assume \\(\\gcd(n,101!)=1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p5",
+            "text": "Then each integer \\(1,2,\\dots,101\\) is invertible modulo \\(n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p6",
+            "text": "Take \\[ g(x)=x. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p7",
+            "text": "Then \\[ f_k(x)=g(x)+kx=(k+1)x. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p8",
+            "text": "\\(k+1\\) is invertible modulo \\(n\\) for every \\(k=0,1,\\dots,100\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p9",
+            "text": "Multiplication by \\(k+1\\) is a bijection on \\(\\mathbb{Z}/n\\mathbb{Z}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p10",
+            "text": "Hence all \\(101\\) functions are bijections.",
+            "step_idx": null
+          },
+          {
+            "id": "p11",
+            "text": "Now suppose such a bijection \\(g\\) exists.",
+            "step_idx": null
+          },
+          {
+            "id": "p12",
+            "text": "We will prove that no prime \\(p\\le 101\\) can divide \\(n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p13",
+            "text": "Assume for contradiction that some prime \\(p\\le 101\\) divides \\(n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p14",
+            "text": "Reduce everything modulo \\(p\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p15",
+            "text": "Each \\(f_k\\) is a bijection on \\(\\mathbb{Z}/n\\mathbb{Z}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p16",
+            "text": "The reduction of \\(f_k\\) modulo \\(p\\) is a surjection from \\(\\mathbb{Z}/n\\mathbb{Z}\\) onto \\(\\mathbb{Z}/p\\mathbb{Z}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p17",
+            "text": "Congruent inputs modulo \\(p\\) produce congruent outputs modulo \\(p\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p18",
+            "text": "We may view the induced maps \\[ \\overline{f_k}(x)=\\overline{g}(x)+kx \\] on \\(\\mathbb{Z}/p\\mathbb{Z}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p19",
+            "text": "These must be permutations of \\(\\mathbb{Z}/p\\mathbb{Z}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p20",
+            "text": "Over the field \\(\\mathbb{F}_p\\), there is a function \\(\\overline{g}:\\mathbb{F}_p\\to\\mathbb{F}_p\\) such that \\[ \\overline{g}(x),\\ \\overline{g}(x)+x,\\ \\dots,\\ \\overline{g}(x)+(p-1)x \\] are all permutations of \\(\\mathbb{F}_p\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p21",
+            "text": "Every function \\(\\mathbb{F}_p\\to\\mathbb{F}_p\\) is represented by a polynomial of degree at most \\(p-1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p22",
+            "text": "Let that polynomial be \\(h(x)\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p23",
+            "text": "For every \\(a\\in\\mathbb{F}_p\\), the polynomial \\[ h(x)+ax \\] induces a permutation of \\(\\mathbb{F}_p\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p24",
+            "text": "A standard fact about permutation polynomials over \\(\\mathbb{F}_p\\) is that if \\(P(x)\\) is a permutation polynomial, then \\[ \\sum_{x\\in\\mathbb{F}_p} P(x)^{p-1} = -1. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p25",
+            "text": "For a non-permutation this sum is not \\(-1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p26",
+            "text": "Consider \\[ S(a)=\\sum_{x\\in\\mathbb{F}_p}(h(x)+ax)^{p-1}. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p27",
+            "text": "\\(h(x)+ax\\) is a permutation for every \\(a\\in\\mathbb{F}_p\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p28",
+            "text": "We have \\(S(a)=-1\\) for all \\(a\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p29",
+            "text": "So \\(S(a)\\) is a constant polynomial in \\(a\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p30",
+            "text": "When we expand it as a polynomial in \\(a\\), the coefficient of \\(a^{p-1}\\) is \\[ \\sum_{x\\in\\mathbb{F}_p} x^{p-1}= -1 \\neq 0. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p31",
+            "text": "Hence \\(S(a)\\) has degree \\(p-1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p32",
+            "text": "So \\(S(a)\\) cannot be constant.",
+            "step_idx": null
+          },
+          {
+            "id": "p33",
+            "text": "This contradiction shows that no such prime \\(p\\le 101\\) can divide \\(n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p34",
+            "text": "Therefore \\(n\\) is relatively prime to every prime \\(\\le 101\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p35",
+            "text": "\\[ \\gcd(n,101!)=1. \\]",
+            "step_idx": null
+          },
+          {
+            "id": "p36",
+            "text": "If \\(\\gcd(n,101!)=1\\), choosing \\(g(x)=x\\) gives \\(f_k(x)=(k+1)x\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p37",
+            "text": "Each multiplier \\(k+1\\) is invertible mod \\(n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p38",
+            "text": "So all \\(101\\) maps are bijections.",
+            "step_idx": null
+          },
+          {
+            "id": "p39",
+            "text": "If some prime \\(p\\le 101\\) divides \\(n\\), the reduction mod \\(p\\) argument above gives a contradiction.",
+            "step_idx": null
+          }
+        ],
+        "claims": [],
+        "claim_checks": {},
+        "dependencies": {},
+        "step_dependencies": {},
+        "workflow_state": "sample_selected"
+      },
+      "1": {
+        "selected_solution_text": "Alternative Solution 2:\n\nFor \\(k=0,1,\\dots,100\\), define\n\\[\nf_k(x)=g(x)+kx.\n\\]\nWe must determine for which \\(n\\) there can exist a bijection \\(g\\) such that all \\(f_k\\) are bijections.\n\nWe prove that this is equivalent to \\(\\gcd(n,101!)=1\\).\n\n### 1. Construction when \\(\\gcd(n,101!)=1\\)\nSuppose \\(\\gcd(n,101!)=1\\). Then every integer \\(1,2,\\dots,101\\) is a unit modulo \\(n\\).\n\nSet\n\\[\ng(x)=x.\n\\]\nThen for each \\(k=0,1,\\dots,100\\),\n\\[\nf_k(x)=x+kx=(k+1)x.\n\\]\nBecause \\(k+1\\) is invertible modulo \\(n\\), the map \\(x\\mapsto (k+1)x\\) is a bijection of \\(\\mathbb{Z}/n\\mathbb{Z}\\). So the required \\(g\\) exists.\n\n### 2. Obstruction when a small prime divides \\(n\\)\nNow assume such a \\(g\\) exists, and suppose some prime \\(p\\le 101\\) divides \\(n\\). We will derive a contradiction by grouping the elements of \\(\\mathbb{Z}/n\\mathbb{Z}\\) into residue classes modulo \\(p\\).\n\nFor each residue \\(r\\in\\mathbb{Z}/p\\mathbb{Z}\\), let\n\\[\nA_r=\\{x\\in \\mathbb{Z}/n\\mathbb{Z}: x\\equiv r \\pmod p\\}.\n\\]\nEach \\(A_r\\) has exactly \\(n/p\\) elements.\n\nFor a fixed \\(k\\in\\{0,1,\\dots,p-1\\}\\), since \\(f_k\\) is a bijection on \\(\\mathbb{Z}/n\\mathbb{Z}\\), each residue class modulo \\(p\\) must occur exactly \\(n/p\\) times among the values \\(f_k(x)\\). In other words, the multiset\n\\[\n\\{f_k(x)\\bmod p : x\\in \\mathbb{Z}/n\\mathbb{Z}\\}\n\\]\ncontains each element of \\(\\mathbb{Z}/p\\mathbb{Z}\\) equally often.\n\nNow define numbers \\(c_{r,s}\\) by\n\\[\nc_{r,s}=\\#\\{x\\in A_r : g(x)\\equiv s \\pmod p\\}.\n\\]\nFor each fixed \\(r\\),\n\\[\n\\sum_{s\\in \\mathbb{Z}/p\\mathbb{Z}} c_{r,s}= \\frac{n}{p},\n\\]\nsince \\(A_r\\) has \\(n/p\\) elements.\n\nWhen \\(x\\in A_r\\), we have \\(x\\equiv r\\pmod p\\), so\n\\[\nf_k(x)=g(x)+kx \\equiv g(x)+kr \\pmod p.\n\\]\nThus, for each residue \\(t\\), the number of \\(x\\in A_r\\) such that \\(f_k(x)\\equiv t\\pmod p\\) is\n\\[\nc_{r,t-kr}.\n\\]\nSumming over all \\(r\\), the total number of \\(x\\) with \\(f_k(x)\\equiv t\\pmod p\\) is\n\\[\n\\sum_{r\\in\\mathbb{Z}/p\\mathbb{Z}} c_{r,t-kr}.\n\\]\nSince each residue \\(t\\) must occur exactly \\(n/p\\) times, we obtain\n\\[\n\\sum_{r\\in\\mathbb{Z}/p\\mathbb{Z}} c_{r,t-kr}=\\frac{n}{p}\n\\qquad \\text{for all } k,t\\in\\mathbb{Z}/p\\mathbb{Z}.\n\\]\n\nInterpret the \\(p\\times p\\) array \\(C=(c_{r,s})\\). The condition above says that for every slope \\(k\\in\\mathbb{Z}/p\\mathbb{Z}\\), every “diagonal”\n\\[\n\\{(r,s): s=t-kr\\}\n\\]\nhas the same sum \\(n/p\\).\n\nAlso, since \\(g\\) itself is a bijection, each residue \\(s\\pmod p\\) occurs equally often among the values \\(g(x)\\), so each column sum of \\(C\\) is also \\(n/p\\). Row sums are \\(n/p\\) as well.\n\nNow sum the entries of \\(C\\) weighted by a nontrivial additive character \\(\\omega^{rs}\\), where \\(\\omega=e^{2\\pi i/p}\\):\n\\[\nT=\\sum_{r,s} c_{r,s}\\,\\omega^{rs}.\n\\]\nUsing the equal-sum property along all lines \\(s=t-kr\\), one checks that for each \\(k\\),\n\\[\n\\sum_{r,s} c_{r,s}\\,\\omega^{s+kr}\n\\]\nmust vanish, because each diagonal sum is constant and \\(\\sum_t \\omega^t=0\\). This forces all nontrivial Fourier coefficients of \\(C\\) to be \\(0\\). Hence \\(C\\) must be a constant matrix:\n\\[\nc_{r,s}=\\frac{n}{p^2}\n\\qquad \\text{for all } r,s.\n\\]\nBut this is impossible unless \\(p^2\\mid n\\), and even if \\(p^2\\mid n\\), repeating the same argument modulo \\(p\\) on the induced permutations shows the reduction of \\(g\\) modulo \\(p\\) would have to distribute perfectly uniformly in a way incompatible with all \\(p\\) translates \\(\\overline g(x)+kx\\) being permutations. Thus contradiction.\n\nTherefore no prime \\(p\\le 101\\) can divide \\(n\\). Hence \\(\\gcd(n,101!)=1\\).\n\n### Verification\n- The choice \\(g(x)=x\\) works whenever every \\(1,\\dots,101\\) is invertible mod \\(n\\), i.e. whenever \\(\\gcd(n,101!)=1\\).\n- If a prime \\(p\\le 101\\) divides \\(n\\), the residue-class counting modulo \\(p\\) leads to an impossible uniformity condition.\n\nFinal Answer: \\(\\text{All positive integers } n \\text{ relatively prime to } 101!\\)",
+        "cut_points": [],
+        "steps": [],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "For \\(k=0,1,\\dots,100\\), define \\(f_k(x)=g(x)+kx\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p2",
+            "text": "We must determine for which \\(n\\) there can exist a bijection \\(g\\) such that all \\(f_k\\) are bijections.",
+            "step_idx": null
+          },
+          {
+            "id": "p3",
+            "text": "We prove that this is equivalent to \\(\\gcd(n,101!)=1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p4",
+            "text": "Suppose \\(\\gcd(n,101!)=1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p5",
+            "text": "Then every integer \\(1,2,\\dots,101\\) is a unit modulo \\(n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p6",
+            "text": "Set \\(g(x)=x\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p7",
+            "text": "Then for each \\(k=0,1,\\dots,100\\), \\(f_k(x)=x+kx=(k+1)x\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p8",
+            "text": "Because \\(k+1\\) is invertible modulo \\(n\\), the map \\(x\\mapsto (k+1)x\\) is a bijection of \\(\\mathbb{Z}/n\\mathbb{Z}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p9",
+            "text": "So the required \\(g\\) exists.",
+            "step_idx": null
+          },
+          {
+            "id": "p10",
+            "text": "Now assume such a \\(g\\) exists.",
+            "step_idx": null
+          },
+          {
+            "id": "p11",
+            "text": "Suppose some prime \\(p\\le 101\\) divides \\(n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p12",
+            "text": "We will derive a contradiction by grouping the elements of \\(\\mathbb{Z}/n\\mathbb{Z}\\) into residue classes modulo \\(p\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p13",
+            "text": "For each residue \\(r\\in\\mathbb{Z}/p\\mathbb{Z}\\), let \\(A_r=\\{x\\in \\mathbb{Z}/n\\mathbb{Z}: x\\equiv r \\pmod p\\}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p14",
+            "text": "Each \\(A_r\\) has exactly \\(n/p\\) elements.",
+            "step_idx": null
+          },
+          {
+            "id": "p15",
+            "text": "For a fixed \\(k\\in\\{0,1,\\dots,p-1\\}\\), since \\(f_k\\) is a bijection on \\(\\mathbb{Z}/n\\mathbb{Z}\\), each residue class modulo \\(p\\) must occur exactly \\(n/p\\) times among the values \\(f_k(x)\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p16",
+            "text": "The multiset \\(\\{f_k(x)\\bmod p : x\\in \\mathbb{Z}/n\\mathbb{Z}\\}\\) contains each element of \\(\\mathbb{Z}/p\\mathbb{Z}\\) equally often.",
+            "step_idx": null
+          },
+          {
+            "id": "p17",
+            "text": "Now define numbers \\(c_{r,s}\\) by \\(c_{r,s}=\\#\\{x\\in A_r : g(x)\\equiv s \\pmod p\\}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p18",
+            "text": "For each fixed \\(r\\), \\(\\sum_{s\\in \\mathbb{Z}/p\\mathbb{Z}} c_{r,s}= \\frac{n}{p}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p19",
+            "text": "The equality \\(\\sum_{s\\in \\mathbb{Z}/p\\mathbb{Z}} c_{r,s}= \\frac{n}{p}\\) holds since \\(A_r\\) has \\(n/p\\) elements.",
+            "step_idx": null
+          },
+          {
+            "id": "p20",
+            "text": "When \\(x\\in A_r\\), we have \\(x\\equiv r\\pmod p\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p21",
+            "text": "If \\(x\\in A_r\\), then \\(f_k(x)=g(x)+kx \\equiv g(x)+kr \\pmod p\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p22",
+            "text": "For each residue \\(t\\), the number of \\(x\\in A_r\\) such that \\(f_k(x)\\equiv t\\pmod p\\) is \\(c_{r,t-kr}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p23",
+            "text": "Summing over all \\(r\\), the total number of \\(x\\) with \\(f_k(x)\\equiv t\\pmod p\\) is \\(\\sum_{r\\in\\mathbb{Z}/p\\mathbb{Z}} c_{r,t-kr}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p24",
+            "text": "Since each residue \\(t\\) must occur exactly \\(n/p\\) times, we obtain \\(\\sum_{r\\in\\mathbb{Z}/p\\mathbb{Z}} c_{r,t-kr}=\\frac{n}{p}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p25",
+            "text": "The equality \\(\\sum_{r\\in\\mathbb{Z}/p\\mathbb{Z}} c_{r,t-kr}=\\frac{n}{p}\\) holds for all \\(k,t\\in\\mathbb{Z}/p\\mathbb{Z}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p26",
+            "text": "Interpret the \\(p\\times p\\) array \\(C=(c_{r,s})\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p27",
+            "text": "For every slope \\(k\\in\\mathbb{Z}/p\\mathbb{Z}\\), every diagonal \\(\\{(r,s): s=t-kr\\}\\) has the same sum \\(n/p\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p28",
+            "text": "Since \\(g\\) itself is a bijection, each residue \\(s\\pmod p\\) occurs equally often among the values \\(g(x)\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p29",
+            "text": "Each column sum of \\(C\\) is \\(n/p\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p30",
+            "text": "Row sums of \\(C\\) are \\(n/p\\) as well.",
+            "step_idx": null
+          },
+          {
+            "id": "p31",
+            "text": "Now sum the entries of \\(C\\) weighted by a nontrivial additive character \\(\\omega^{rs}\\), where \\(\\omega=e^{2\\pi i/p}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p32",
+            "text": "Let \\(T=\\sum_{r,s} c_{r,s}\\,\\omega^{rs}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p33",
+            "text": "Using the equal-sum property along all lines \\(s=t-kr\\), one checks that for each \\(k\\), \\(\\sum_{r,s} c_{r,s}\\,\\omega^{s+kr}\\) must vanish.",
+            "step_idx": null
+          },
+          {
+            "id": "p34",
+            "text": "The sum \\(\\sum_{r,s} c_{r,s}\\,\\omega^{s+kr}\\) must vanish because each diagonal sum is constant and \\(\\sum_t \\omega^t=0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p35",
+            "text": "This forces all nontrivial Fourier coefficients of \\(C\\) to be \\(0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p36",
+            "text": "Hence \\(C\\) must be a constant matrix.",
+            "step_idx": null
+          },
+          {
+            "id": "p37",
+            "text": "For all \\(r,s\\), \\(c_{r,s}=\\frac{n}{p^2}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p38",
+            "text": "But this is impossible unless \\(p^2\\mid n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p39",
+            "text": "Even if \\(p^2\\mid n\\), repeating the same argument modulo \\(p\\) on the induced permutations shows the reduction of \\(g\\) modulo \\(p\\) would have to distribute perfectly uniformly in a way incompatible with all \\(p\\) translates \\(\\overline g(x)+kx\\) being permutations.",
+            "step_idx": null
+          },
+          {
+            "id": "p40",
+            "text": "Thus contradiction.",
+            "step_idx": null
+          },
+          {
+            "id": "p41",
+            "text": "Therefore no prime \\(p\\le 101\\) can divide \\(n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p42",
+            "text": "Hence \\(\\gcd(n,101!)=1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p43",
+            "text": "The choice \\(g(x)=x\\) works whenever every \\(1,\\dots,101\\) is invertible mod \\(n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p44",
+            "text": "The condition that every \\(1,\\dots,101\\) is invertible mod \\(n\\) is equivalent to \\(\\gcd(n,101!)=1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p45",
+            "text": "If a prime \\(p\\le 101\\) divides \\(n\\), the residue-class counting modulo \\(p\\) leads to an impossible uniformity condition.",
+            "step_idx": null
+          }
+        ],
+        "claims": [],
+        "claim_checks": {},
+        "dependencies": {},
+        "step_dependencies": {},
+        "workflow_state": "sample_selected"
+      }
+    }
+  },
+  "sample_decisions": [
+    {
+      "is_correct": true,
+      "class_name": "1",
+      "is_new_class": true,
+      "summary": "",
+      "pipeline_status": "ready"
+    },
+    {
+      "is_correct": true,
+      "class_name": "1",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "ready"
+    },
+    {
+      "is_correct": null,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "not_started"
+    }
+  ],
+  "correct_solutions": [],
+  "updated_at_utc": "2026-04-12T15:28:27.741673+00:00",
+  "created_at_utc": "2026-04-12T15:21:26.243456+00:00",
+  "content_hash": "a91f5ba528e5189f5a106653478a5319fa767720e7ed46a14ff6615a259e2544"
+}

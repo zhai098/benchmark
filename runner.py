@@ -1,12 +1,30 @@
-from vllm import LLM, SamplingParams
-from vllm.sampling_params import GuidedDecodingParams
-from transformers import AutoTokenizer, AutoModelForCausalLM
+from __future__ import annotations
+
+try:
+    from vllm import LLM, SamplingParams
+except ImportError:  # pragma: no cover - allows static prompt tests without local vllm
+    LLM = None
+    SamplingParams = None
+
+try:
+    from vllm.sampling_params import GuidedDecodingParams
+except ImportError:  # pragma: no cover - older/newer vllm variants may not expose guided decoding
+    class GuidedDecodingParams:  # type: ignore[override]
+        def __init__(self, *args, **kwargs):
+            pass
+
+try:
+    from transformers import AutoTokenizer, AutoModelForCausalLM, PreTrainedTokenizerFast
+except ImportError:  # pragma: no cover - allows static prompt tests without transformers
+    AutoTokenizer = None
+    AutoModelForCausalLM = None
+    PreTrainedTokenizerFast = None
 import time
 import copy
 from typing import List, Union, Dict, Any, Tuple
 import math
 from openai import OpenAI
-from config import Config
+from benchmark_core.config import Config
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import os, threading
 import httpx
@@ -14,12 +32,166 @@ import sys
 import asyncio
 import json
 import inspect
+import importlib.util
+from pathlib import Path
 import torch
 from typing import Any, Dict, List, Tuple, Union
-from volcenginesdkarkruntime import AsyncArk
+try:
+    from volcenginesdkarkruntime import AsyncArk
+except ImportError:  # pragma: no cover - optional unless Doubao API runner is used
+    AsyncArk = None
+
+
+def _load_generation_tokenizer(model_name: str):
+    if AutoTokenizer is None:
+        raise ImportError("Transformers tokenizer support is not installed.")
+
+    try:
+        return AutoTokenizer.from_pretrained(model_name, trust_remote_code=True)
+    except Exception:
+        model_path = Path(model_name)
+        tokenizer_file = model_path / "tokenizer.json"
+        chat_template_file = model_path / "chat_template.jinja"
+        tokenizer_config_file = model_path / "tokenizer_config.json"
+
+        if not model_path.exists() or PreTrainedTokenizerFast is None or not tokenizer_file.exists():
+            raise
+
+        init_kwargs = {}
+        if tokenizer_config_file.exists():
+            tokenizer_config = json.loads(tokenizer_config_file.read_text())
+            for src_key, dst_key in (("bos_token", "bos_token"), ("eos_token", "eos_token"), ("unk_token", "unk_token"), ("pad_token", "pad_token")):
+                value = tokenizer_config.get(src_key)
+                if value:
+                    init_kwargs[dst_key] = value
+            extra_special_tokens = tokenizer_config.get("extra_special_tokens") or []
+            if extra_special_tokens:
+                init_kwargs["additional_special_tokens"] = extra_special_tokens
+
+        tokenizer = PreTrainedTokenizerFast(tokenizer_file=str(tokenizer_file), **init_kwargs)
+        if chat_template_file.exists():
+            tokenizer.chat_template = chat_template_file.read_text()
+        return tokenizer
+
+
+def _signature_accepts_kwargs(callable_obj: Any) -> bool:
+    try:
+        sig = inspect.signature(callable_obj)
+    except (TypeError, ValueError):
+        return False
+    return any(param.kind == inspect.Parameter.VAR_KEYWORD for param in sig.parameters.values())
+
+
+def _configured_chat_template_kwargs(tokenizer: Any) -> Dict[str, Any]:
+    configured = Config.get("generation_chat_template_kwargs") or {}
+    if not isinstance(configured, dict) or not hasattr(tokenizer, "apply_chat_template"):
+        return {}
+    sig = inspect.signature(tokenizer.apply_chat_template)
+    accepts_kwargs = _signature_accepts_kwargs(tokenizer.apply_chat_template)
+    return {
+        key: value
+        for key, value in configured.items()
+        if accepts_kwargs or key in sig.parameters
+    }
+
+
+def _filter_chat_template_base_kwargs(tokenizer: Any, kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    sig = inspect.signature(tokenizer.apply_chat_template)
+    accepts_kwargs = _signature_accepts_kwargs(tokenizer.apply_chat_template)
+    filtered: Dict[str, Any] = {}
+    for key, value in kwargs.items():
+        if key in sig.parameters:
+            filtered[key] = value
+        elif accepts_kwargs and key not in {"add_generation_prompt"}:
+            filtered[key] = value
+    return filtered
+
+
+def _apply_chat_template_kwargs(tokenizer: Any, base_kwargs: Dict[str, Any]) -> Dict[str, Any]:
+    kwargs = dict(_configured_chat_template_kwargs(tokenizer))
+    kwargs.update(_filter_chat_template_base_kwargs(tokenizer, base_kwargs))
+    return kwargs
+
+
+def _normalize_chat_template_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    normalized = [dict(message) for message in messages]
+    if (
+        Config.get("generation_chat_template_no_system_role")
+        and len(normalized) >= 2
+        and normalized[0].get("role") == "system"
+        and normalized[1].get("role") == "user"
+    ):
+        system_text = str(normalized[0].get("content") or "")
+        user_text = str(normalized[1].get("content") or "")
+        merged_user = dict(normalized[1])
+        merged_user["content"] = f"{system_text}\n\n{user_text}".strip()
+        normalized = [merged_user] + normalized[2:]
+    system_suffix = str(Config.get("generation_chat_template_system_suffix") or "")
+    first_user_prefix = str(Config.get("generation_chat_template_first_user_prefix") or "")
+    if system_suffix:
+        for message in normalized:
+            if message.get("role") == "system":
+                content = str(message.get("content") or "")
+                if system_suffix not in content:
+                    message["content"] = f"{content}\n{system_suffix}".strip()
+                break
+    if first_user_prefix:
+        for message in normalized:
+            if message.get("role") == "user":
+                content = str(message.get("content") or "")
+                if not content.startswith(first_user_prefix):
+                    message["content"] = f"{first_user_prefix}{content}"
+                break
+    return normalized
+
+
+def _render_deepseek_v4_messages(model_name: str, messages: List[Dict[str, Any]], *, continue_final_message: bool) -> str | None:
+    encoder_path = Path(model_name) / "encoding" / "encoding_dsv4.py"
+    if not encoder_path.exists():
+        return None
+    spec = importlib.util.spec_from_file_location("deepseek_v4_encoding_for_benchmark", encoder_path)
+    if spec is None or spec.loader is None:
+        raise ValueError(f"Could not load DeepSeek-V4 encoder from {encoder_path}")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    rendered_messages: List[Dict[str, Any]] = []
+    for idx, message in enumerate(messages):
+        item = {
+            "role": message["role"],
+            "content": message.get("content", ""),
+        }
+        if continue_final_message and idx == len(messages) - 1 and item["role"] == "assistant":
+            item["wo_eos"] = True
+        rendered_messages.append(item)
+    thinking_mode = str(Config.get("generation_deepseek_v4_thinking_mode") or "chat")
+    return module.encode_messages(rendered_messages, thinking_mode=thinking_mode, drop_thinking=True)
+
+
+def _strip_continuation_trailing_eos(tokenizer: Any, rendered: Any, *, enabled: bool) -> Any:
+    """Remove an EOS token that some templates append after assistant prefill.
+
+    In assistant-prefix continuation mode, the final assistant content is a
+    partial answer to be continued. A trailing EOS marker makes vLLM start
+    generation after an already-closed assistant message and can cause chat
+    template tokens to leak into the model output.
+    """
+    if not enabled or not isinstance(rendered, str):
+        return rendered
+    eos_token = getattr(tokenizer, "eos_token", None)
+    if not isinstance(eos_token, str) or not eos_token:
+        return rendered
+    if rendered.endswith(eos_token):
+        return rendered[: -len(eos_token)]
+    stripped = rendered.rstrip()
+    if stripped.endswith(eos_token):
+        return stripped[: -len(eos_token)]
+    return rendered
+
 
 class VLLMRunner:
     def __init__(self, model: str, vllm_config: dict, sampling_config: dict, gpus: str):
+        if LLM is None or SamplingParams is None or (AutoTokenizer is None and PreTrainedTokenizerFast is None):
+            raise ImportError("VLLMRunner requires vllm and transformers tokenizer support to be installed.")
         self.model_name = model
         os.environ["CUDA_VISIBLE_DEVICES"] = gpus
         # Some Hugging Face model repos require executing custom code.
@@ -31,12 +203,116 @@ class VLLMRunner:
             tokenizer=model,
             **vllm_kwargs,
         )
-        self.sampling_params = SamplingParams(temperature=sampling_config.get("temperature", 0.7),
-            top_p=sampling_config.get("top_p", 0.95),
-            max_tokens=sampling_config.get("max_tokens", 256),
-            stop=sampling_config.get("stop", ["<<<END>>>"]))
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, trust_remote_code=True)
+        sampling_kwargs = {
+            "temperature": sampling_config.get("temperature", 0.7),
+            "top_p": sampling_config.get("top_p", 0.95),
+            "max_tokens": sampling_config.get("max_tokens", 256),
+            "min_tokens": sampling_config.get("min_tokens", 0),
+            "stop": sampling_config.get("stop", ["<<<END>>>"]),
+        }
+        for key in (
+            "presence_penalty",
+            "frequency_penalty",
+            "repetition_penalty",
+            "top_k",
+            "min_p",
+            "stop_token_ids",
+            "ignore_eos",
+            "bad_words",
+            "logit_bias",
+        ):
+            if key in sampling_config:
+                sampling_kwargs[key] = sampling_config[key]
+        self.sampling_params = SamplingParams(**sampling_kwargs)
+        self.tokenizer = _load_generation_tokenizer(self.model_name)
 
+    @staticmethod
+    def _is_chat_message(message: Any) -> bool:
+        return isinstance(message, dict) and isinstance(message.get("role"), str) and "content" in message
+
+    def _chat_messages_to_prompt_text(self, messages: List[Dict[str, Any]]) -> str:
+        normalized_messages: List[Dict[str, Any]] = []
+        continue_final_message = False
+        for idx, message in enumerate(messages):
+            if not self._is_chat_message(message):
+                raise ValueError("Unsupported chat message payload for VLLMRunner.generate")
+            normalized = {
+                "role": message["role"],
+                "content": message.get("content", ""),
+            }
+            is_prefill = bool(message.get("prefix"))
+            if is_prefill and idx == len(messages) - 1 and normalized["role"] == "assistant":
+                continue_final_message = True
+            normalized_messages.append(normalized)
+        normalized_messages = _normalize_chat_template_messages(normalized_messages)
+
+        # Branch 1: DeepSeek-V4 model dirs provide their own chat encoder.
+        deepseek_rendered = _render_deepseek_v4_messages(
+            self.model_name,
+            normalized_messages,
+            continue_final_message=continue_final_message,
+        )
+        if deepseek_rendered is not None:
+            return deepseek_rendered
+
+        # Branch 2: standard HF/vLLM chat templates with assistant continuation.
+        if hasattr(self.tokenizer, "apply_chat_template"):
+            kwargs: Dict[str, Any] = {"tokenize": False}
+            sig = inspect.signature(self.tokenizer.apply_chat_template)
+            supports_continue = "continue_final_message" in sig.parameters or _signature_accepts_kwargs(self.tokenizer.apply_chat_template)
+            if continue_final_message and not supports_continue:
+                raise ValueError(
+                    f"Tokenizer for {self.model_name} does not expose a supported HF/vLLM "
+                    "assistant-continuation mode. This runner uses tokenizer "
+                    "continue_final_message for local HF/vLLM chat templates, or a "
+                    "model-specific renderer such as DeepSeek-V4's native encoder."
+                )
+            if "add_generation_prompt" in sig.parameters:
+                kwargs["add_generation_prompt"] = not continue_final_message
+            if supports_continue and continue_final_message:
+                kwargs["continue_final_message"] = True
+            chat_template = getattr(self.tokenizer, "chat_template", "") or ""
+            if "reasoning_effort" in chat_template:
+                kwargs.setdefault("reasoning_effort", "high")
+            kwargs = _apply_chat_template_kwargs(self.tokenizer, kwargs)
+            rendered = self.tokenizer.apply_chat_template(normalized_messages, **kwargs)
+            return _strip_continuation_trailing_eos(
+                self.tokenizer,
+                rendered,
+                enabled=continue_final_message,
+            )
+
+        # Branch 3: non-chat-template local models. This is still a vLLM path.
+        rendered = "\n".join(
+            f"{message['role']}: {message.get('content', '')}"
+            for message in normalized_messages
+        )
+        if continue_final_message:
+            return rendered
+        return rendered + "\nassistant:"
+
+    def _normalize_generate_prompt(
+        self,
+        prompt: str | list[str] | list[int] | list[list[int]] | list[dict[str, Any]] | list[list[dict[str, Any]]] | dict[str, Any],
+    ) -> tuple[list[str] | None, list[list[int]] | None]:
+        if isinstance(prompt, dict) and "messages" in prompt:
+            return [self._chat_messages_to_prompt_text(prompt["messages"])], None
+
+        if isinstance(prompt, list):
+            if not prompt:
+                return prompt, None
+            first = prompt[0]
+            if isinstance(first, int):
+                return None, [prompt]
+            if isinstance(first, list) and first and isinstance(first[0], int):
+                return None, prompt
+            if self._is_chat_message(first):
+                return [self._chat_messages_to_prompt_text(prompt)], None
+            if isinstance(first, list) and first and self._is_chat_message(first[0]):
+                return [self._chat_messages_to_prompt_text(item) for item in prompt], None
+            return prompt, None
+
+        return [prompt], None
 
 
     def generate(self, prompt: str | list[str] | list[int] | list[list[int]], schema: dict | None) -> list[str]:
@@ -49,42 +325,13 @@ class VLLMRunner:
             
         t0 = time.time()
         
-        # Check if prompt is token IDs (list of ints or list of list of ints)
-        is_token_ids = False
-        if isinstance(prompt, list):
-            if len(prompt) > 0:
-                if isinstance(prompt[0], int):
-                    # Single prompt as list of ints
-                    is_token_ids = True
-                    prompt_arg = None
-                    prompt_token_ids = [prompt]
-                elif isinstance(prompt[0], list) and len(prompt[0]) > 0 and isinstance(prompt[0][0], int):
-                    # Batch of prompts as list of list of ints
-                    is_token_ids = True
-                    prompt_arg = None
-                    prompt_token_ids = prompt
-                else:
-                    # List of strings
-                    prompt_arg = prompt
-                    prompt_token_ids = None
-            else:
-                # Empty list
-                prompt_arg = prompt
-                prompt_token_ids = None
-        else:
-            # Single string
-            prompt_arg = [prompt]
-            prompt_token_ids = None
-
-        if is_token_ids:
+        prompt_arg, prompt_token_ids = self._normalize_generate_prompt(prompt)
+        if prompt_token_ids is not None:
             print("Generating for a list of token IDs, count:", len(prompt_token_ids))
             outs = self.llm.generate(prompts=None, sampling_params=sp, prompt_token_ids=prompt_token_ids)
         else:
-            if isinstance(prompt, list):
-                print("Generating for a list of prompts, count:", len(prompt))
-                outs = self.llm.generate(prompt, sp)
-            else:
-                outs = self.llm.generate([prompt], sp)
+            print("Generating for a list of prompts, count:", len(prompt_arg))
+            outs = self.llm.generate(prompt_arg, sp)
         
         latency = time.time() - t0
 
@@ -134,23 +381,30 @@ class VLLMRunner:
             {"role": "system", "content": system_message},
             {"role": "user", "content": user_message},
         ]
+        prefix_message = _normalize_chat_template_messages(prefix_message)
+        prefix_kwargs = _apply_chat_template_kwargs(self.tokenizer, {"tokenize": False})
         prefix_prompt = self.tokenizer.apply_chat_template(
             prefix_message,
-            tokenize=False,
-            enable_thinking=True,
+            **prefix_kwargs,
         )
         full_message = [
             {"role": "system", "content": system_message},
             {"role": "user", "content": user_message},
             {"role": "assistant", "content": solution},
         ]
+        full_message = _normalize_chat_template_messages(full_message)
         #print(full_message)
+        prompt_kwargs = _apply_chat_template_kwargs(
+            self.tokenizer,
+            {
+                "tokenize": False,
+                "add_generation_prompt": False,
+                "continue_final_message": True,
+            },
+        )
         prompt = self.tokenizer.apply_chat_template(
             full_message,
-            tokenize=False,
-            add_generation_prompt=False,
-            continue_final_message=True,
-            enable_thinking=True,
+            **prompt_kwargs,
         )
         boundary = len(self.tokenizer.encode(prefix_prompt, add_special_tokens=False))
 
@@ -260,6 +514,8 @@ class TransformersLogProbRunner:
         trust_remote_code: bool = True,
         model_kwargs: dict | None = None,
     ):
+        if AutoTokenizer is None or AutoModelForCausalLM is None:
+            raise ImportError("TransformersLogProbRunner requires transformers to be installed.")
         self.model_name = model
         self.tokenizer = AutoTokenizer.from_pretrained(
             model,
@@ -280,6 +536,7 @@ class TransformersLogProbRunner:
     def _apply_chat_template(self, messages: List[Dict[str, str]], *, tokenize: bool) -> List[int]:
         if not hasattr(self.tokenizer, "apply_chat_template"):
             raise AttributeError("Tokenizer does not support chat template")
+        messages = _normalize_chat_template_messages(messages)
 
         sig = inspect.signature(self.tokenizer.apply_chat_template)
         kwargs: dict[str, Any] = {"tokenize": tokenize}
@@ -287,8 +544,7 @@ class TransformersLogProbRunner:
             kwargs["add_generation_prompt"] = False
         if "continue_final_message" in sig.parameters:
             kwargs["continue_final_message"] = True
-        if "enable_thinking" in sig.parameters:
-            kwargs["enable_thinking"] = True
+        kwargs = _apply_chat_template_kwargs(self.tokenizer, kwargs)
 
         res = self.tokenizer.apply_chat_template(messages, **kwargs)
         if isinstance(res, dict):
@@ -383,6 +639,12 @@ class DEEPSEEK_API_runner:
     def _get_client(self, max_workers: int) -> OpenAI:
         """Thread-local OpenAI client，避免多线程复用同一个 httpx.Client 出幺蛾子。"""
         if getattr(self._tls, "client", None) is None:
+            try:
+                import h2  # noqa: F401
+
+                http2_enabled = True
+            except ImportError:
+                http2_enabled = False
             limits = httpx.Limits(
                 max_connections=max(32, max_workers * 4),
                 max_keepalive_connections=max(16, max_workers * 2),
@@ -583,6 +845,8 @@ class DOUBAO_deepseek_API_runner:
         debug: bool = True,
         debug_max_chars: int = 4000,
     ):
+        if AsyncArk is None:
+            raise ImportError("volcenginesdkarkruntime is required for DOUBAO_deepseek_API_runner.")
         self.model_name = "ep-bi-20260112204923-vml7s"
         self.default_params = dict(Config["judge_sampling_params"])
         self.max_concurrent_tasks = max_concurrent_tasks
@@ -773,13 +1037,20 @@ class DOUBAO_deepseek_API_runner:
 class Kimi_API_runner:
     def __init__(self):
         self.model_name = "kimi-k2-0905-preview"
-        self.api_key = "sk-1hKIoFl6D5FjFC8TLZaJ3JVZ7YoY3WZCFdnYzKZdfbAkEzgb"
-        self.base_url = "https://api.moonshot.cn/v1"
+        self.api_key = os.environ.get("MOONSHOT_API_KEY", "sk-1hKIoFl6D5FjFC8TLZaJ3JVZ7YoY3WZCFdnYzKZdfbAkEzgb")
+        self.base_url = os.environ.get("MOONSHOT_BASE_URL", "https://api.moonshot.cn/v1")
+        self.thinking_mode = os.environ.get("MOONSHOT_THINKING_MODE", "auto")
         self._tls = threading.local()
         
     def _get_client(self, max_workers: int) -> OpenAI:
         """Thread-local OpenAI client，避免多线程复用同一个 httpx.Client 出幺蛾子。"""
         if getattr(self._tls, "client", None) is None:
+            try:
+                import h2  # noqa: F401
+
+                http2_enabled = True
+            except ImportError:
+                http2_enabled = False
             limits = httpx.Limits(
                 max_connections=max(32, max_workers * 4),
                 max_keepalive_connections=max(16, max_workers * 2),
@@ -789,7 +1060,7 @@ class Kimi_API_runner:
                 base_url=self.base_url,
                 timeout=httpx.Timeout(600.0, connect=10.0),
                 limits=limits,
-                http2=True,
+                http2=http2_enabled,
             )
             self._tls.client = OpenAI(
                 api_key=self.api_key,
@@ -797,28 +1068,95 @@ class Kimi_API_runner:
                 http_client=http_client,
             )
         return self._tls.client
+
+    @staticmethod
+    def _normalize_messages(prompt: Union[str, List[Dict[str, Any]], Dict[str, Any]]) -> List[Dict[str, Any]]:
+        if isinstance(prompt, dict) and "messages" in prompt:
+            messages = prompt["messages"]
+        elif isinstance(prompt, list):
+            messages = prompt
+        elif isinstance(prompt, str):
+            # This is a compatibility fallback for legacy prompt files. New Kimi
+            # generation prompts should be chat messages, not rendered template text.
+            messages = [{"role": "user", "content": prompt}]
+        else:
+            raise ValueError("Unsupported Kimi prompt format")
+
+        if not isinstance(messages, list):
+            raise ValueError("Kimi messages must be a list")
+        return [dict(message) for message in messages]
+
+    @staticmethod
+    def _prepare_moonshot_messages(messages: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        prepared: List[Dict[str, Any]] = []
+        for index, message in enumerate(messages):
+            if not isinstance(message, dict):
+                raise ValueError("Each Kimi message must be a dict")
+
+            role = message.get("role")
+            if not role:
+                raise ValueError("Each Kimi message must contain a role")
+
+            item: Dict[str, Any] = {
+                "role": role,
+                "content": message.get("content", ""),
+            }
+
+            is_last = index == len(messages) - 1
+            is_assistant_prefill = (
+                is_last
+                and role == "assistant"
+                and (message.get("partial") or message.get("prefix"))
+            )
+            if is_assistant_prefill:
+                # Moonshot/Kimi official continuation mode uses `partial: true`.
+                # `prefix` is an internal marker used by tokenizer/vLLM paths.
+                item["partial"] = True
+
+            prepared.append(item)
+
+        return prepared
     
     def generate_one(
         self,
-        prompt: Union[str, List[Dict[str, str]], Dict[str, Any]],
+        prompt: Union[str, List[Dict[str, Any]], Dict[str, Any]],
         max_workers_hint: int = 8,
     ) -> Dict[str, str]:
-        messages = prompt
+        messages = self._prepare_moonshot_messages(self._normalize_messages(prompt))
+        extra_body: Dict[str, Any] = {}
+        thinking_mode = str(self.thinking_mode or "auto").strip().lower()
+        if thinking_mode in {"enabled", "disabled"}:
+            extra_body["thinking"] = {"type": thinking_mode}
 
         client = self._get_client(max_workers_hint)
         print(f"[DEBUG][Thread {threading.get_ident()}] Sending request to KIMI API...")
-        resp = client.chat.completions.create(
-            model=self.model_name,
-            messages=messages,
-            max_tokens=1024 * 8,
-            temperature=0.6,
+        request_kwargs: Dict[str, Any] = {
+            "model": self.model_name,
+            "messages": messages,
+            "max_tokens": 1024 * 8,
+            "temperature": 0.6,
+        }
+        if extra_body:
+            request_kwargs["extra_body"] = extra_body
+        resp = client.chat.completions.create(**request_kwargs)
+        choice = resp.choices[0]
+        finish_reason = getattr(choice, "finish_reason", "")
+        usage = getattr(resp, "usage", None)
+        print(
+            f"[DEBUG][Thread {threading.get_ident()}] KIMI finish_reason={finish_reason}, "
+            f"usage={usage}"
         )
-        print(f"[DEBUG][Thread {threading.get_ident()}] Response: {resp}")
-        msg = resp.choices[0].message
-        #reasoning = getattr(msg, "reasoning_content", "") or ""
+        msg = choice.message
+        reasoning = getattr(msg, "reasoning_content", "") or ""
         content = getattr(msg, "content", "") or ""
-        #return {"reasoning": reasoning, "content": content}
-        return {"reasoning": "", "content": content}
+        if not content:
+            last_role = messages[-1].get("role") if messages else None
+            last_partial = bool(messages[-1].get("partial")) if messages else False
+            print(
+                f"[WARN][Thread {threading.get_ident()}] KIMI returned empty content; "
+                f"finish_reason={finish_reason}, last_role={last_role}, partial={last_partial}"
+            )
+        return {"reasoning": reasoning, "content": content}
 
     def generate(
         self,

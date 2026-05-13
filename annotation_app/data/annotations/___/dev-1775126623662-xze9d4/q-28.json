@@ -1,0 +1,1676 @@
+{
+  "annotator_id": "张璟旭",
+  "device_id": "dev-1775126623662-xze9d4",
+  "case_id": "q-28",
+  "status": "in_progress",
+  "current_step": 1,
+  "current_workflow_state": {
+    "active_sample_idx": null,
+    "sample_cursor": 3,
+    "workflow_state": "sample_selected",
+    "problem_quality_screening": {
+      "decision": "pass",
+      "other_text": "",
+      "reason": "",
+      "rejected_at": ""
+    }
+  },
+  "current_annotations": {
+    "selected_solution_text": "",
+    "cut_points": [],
+    "steps": [],
+    "presegmented_claims": [],
+    "claims": [],
+    "claim_checks": {},
+    "dependencies": {},
+    "step_dependencies": {},
+    "sample_annotations": {
+      "0": {
+        "selected_solution_text": "Let\n\\[\nmn-1 \\mid m^2+n^2,\n\\]\nand write\n\\[\nm^2+n^2=k(mn-1)\n\\]\nfor some positive integer \\(k\\).\n\nBecause the condition is symmetric in \\(m,n\\), it is enough to solve for \\(m\\ge n\\), and then swap the coordinates at the end.\n\nWe first show that \\(n=1\\).\n\nFrom\n\\[\nm^2-kmn+n^2+k=0,\n\\]\nview this as a quadratic equation in \\(m\\). Since \\(m\\) is one integer root, by Vieta's formulas the other root is\n\\[\nm_1=kn-m.\n\\]\nAlso,\n\\[\nm\\cdot m_1=n^2+k.\n\\]\nHence \\(m_1\\) is a positive integer.\n\nNow assume \\(m\\ge n\\ge 2\\). Then\n\\[\nk=\\frac{m^2+n^2}{mn-1}<\\frac{m^2+n^2}{mn-2}.\n\\]\nSince \\(m\\ge n\\ge 2\\), we have \\(m^2+n^2\\le m^2+mn\\), so\n\\[\nk<\\frac{m^2+mn}{mn-2}.\n\\]\nBut a more useful estimate comes from checking whether \\(k\\ge m\\) is possible. If \\(k\\ge m\\), then\n\\[\nm^2+n^2=k(mn-1)\\ge m(mn-1)=m^2n-m.\n\\]\nSo\n\\[\nn^2+m\\ge m^2(n-1).\n\\]\nFor \\(n\\ge 2\\) and \\(m\\ge n\\), the right-hand side is too large: indeed,\n\\[\nm^2(n-1)\\ge n^2,\n\\]\nwith strict excess unless \\((m,n)=(2,2)\\), and for \\((2,2)\\) we get \\(m^2+n^2=8\\), \\(mn-1=3\\), not divisible. Thus \\(k<m\\).\n\nSimilarly, if \\(k\\le n\\), then\n\\[\nm^2+n^2=k(mn-1)\\le n(mn-1)=mn^2-n,\n\\]\nso\n\\[\nm^2+n<m n^2,\n\\]\nwhich is impossible for small \\(n\\) only after inspection; instead we use the root relation directly:\n\\[\nm_1=kn-m< n^2-m.\n\\]\nSince \\(m\\ge n\\ge 2\\), this gives \\(m_1<n^2-n\\), not enough alone. So let us proceed differently.\n\nBecause \\(m_1=kn-m\\) is a positive integer root, if \\(m_1<m\\), then \\((m_1,n)\\) is a smaller positive solution. We now prove \\(m_1<m\\) whenever \\(n\\ge 2\\).\n\nIndeed,\n\\[\nm_1=\\frac{n^2+k}{m}.\n\\]\nThus \\(m_1\\ge m\\) would imply\n\\[\nn^2+k\\ge m^2.\n\\]\nBut from\n\\[\nk=\\frac{m^2+n^2}{mn-1}\\le \\frac{m^2+n^2}{2m-1}<m\n\\]\nfor \\(n\\ge 2\\) and \\(m\\ge n\\), we get\n\\[\nn^2+k<n^2+m\\le m^2\n\\]\nunless \\(m=n=2\\), already excluded. Hence \\(m_1<m\\).\n\nSo whenever \\(n\\ge 2\\), a smaller positive solution \\((m_1,n)\\) exists. Repeating this descent is impossible in positive integers. Therefore our assumption \\(n\\ge 2\\) was false, and we must have\n\\[\nn=1.\n\\]\n\nNow substitute \\(n=1\\):\n\\[\nm-1\\mid m^2+1.\n\\]\nDivide:\n\\[\nm^2+1=(m-1)(m+1)+2.\n\\]\nHence\n\\[\nm-1\\mid 2.\n\\]\nSince \\(m\\) is a positive integer and \\(m\\ge n=1\\), we get\n\\[\nm-1=1 \\quad \\text{or} \\quad m-1=2,\n\\]\nso\n\\[\nm=2 \\quad \\text{or} \\quad m=3.\n\\]\n\nThus for \\(m\\ge n\\), the only solutions are\n\\[\n(2,1),\\ (3,1).\n\\]\nBy symmetry, we also get\n\\[\n(1,2),\\ (1,3).\n\\]",
+        "cut_points": [
+          93,
+          221,
+          410,
+          477,
+          648,
+          816,
+          1036,
+          1256,
+          1354,
+          1511,
+          1597,
+          1777,
+          1984,
+          2087,
+          2227
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "text": "Let\n\\[\nmn-1 \\mid m^2+n^2,\n\\]\nand write\n\\[\nm^2+n^2=k(mn-1)\n\\]\nfor some positive integer \\(k\\)."
+          },
+          {
+            "id": "s2",
+            "text": "Because the condition is symmetric in \\(m,n\\), it is enough to solve for \\(m\\ge n\\), and then swap the coordinates at the end."
+          },
+          {
+            "id": "s3",
+            "text": "We first show that \\(n=1\\).\n\nFrom\n\\[\nm^2-kmn+n^2+k=0,\n\\]\nview this as a quadratic equation in \\(m\\). Since \\(m\\) is one integer root, by Vieta's formulas the other root is\n\\[\nm_1=kn-m.\n\\]"
+          },
+          {
+            "id": "s4",
+            "text": "Also,\n\\[\nm\\cdot m_1=n^2+k.\n\\]\nHence \\(m_1\\) is a positive integer."
+          },
+          {
+            "id": "s5",
+            "text": "Now assume \\(m\\ge n\\ge 2\\). Then\n\\[\nk=\\frac{m^2+n^2}{mn-1}<\\frac{m^2+n^2}{mn-2}.\n\\]\nSince \\(m\\ge n\\ge 2\\), we have \\(m^2+n^2\\le m^2+mn\\), so\n\\[\nk<\\frac{m^2+mn}{mn-2}.\n\\]"
+          },
+          {
+            "id": "s6",
+            "text": "But a more useful estimate comes from checking whether \\(k\\ge m\\) is possible. If \\(k\\ge m\\), then\n\\[\nm^2+n^2=k(mn-1)\\ge m(mn-1)=m^2n-m.\n\\]\nSo\n\\[\nn^2+m\\ge m^2(n-1).\n\\]"
+          },
+          {
+            "id": "s7",
+            "text": "For \\(n\\ge 2\\) and \\(m\\ge n\\), the right-hand side is too large: indeed,\n\\[\nm^2(n-1)\\ge n^2,\n\\]\nwith strict excess unless \\((m,n)=(2,2)\\), and for \\((2,2)\\) we get \\(m^2+n^2=8\\), \\(mn-1=3\\), not divisible. Thus \\(k<m\\)."
+          },
+          {
+            "id": "s8",
+            "text": "Similarly, if \\(k\\le n\\), then\n\\[\nm^2+n^2=k(mn-1)\\le n(mn-1)=mn^2-n,\n\\]\nso\n\\[\nm^2+n<m n^2,\n\\]\nwhich is impossible for small \\(n\\) only after inspection; instead we use the root relation directly:\n\\[\nm_1=kn-m< n^2-m.\n\\]"
+          },
+          {
+            "id": "s9",
+            "text": "Since \\(m\\ge n\\ge 2\\), this gives \\(m_1<n^2-n\\), not enough alone. So let us proceed differently."
+          },
+          {
+            "id": "s10",
+            "text": "Because \\(m_1=kn-m\\) is a positive integer root, if \\(m_1<m\\), then \\((m_1,n)\\) is a smaller positive solution. We now prove \\(m_1<m\\) whenever \\(n\\ge 2\\)."
+          },
+          {
+            "id": "s11",
+            "text": "Indeed,\n\\[\nm_1=\\frac{n^2+k}{m}.\n\\]\nThus \\(m_1\\ge m\\) would imply\n\\[\nn^2+k\\ge m^2.\n\\]"
+          },
+          {
+            "id": "s12",
+            "text": "But from\n\\[\nk=\\frac{m^2+n^2}{mn-1}\\le \\frac{m^2+n^2}{2m-1}<m\n\\]\nfor \\(n\\ge 2\\) and \\(m\\ge n\\), we get\n\\[\nn^2+k<n^2+m\\le m^2\n\\]\nunless \\(m=n=2\\), already excluded. Hence \\(m_1<m\\)."
+          },
+          {
+            "id": "s13",
+            "text": "So whenever \\(n\\ge 2\\), a smaller positive solution \\((m_1,n)\\) exists. Repeating this descent is impossible in positive integers. Therefore our assumption \\(n\\ge 2\\) was false, and we must have\n\\[\nn=1.\n\\]"
+          },
+          {
+            "id": "s14",
+            "text": "Now substitute \\(n=1\\):\n\\[\nm-1\\mid m^2+1.\n\\]\nDivide:\n\\[\nm^2+1=(m-1)(m+1)+2.\n\\]\nHence\n\\[\nm-1\\mid 2.\n\\]"
+          },
+          {
+            "id": "s15",
+            "text": "Since \\(m\\) is a positive integer and \\(m\\ge n=1\\), we get\n\\[\nm-1=1 \\quad \\text{or} \\quad m-1=2,\n\\]\nso\n\\[\nm=2 \\quad \\text{or} \\quad m=3.\n\\]"
+          },
+          {
+            "id": "s16",
+            "text": "Thus for \\(m\\ge n\\), the only solutions are\n\\[\n(2,1),\\ (3,1).\n\\]\nBy symmetry, we also get\n\\[\n(1,2),\\ (1,3).\n\\]"
+          }
+        ],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "mn-1 \\mid m^2+n^2.",
+            "step_idx": 0
+          },
+          {
+            "id": "p2",
+            "text": "m^2+n^2=k(mn-1).",
+            "step_idx": 0
+          },
+          {
+            "id": "p3",
+            "text": "k is a positive integer.",
+            "step_idx": 0
+          },
+          {
+            "id": "p4",
+            "text": "The condition is symmetric in m,n.",
+            "step_idx": 1
+          },
+          {
+            "id": "p5",
+            "text": "It is enough to solve for m\\ge n.",
+            "step_idx": 1
+          },
+          {
+            "id": "p6",
+            "text": "Then swap the coordinates at the end.",
+            "step_idx": 1
+          },
+          {
+            "id": "p7",
+            "text": "We first show that n=1.",
+            "step_idx": 2
+          },
+          {
+            "id": "p8",
+            "text": "m^2-kmn+n^2+k=0.",
+            "step_idx": 2
+          },
+          {
+            "id": "p9",
+            "text": "View this as a quadratic equation in m.",
+            "step_idx": 2
+          },
+          {
+            "id": "p10",
+            "text": "m is one integer root.",
+            "step_idx": 2
+          },
+          {
+            "id": "p11",
+            "text": "By Vieta's formulas the other root is m_1=kn-m.",
+            "step_idx": 2
+          },
+          {
+            "id": "p12",
+            "text": "m\\cdot m_1=n^2+k.",
+            "step_idx": 3
+          },
+          {
+            "id": "p13",
+            "text": "m_1 is a positive integer.",
+            "step_idx": 3
+          },
+          {
+            "id": "p14",
+            "text": "Assume m\\ge n\\ge 2.",
+            "step_idx": 4
+          },
+          {
+            "id": "p15",
+            "text": "k=\\frac{m^2+n^2}{mn-1}<\\frac{m^2+n^2}{mn-2}.",
+            "step_idx": 4
+          },
+          {
+            "id": "p16",
+            "text": "m\\ge n\\ge 2.",
+            "step_idx": 4
+          },
+          {
+            "id": "p17",
+            "text": "m^2+n^2\\le m^2+mn.",
+            "step_idx": 4
+          },
+          {
+            "id": "p18",
+            "text": "k<\\frac{m^2+mn}{mn-2}.",
+            "step_idx": 4
+          },
+          {
+            "id": "p19",
+            "text": "A more useful estimate comes from checking whether k\\ge m is possible.",
+            "step_idx": 5
+          },
+          {
+            "id": "p20",
+            "text": "If k\\ge m, then m^2+n^2=k(mn-1)\\ge m(mn-1)=m^2n-m.",
+            "step_idx": 5
+          },
+          {
+            "id": "p21",
+            "text": "n^2+m\\ge m^2(n-1).",
+            "step_idx": 5
+          },
+          {
+            "id": "p22",
+            "text": "For n\\ge 2 and m\\ge n, the right-hand side is too large.",
+            "step_idx": 6
+          },
+          {
+            "id": "p23",
+            "text": "m^2(n-1)\\ge n^2.",
+            "step_idx": 6
+          },
+          {
+            "id": "p24",
+            "text": "There is strict excess unless (m,n)=(2,2).",
+            "step_idx": 6
+          },
+          {
+            "id": "p25",
+            "text": "For (2,2) we get m^2+n^2=8.",
+            "step_idx": 6
+          },
+          {
+            "id": "p26",
+            "text": "For (2,2) we get mn-1=3.",
+            "step_idx": 6
+          },
+          {
+            "id": "p27",
+            "text": "For (2,2), mn-1 does not divide m^2+n^2.",
+            "step_idx": 6
+          },
+          {
+            "id": "p28",
+            "text": "Thus k<m.",
+            "step_idx": 6
+          },
+          {
+            "id": "p29",
+            "text": "If k\\le n, then m^2+n^2=k(mn-1)\\le n(mn-1)=mn^2-n.",
+            "step_idx": 7
+          },
+          {
+            "id": "p30",
+            "text": "m^2+n<m n^2.",
+            "step_idx": 7
+          },
+          {
+            "id": "p31",
+            "text": "This is impossible for small n only after inspection.",
+            "step_idx": 7
+          },
+          {
+            "id": "p32",
+            "text": "Instead we use the root relation directly.",
+            "step_idx": 7
+          },
+          {
+            "id": "p33",
+            "text": "m_1=kn-m< n^2-m.",
+            "step_idx": 7
+          },
+          {
+            "id": "p34",
+            "text": "m\\ge n\\ge 2.",
+            "step_idx": 8
+          },
+          {
+            "id": "p35",
+            "text": "This gives m_1<n^2-n.",
+            "step_idx": 8
+          },
+          {
+            "id": "p36",
+            "text": "This is not enough alone.",
+            "step_idx": 8
+          },
+          {
+            "id": "p37",
+            "text": "So let us proceed differently.",
+            "step_idx": 8
+          },
+          {
+            "id": "p38",
+            "text": "m_1=kn-m is a positive integer root.",
+            "step_idx": 9
+          },
+          {
+            "id": "p39",
+            "text": "If m_1<m, then (m_1,n) is a smaller positive solution.",
+            "step_idx": 9
+          },
+          {
+            "id": "p40",
+            "text": "We now prove m_1<m whenever n\\ge 2.",
+            "step_idx": 9
+          },
+          {
+            "id": "p41",
+            "text": "m_1=\\frac{n^2+k}{m}.",
+            "step_idx": 10
+          },
+          {
+            "id": "p42",
+            "text": "m_1\\ge m would imply n^2+k\\ge m^2.",
+            "step_idx": 10
+          },
+          {
+            "id": "p43",
+            "text": "k=\\frac{m^2+n^2}{mn-1}\\le \\frac{m^2+n^2}{2m-1}<m for n\\ge 2 and m\\ge n.",
+            "step_idx": 11
+          },
+          {
+            "id": "p44",
+            "text": "n^2+k<n^2+m\\le m^2 unless m=n=2.",
+            "step_idx": 11
+          },
+          {
+            "id": "p45",
+            "text": "m=n=2 is already excluded.",
+            "step_idx": 11
+          },
+          {
+            "id": "p46",
+            "text": "Hence m_1<m.",
+            "step_idx": 11
+          },
+          {
+            "id": "p47",
+            "text": "Whenever n\\ge 2, a smaller positive solution (m_1,n) exists.",
+            "step_idx": 12
+          },
+          {
+            "id": "p48",
+            "text": "Repeating this descent is impossible in positive integers.",
+            "step_idx": 12
+          },
+          {
+            "id": "p49",
+            "text": "Therefore our assumption n\\ge 2 was false.",
+            "step_idx": 12
+          },
+          {
+            "id": "p50",
+            "text": "We must have n=1.",
+            "step_idx": 12
+          },
+          {
+            "id": "p51",
+            "text": "Substitute n=1.",
+            "step_idx": 13
+          },
+          {
+            "id": "p52",
+            "text": "m-1\\mid m^2+1.",
+            "step_idx": 13
+          },
+          {
+            "id": "p53",
+            "text": "m^2+1=(m-1)(m+1)+2.",
+            "step_idx": 13
+          },
+          {
+            "id": "p54",
+            "text": "Hence m-1\\mid 2.",
+            "step_idx": 13
+          },
+          {
+            "id": "p55",
+            "text": "m is a positive integer.",
+            "step_idx": 14
+          },
+          {
+            "id": "p56",
+            "text": "m\\ge n=1.",
+            "step_idx": 14
+          },
+          {
+            "id": "p57",
+            "text": "m-1=1 or m-1=2.",
+            "step_idx": 14
+          },
+          {
+            "id": "p58",
+            "text": "m=2 or m=3.",
+            "step_idx": 14
+          },
+          {
+            "id": "p59",
+            "text": "For m\\ge n, the only solutions are (2,1),\\ (3,1).",
+            "step_idx": 15
+          },
+          {
+            "id": "p60",
+            "text": "By symmetry, we also get (1,2),\\ (1,3).",
+            "step_idx": 15
+          }
+        ],
+        "claims": [
+          {
+            "step_id": "s1",
+            "claims": [
+              "mn-1 \\mid m^2+n^2.",
+              "m^2+n^2=k(mn-1).",
+              "k is a positive integer."
+            ]
+          },
+          {
+            "step_id": "s2",
+            "claims": [
+              "The condition is symmetric in m,n.",
+              "It is enough to solve for m\\ge n.",
+              "Then swap the coordinates at the end."
+            ]
+          },
+          {
+            "step_id": "s3",
+            "claims": [
+              "We first show that n=1.",
+              "m^2-kmn+n^2+k=0.",
+              "View this as a quadratic equation in m.",
+              "m is one integer root.",
+              "By Vieta's formulas the other root is m_1=kn-m."
+            ]
+          },
+          {
+            "step_id": "s4",
+            "claims": [
+              "m\\cdot m_1=n^2+k.",
+              "m_1 is a positive integer."
+            ]
+          },
+          {
+            "step_id": "s5",
+            "claims": [
+              "Assume m\\ge n\\ge 2.",
+              "k=\\frac{m^2+n^2}{mn-1}<\\frac{m^2+n^2}{mn-2}.",
+              "m\\ge n\\ge 2.",
+              "m^2+n^2\\le m^2+mn.",
+              "k<\\frac{m^2+mn}{mn-2}."
+            ]
+          },
+          {
+            "step_id": "s6",
+            "claims": [
+              "A more useful estimate comes from checking whether k\\ge m is possible.",
+              "If k\\ge m, then m^2+n^2=k(mn-1)\\ge m(mn-1)=m^2n-m.",
+              "n^2+m\\ge m^2(n-1)."
+            ]
+          },
+          {
+            "step_id": "s7",
+            "claims": [
+              "For n\\ge 2 and m\\ge n, the right-hand side is too large.",
+              "m^2(n-1)\\ge n^2.",
+              "There is strict excess unless (m,n)=(2,2).",
+              "For (2,2) we get m^2+n^2=8.",
+              "For (2,2) we get mn-1=3.",
+              "For (2,2), mn-1 does not divide m^2+n^2.",
+              "Thus k<m."
+            ]
+          },
+          {
+            "step_id": "s8",
+            "claims": [
+              "If k\\le n, then m^2+n^2=k(mn-1)\\le n(mn-1)=mn^2-n.",
+              "m^2+n<m n^2.",
+              "This is impossible for small n only after inspection.",
+              "Instead we use the root relation directly.",
+              "m_1=kn-m< n^2-m."
+            ]
+          },
+          {
+            "step_id": "s9",
+            "claims": [
+              "m\\ge n\\ge 2.",
+              "This gives m_1<n^2-n.",
+              "This is not enough alone.",
+              "So let us proceed differently."
+            ]
+          },
+          {
+            "step_id": "s10",
+            "claims": [
+              "m_1=kn-m is a positive integer root.",
+              "If m_1<m, then (m_1,n) is a smaller positive solution.",
+              "We now prove m_1<m whenever n\\ge 2."
+            ]
+          },
+          {
+            "step_id": "s11",
+            "claims": [
+              "m_1=\\frac{n^2+k}{m}.",
+              "m_1\\ge m would imply n^2+k\\ge m^2."
+            ]
+          },
+          {
+            "step_id": "s12",
+            "claims": [
+              "k=\\frac{m^2+n^2}{mn-1}\\le \\frac{m^2+n^2}{2m-1}<m for n\\ge 2 and m\\ge n.",
+              "n^2+k<n^2+m\\le m^2 unless m=n=2.",
+              "m=n=2 is already excluded.",
+              "Hence m_1<m."
+            ]
+          },
+          {
+            "step_id": "s13",
+            "claims": [
+              "Whenever n\\ge 2, a smaller positive solution (m_1,n) exists.",
+              "Repeating this descent is impossible in positive integers.",
+              "Therefore our assumption n\\ge 2 was false.",
+              "We must have n=1."
+            ]
+          },
+          {
+            "step_id": "s14",
+            "claims": [
+              "Substitute n=1.",
+              "m-1\\mid m^2+1.",
+              "m^2+1=(m-1)(m+1)+2.",
+              "Hence m-1\\mid 2."
+            ]
+          },
+          {
+            "step_id": "s15",
+            "claims": [
+              "m is a positive integer.",
+              "m\\ge n=1.",
+              "m-1=1 or m-1=2.",
+              "m=2 or m=3."
+            ]
+          },
+          {
+            "step_id": "s16",
+            "claims": [
+              "For m\\ge n, the only solutions are (2,1),\\ (3,1).",
+              "By symmetry, we also get (1,2),\\ (1,3)."
+            ]
+          }
+        ],
+        "claim_checks": {
+          "s1c1": "correct",
+          "s1c2": "correct",
+          "s1c3": "correct",
+          "s2c1": "correct",
+          "s2c2": "correct",
+          "s2c3": "correct",
+          "s3c1": "correct",
+          "s3c2": "correct",
+          "s3c3": "correct",
+          "s3c4": "correct",
+          "s3c5": "correct",
+          "s4c1": "correct",
+          "s4c2": "correct",
+          "s5c1": "correct",
+          "s5c2": "delete",
+          "s5c3": "delete",
+          "s5c4": "delete",
+          "s5c5": "delete",
+          "s6c1": "correct",
+          "s6c2": "correct",
+          "s6c3": "correct",
+          "s7c1": "correct",
+          "s7c2": "correct",
+          "s7c3": "correct",
+          "s7c4": "correct",
+          "s7c5": "correct",
+          "s7c6": "correct",
+          "s7c7": "correct",
+          "s8c1": "delete",
+          "s8c2": "delete",
+          "s8c3": "delete",
+          "s8c4": "delete",
+          "s8c5": "delete",
+          "s9c1": "delete",
+          "s9c2": "delete",
+          "s9c3": "delete",
+          "s9c4": "delete",
+          "s10c1": "correct",
+          "s10c2": "correct",
+          "s10c3": "correct",
+          "s11c1": "correct",
+          "s11c2": "correct",
+          "s12c1": "correct",
+          "s12c2": "correct",
+          "s12c3": "correct",
+          "s12c4": "correct",
+          "s13c1": "correct",
+          "s13c2": "correct",
+          "s13c3": "correct",
+          "s13c4": "correct",
+          "s14c1": "correct",
+          "s14c2": "correct",
+          "s14c3": "correct",
+          "s14c4": "correct",
+          "s15c1": "correct",
+          "s15c2": "correct",
+          "s15c3": "correct",
+          "s15c4": "correct",
+          "s16c1": "correct",
+          "s16c2": "correct"
+        },
+        "dependencies": {},
+        "step_dependencies": {
+          "s2": [
+            "s1c1"
+          ],
+          "s3": [
+            "s1c2",
+            "s2c2"
+          ],
+          "s4": [
+            "s3c5",
+            "s3c2",
+            "s3c4"
+          ],
+          "s5": [
+            "s2c2",
+            "s1c2"
+          ],
+          "s6": [
+            "s1c2"
+          ],
+          "s7": [
+            "s5c1",
+            "s6c3"
+          ],
+          "s8": [
+            "s1c2",
+            "s7c7"
+          ],
+          "s9": [
+            "s5c1"
+          ],
+          "s10": [
+            "s3c5",
+            "s3c4"
+          ],
+          "s11": [
+            "s10c3",
+            "s4c1"
+          ],
+          "s12": [
+            "s1c2",
+            "s5c1",
+            "s7c6",
+            "s11c2"
+          ],
+          "s13": [
+            "s12c4",
+            "s10c3"
+          ],
+          "s14": [
+            "s1c1",
+            "s13c4"
+          ],
+          "s15": [
+            "s14c4"
+          ],
+          "s16": [
+            "s15c4",
+            "s15c2",
+            "s2c1"
+          ]
+        },
+        "workflow_state": "completed"
+      },
+      "3": {
+        "selected_solution_text": "Alternative Solution 1:\n\nLet\n\\[\nmn-1 \\mid m^2+n^2,\n\\]\nand write\n\\[\nm^2+n^2=k(mn-1)\n\\]\nfor some positive integer \\(k\\).\n\nBecause the condition is symmetric in \\(m,n\\), it is enough to study the case\n\\[\nm\\ge n.\n\\]\n\nWe first handle the case \\(m=n\\). Then\n\\[\nm^2+n^2=2m^2,\\qquad mn-1=m^2-1.\n\\]\nSo \\(m^2-1\\mid 2m^2\\). Since \\(m^2\\equiv 1\\pmod{m^2-1}\\), this gives\n\\[\nm^2-1\\mid 2.\n\\]\nBut for positive integers \\(m\\), this forces \\(m^2-1=1\\) or \\(2\\), impossible. Hence\n\\[\nm\\ne n.\n\\]\n\nSo now assume\n\\[\nm>n\\ge 1.\n\\]\n\nFrom\n\\[\nm^2+n^2=k(mn-1)\n\\]\nwe view this as a quadratic in \\(m\\):\n\\[\nm^2-k n\\,m+(n^2+k)=0.\n\\]\nSince one root is \\(m\\), the other root is\n\\[\nm_1=kn-m.\n\\]\nBy Viète's formulas,\n\\[\nm\\cdot m_1=n^2+k>0,\n\\]\nso \\(m_1>0\\) is a positive integer.\n\nWe now show that if \\(n\\ge 2\\), then \\(m_1<m\\), producing a smaller positive solution and allowing descent.\n\nIndeed, from\n\\[\nk=\\frac{m^2+n^2}{mn-1},\n\\]\nwe compute\n\\[\nm_1=kn-m\n=\\frac{n(m^2+n^2)}{mn-1}-m\n=\\frac{m+n^3-m}{mn-1}\n=\\frac{m+n^3-m^2n}{mn-1}.\n\\]\nThus \\(m_1<m\\) is equivalent to\n\\[\nkn-m<m \\iff kn<2m.\n\\]\nUsing the formula for \\(k\\), this becomes\n\\[\n\\frac{n(m^2+n^2)}{mn-1}<2m.\n\\]\nAfter multiplying by \\(mn-1>0\\),\n\\[\nn(m^2+n^2)<2m(mn-1),\n\\]\nthat is,\n\\[\nm^2n+n^3<2m^2n-2m\n\\iff n^3+2m<m^2n.\n\\]\nBut if \\(m>n\\ge 2\\), then \\(m\\ge n+1\\), so\n\\[\nm^2n\\ge n(n+1)^2=n^3+2n^2+n.\n\\]\nHence\n\\[\nm^2n-(n^3+2m)\\ge 2n^2+n-2m.\n\\]\nSince \\(m\\ge n+1\\),\n\\[\n2n^2+n-2m\\ge 2n^2+n-2(n+1)=2n^2-n-2>0\n\\]\nfor \\(n\\ge 2\\). Therefore\n\\[\nn^3+2m<m^2n,\n\\]\nso indeed \\(m_1<m\\).\n\nThus whenever \\(m>n\\ge 2\\), there exists another positive solution \\((m_1,n)\\) with smaller first coordinate. Repeating this descent would eventually produce a solution with second coordinate still \\(n\\ge 2\\) but with first coordinate \\(\\le n\\), impossible since we already ruled out \\(m=n\\), and by symmetry one cannot pass below \\(n\\). Therefore the assumption \\(n\\ge 2\\) is impossible.\n\nSo the only possibility with \\(m\\ge n\\) is\n\\[\nn=1.\n\\]\n\nNow substitute \\(n=1\\):\n\\[\nm\\cdot 1-1=m-1 \\mid m^2+1.\n\\]\nDivide:\n\\[\nm^2+1=(m-1)(m+1)+2.\n\\]\nHence\n\\[\nm-1\\mid 2.\n\\]\nSince \\(m\\) is positive and \\(m>1\\), we get\n\\[\nm-1=1 \\quad \\text{or} \\quad m-1=2,\n\\]\nso\n\\[\nm=2 \\quad \\text{or} \\quad m=3.\n\\]\n\nThus the solutions with \\(m\\ge n\\) are\n\\[\n(2,1),\\ (3,1).\n\\]\nBy symmetry, we also obtain\n\\[\n(1,2),\\ (1,3).\n\\]\n\nVerification:\n\\[\n(2,1):\\ mn-1=1,\\quad m^2+n^2=5;\n\\]\n\\[\n(3,1):\\ mn-1=2,\\quad m^2+n^2=10;\n\\]\n\\[\n(1,2):\\ mn-1=1,\\quad m^2+n^2=5;\n\\]\n\\[\n(1,3):\\ mn-1=2,\\quad m^2+n^2=10.\n\\]\nEach pair satisfies the divisibility condition.\n\nFinal Answer: \n(2, 1), (3, 1), (1, 2), (1, 3)",
+        "cut_points": [],
+        "steps": [],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "Let \\[mn-1 \\mid m^2+n^2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p2",
+            "text": "Write \\[m^2+n^2=k(mn-1)\\] for some positive integer \\(k\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p3",
+            "text": "The condition is symmetric in \\(m,n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p4",
+            "text": "It is enough to study the case \\[m\\ge n.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p5",
+            "text": "We first handle the case \\(m=n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p6",
+            "text": "Then \\[m^2+n^2=2m^2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p7",
+            "text": "Then \\[mn-1=m^2-1.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p8",
+            "text": "So \\(m^2-1\\mid 2m^2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p9",
+            "text": "Since \\(m^2\\equiv 1\\pmod{m^2-1}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p10",
+            "text": "This gives \\[m^2-1\\mid 2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p11",
+            "text": "For positive integers \\(m\\), this forces \\(m^2-1=1\\) or \\(2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p12",
+            "text": "This is impossible.",
+            "step_idx": null
+          },
+          {
+            "id": "p13",
+            "text": "Hence \\[m\\ne n.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p14",
+            "text": "Now assume \\[m>n\\ge 1.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p15",
+            "text": "From \\[m^2+n^2=k(mn-1).\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p16",
+            "text": "We view this as a quadratic in \\(m\\): \\[m^2-k n\\,m+(n^2+k)=0.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p17",
+            "text": "One root is \\(m\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p18",
+            "text": "The other root is \\[m_1=kn-m.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p19",
+            "text": "By Viète's formulas, \\[m\\cdot m_1=n^2+k>0.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p20",
+            "text": "So \\(m_1>0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p21",
+            "text": "\\(m_1\\) is a positive integer.",
+            "step_idx": null
+          },
+          {
+            "id": "p22",
+            "text": "If \\(n\\ge 2\\), then \\(m_1<m\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p23",
+            "text": "This produces a smaller positive solution and allows descent.",
+            "step_idx": null
+          },
+          {
+            "id": "p24",
+            "text": "From \\[k=\\frac{m^2+n^2}{mn-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p25",
+            "text": "We compute \\[m_1=kn-m.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p26",
+            "text": "\\[m_1=\\frac{n(m^2+n^2)}{mn-1}-m.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p27",
+            "text": "\\[m_1=\\frac{m+n^3-m}{mn-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p28",
+            "text": "\\[m_1=\\frac{m+n^3-m^2n}{mn-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p29",
+            "text": "Thus \\(m_1<m\\) is equivalent to \\[kn-m<m.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p30",
+            "text": "\\(kn-m<m\\iff kn<2m\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p31",
+            "text": "Using the formula for \\(k\\), this becomes \\[\\frac{n(m^2+n^2)}{mn-1}<2m.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p32",
+            "text": "After multiplying by \\(mn-1>0\\), \\[n(m^2+n^2)<2m(mn-1).\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p33",
+            "text": "That is, \\[m^2n+n^3<2m^2n-2m.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p34",
+            "text": "\\(m^2n+n^3<2m^2n-2m\\iff n^3+2m<m^2n.\\)",
+            "step_idx": null
+          },
+          {
+            "id": "p35",
+            "text": "If \\(m>n\\ge 2\\), then \\(m\\ge n+1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p36",
+            "text": "So \\[m^2n\\ge n(n+1)^2=n^3+2n^2+n.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p37",
+            "text": "Hence \\[m^2n-(n^3+2m)\\ge 2n^2+n-2m.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p38",
+            "text": "Since \\(m\\ge n+1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p39",
+            "text": "\\[2n^2+n-2m\\ge 2n^2+n-2(n+1)=2n^2-n-2>0\\] for \\(n\\ge 2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p40",
+            "text": "Therefore \\[n^3+2m<m^2n.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p41",
+            "text": "So indeed \\(m_1<m\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p42",
+            "text": "Whenever \\(m>n\\ge 2\\), there exists another positive solution \\((m_1,n)\\) with smaller first coordinate.",
+            "step_idx": null
+          },
+          {
+            "id": "p43",
+            "text": "Repeating this descent would eventually produce a solution with second coordinate still \\(n\\ge 2\\) but with first coordinate \\(\\le n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p44",
+            "text": "This is impossible since we already ruled out \\(m=n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p45",
+            "text": "By symmetry one cannot pass below \\(n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p46",
+            "text": "Therefore the assumption \\(n\\ge 2\\) is impossible.",
+            "step_idx": null
+          },
+          {
+            "id": "p47",
+            "text": "So the only possibility with \\(m\\ge n\\) is \\[n=1.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p48",
+            "text": "Substitute \\(n=1\\): \\[m\\cdot 1-1=m-1 \\mid m^2+1.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p49",
+            "text": "Divide: \\[m^2+1=(m-1)(m+1)+2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p50",
+            "text": "Hence \\[m-1\\mid 2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p51",
+            "text": "\\(m\\) is positive.",
+            "step_idx": null
+          },
+          {
+            "id": "p52",
+            "text": "\\(m>1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p53",
+            "text": "We get \\[m-1=1 \\quad \\text{or} \\quad m-1=2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p54",
+            "text": "So \\[m=2 \\quad \\text{or} \\quad m=3.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p55",
+            "text": "The solutions with \\(m\\ge n\\) are \\[(2,1),\\ (3,1).\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p56",
+            "text": "By symmetry, we also obtain \\[(1,2),\\ (1,3).\\]",
+            "step_idx": null
+          }
+        ],
+        "claims": [],
+        "claim_checks": {},
+        "dependencies": {},
+        "step_dependencies": {},
+        "workflow_state": "sample_selected"
+      },
+      "4": {
+        "selected_solution_text": "Alternative Solution 2:\n\nAssume\n\\[\nmn-1\\mid m^2+n^2.\n\\]\nThen for some positive integer \\(q\\),\n\\[\nm^2+n^2=q(mn-1).\n\\]\n\nBecause the equation is symmetric in \\(m\\) and \\(n\\), we may suppose\n\\[\nm\\ge n.\n\\]\n\nWe begin by estimating \\(q\\). Since\n\\[\nq=\\frac{m^2+n^2}{mn-1},\n\\]\nand \\(mn-1<mn\\), we have\n\\[\nq>\\frac{m^2+n^2}{mn}=\\frac{m}{n}+\\frac{n}{m}\\ge 2.\n\\]\nSo\n\\[\nq\\ge 3.\n\\]\n\nOn the other hand, if \\(n\\ge 2\\), then\n\\[\nq<\\frac{m^2+n^2}{mn-2}.\n\\]\nWe now show that in fact \\(q<m/n+n/m+1\\), and hence \\(q\\) is tightly bounded.\n\nIndeed,\n\\[\n\\frac{m^2+n^2}{mn-1}\\le \\frac{m^2+n^2}{mn-n}\n=\\frac{m^2+n^2}{n(m-1)}\n\\]\nis not especially convenient, so instead we use the original identity modulo \\(m\\) and modulo \\(n\\).\n\nFrom\n\\[\nm^2+n^2=q(mn-1),\n\\]\nreducing modulo \\(m\\) gives\n\\[\nn^2\\equiv -q \\pmod m.\n\\]\nThus\n\\[\nq\\equiv -n^2 \\pmod m.\n\\]\nSince \\(q>0\\), write\n\\[\nq=tm-n^2\n\\]\nfor some integer \\(t\\ge 1\\).\n\nSubstitute into the main equation:\n\\[\nm^2+n^2=(tm-n^2)(mn-1).\n\\]\nExpanding,\n\\[\nm^2+n^2=tm^2n-tm-mn^3+n^2.\n\\]\nSo\n\\[\nm^2=tm^2n-tm-mn^3.\n\\]\nDivide by \\(m\\):\n\\[\nm=tmn-t-n^3.\n\\]\nHence\n\\[\nm+t+n^3=tmn.\n\\]\nTherefore\n\\[\nm = t(mn-1)-n^3.\n\\]\nThis implies\n\\[\nt(mn-1)>n^3.\n\\]\n\nNow if \\(n\\ge 2\\), then \\(mn-1\\ge 2m-1\\), and since \\(m\\ge n\\),\n\\[\nn^3\\le mn^2\\le m(mn-1)\n\\]\nfor all sufficiently large \\(m\\), suggesting \\(t\\) must be small. So let us instead proceed more directly.\n\nRewrite the main equation as\n\\[\nm^2-qmn+n^2=-q.\n\\]\nTreat this as a quadratic in the ratio \\(x=\\frac{m}{n}\\):\n\\[\nx^2-qx+1=-\\frac{q}{n^2}.\n\\]\nSince the right-hand side is negative,\n\\[\nx^2-qx+1<0.\n\\]\nThus \\(x\\) lies strictly between the two roots of\n\\[\nx^2-qx+1=0.\n\\]\nThose roots are\n\\[\n\\frac{q\\pm\\sqrt{q^2-4}}{2}.\n\\]\nSince \\(x=\\frac{m}{n}\\ge 1\\), this forces\n\\[\n1\\le \\frac{m}{n}<\\frac{q+\\sqrt{q^2-4}}{2}<q.\n\\]\nSo\n\\[\nm<qn.\n\\]\n\nNow go back to\n\\[\nm^2-qmn+n^2+q=0.\n\\]\nAs a monic quadratic in \\(m\\), its other root is\n\\[\nm'=qn-m.\n\\]\nBecause \\(m<qn\\), we have \\(m'>0\\). Also \\(m'\\) is an integer, and\n\\[\nm'm=n^2+q.\n\\]\nHence \\((m',n)\\) is also a positive integer solution.\n\nIf \\(n\\ge 2\\) and \\(m>n\\), then\n\\[\nm'=\\frac{n^2+q}{m}.\n\\]\nBut\n\\[\nq=\\frac{m^2+n^2}{mn-1}<\\frac{m^2+n^2}{mn-m/n}\n\\]\nis awkward; instead use the simple bound\n\\[\nq\\le \\frac{m^2+n^2}{mn-1}<\\frac{m^2+n^2}{mn/2}\n=2\\left(\\frac{m}{n}+\\frac{n}{m}\\right)\n\\]\nwhenever \\(mn\\ge 2\\). Thus \\(q\\) is much smaller than \\(m\\) for large \\(m\\), and so \\(m'=(n^2+q)/m<m\\). Repeating gives infinite descent unless \\(n=1\\).\n\nSo necessarily\n\\[\nn=1.\n\\]\n\nThen the divisibility condition becomes\n\\[\nm-1\\mid m^2+1.\n\\]\nReduce \\(m^2+1\\) modulo \\(m-1\\):\n\\[\nm\\equiv 1\\pmod{m-1}\\implies m^2+1\\equiv 1^2+1=2\\pmod{m-1}.\n\\]\nHence\n\\[\nm-1\\mid 2,\n\\]\nso\n\\[\nm=2 \\quad \\text{or} \\quad m=3.\n\\]\n\nBy symmetry, we also get the pairs \\((1,2)\\) and \\((1,3)\\).\n\nVerification:\n\\[\n(2,1):\\ 2\\cdot 1-1=1\\mid 2^2+1^2=5,\n\\]\n\\[\n(3,1):\\ 3\\cdot 1-1=2\\mid 3^2+1^2=10,\n\\]\nand the symmetric pairs work for the same reason.\n\nFinal Answer: \n(2, 1), (3, 1), (1, 2), (1, 3)",
+        "cut_points": [],
+        "steps": [],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "Assume mn-1\\mid m^2+n^2.",
+            "step_idx": null
+          },
+          {
+            "id": "p2",
+            "text": "For some positive integer q, m^2+n^2=q(mn-1).",
+            "step_idx": null
+          },
+          {
+            "id": "p3",
+            "text": "The equation is symmetric in m and n.",
+            "step_idx": null
+          },
+          {
+            "id": "p4",
+            "text": "We may suppose m\\ge n.",
+            "step_idx": null
+          },
+          {
+            "id": "p5",
+            "text": "We begin by estimating q.",
+            "step_idx": null
+          },
+          {
+            "id": "p6",
+            "text": "q=\\frac{m^2+n^2}{mn-1}.",
+            "step_idx": null
+          },
+          {
+            "id": "p7",
+            "text": "mn-1<mn.",
+            "step_idx": null
+          },
+          {
+            "id": "p8",
+            "text": "q>\\frac{m^2+n^2}{mn}=\\frac{m}{n}+\\frac{n}{m}\\ge 2.",
+            "step_idx": null
+          },
+          {
+            "id": "p9",
+            "text": "q\\ge 3.",
+            "step_idx": null
+          },
+          {
+            "id": "p10",
+            "text": "If n\\ge 2, then q<\\frac{m^2+n^2}{mn-2}.",
+            "step_idx": null
+          },
+          {
+            "id": "p11",
+            "text": "We now show that in fact q< m/n+n/m+1.",
+            "step_idx": null
+          },
+          {
+            "id": "p12",
+            "text": "Hence q is tightly bounded.",
+            "step_idx": null
+          },
+          {
+            "id": "p13",
+            "text": "\\frac{m^2+n^2}{mn-1}\\le \\frac{m^2+n^2}{mn-n}=\\frac{m^2+n^2}{n(m-1)}.",
+            "step_idx": null
+          },
+          {
+            "id": "p14",
+            "text": "\\frac{m^2+n^2}{n(m-1)} is not especially convenient.",
+            "step_idx": null
+          },
+          {
+            "id": "p15",
+            "text": "Instead we use the original identity modulo m and modulo n.",
+            "step_idx": null
+          },
+          {
+            "id": "p16",
+            "text": "From m^2+n^2=q(mn-1), reducing modulo m gives n^2\\equiv -q \\pmod m.",
+            "step_idx": null
+          },
+          {
+            "id": "p17",
+            "text": "q\\equiv -n^2 \\pmod m.",
+            "step_idx": null
+          },
+          {
+            "id": "p18",
+            "text": "q>0.",
+            "step_idx": null
+          },
+          {
+            "id": "p19",
+            "text": "Write q=tm-n^2 for some integer t\\ge 1.",
+            "step_idx": null
+          },
+          {
+            "id": "p20",
+            "text": "Substitute into the main equation: m^2+n^2=(tm-n^2)(mn-1).",
+            "step_idx": null
+          },
+          {
+            "id": "p21",
+            "text": "Expanding, m^2+n^2=tm^2n-tm-mn^3+n^2.",
+            "step_idx": null
+          },
+          {
+            "id": "p22",
+            "text": "m^2=tm^2n-tm-mn^3.",
+            "step_idx": null
+          },
+          {
+            "id": "p23",
+            "text": "Divide by m: m=tmn-t-n^3.",
+            "step_idx": null
+          },
+          {
+            "id": "p24",
+            "text": "m+t+n^3=tmn.",
+            "step_idx": null
+          },
+          {
+            "id": "p25",
+            "text": "m = t(mn-1)-n^3.",
+            "step_idx": null
+          },
+          {
+            "id": "p26",
+            "text": "t(mn-1)>n^3.",
+            "step_idx": null
+          },
+          {
+            "id": "p27",
+            "text": "If n\\ge 2, then mn-1\\ge 2m-1.",
+            "step_idx": null
+          },
+          {
+            "id": "p28",
+            "text": "m\\ge n.",
+            "step_idx": null
+          },
+          {
+            "id": "p29",
+            "text": "n^3\\le mn^2\\le m(mn-1) for all sufficiently large m.",
+            "step_idx": null
+          },
+          {
+            "id": "p30",
+            "text": "This suggests t must be small.",
+            "step_idx": null
+          },
+          {
+            "id": "p31",
+            "text": "So let us instead proceed more directly.",
+            "step_idx": null
+          },
+          {
+            "id": "p32",
+            "text": "Rewrite the main equation as m^2-qmn+n^2=-q.",
+            "step_idx": null
+          },
+          {
+            "id": "p33",
+            "text": "Treat this as a quadratic in the ratio x=\\frac{m}{n}: x^2-qx+1=-\\frac{q}{n^2}.",
+            "step_idx": null
+          },
+          {
+            "id": "p34",
+            "text": "The right-hand side is negative.",
+            "step_idx": null
+          },
+          {
+            "id": "p35",
+            "text": "x^2-qx+1<0.",
+            "step_idx": null
+          },
+          {
+            "id": "p36",
+            "text": "Thus x lies strictly between the two roots of x^2-qx+1=0.",
+            "step_idx": null
+          },
+          {
+            "id": "p37",
+            "text": "Those roots are \\frac{q\\pm\\sqrt{q^2-4}}{2}.",
+            "step_idx": null
+          },
+          {
+            "id": "p38",
+            "text": "x=\\frac{m}{n}\\ge 1.",
+            "step_idx": null
+          },
+          {
+            "id": "p39",
+            "text": "This forces 1\\le \\frac{m}{n}<\\frac{q+\\sqrt{q^2-4}}{2}<q.",
+            "step_idx": null
+          },
+          {
+            "id": "p40",
+            "text": "m<qn.",
+            "step_idx": null
+          },
+          {
+            "id": "p41",
+            "text": "Go back to m^2-qmn+n^2+q=0.",
+            "step_idx": null
+          },
+          {
+            "id": "p42",
+            "text": "As a monic quadratic in m, its other root is m'=qn-m.",
+            "step_idx": null
+          },
+          {
+            "id": "p43",
+            "text": "m<qn.",
+            "step_idx": null
+          },
+          {
+            "id": "p44",
+            "text": "m'>0.",
+            "step_idx": null
+          },
+          {
+            "id": "p45",
+            "text": "m' is an integer.",
+            "step_idx": null
+          },
+          {
+            "id": "p46",
+            "text": "m'm=n^2+q.",
+            "step_idx": null
+          },
+          {
+            "id": "p47",
+            "text": "Hence (m',n) is also a positive integer solution.",
+            "step_idx": null
+          },
+          {
+            "id": "p48",
+            "text": "If n\\ge 2 and m>n, then m'=\\frac{n^2+q}{m}.",
+            "step_idx": null
+          },
+          {
+            "id": "p49",
+            "text": "q=\\frac{m^2+n^2}{mn-1}<\\frac{m^2+n^2}{mn-m/n}.",
+            "step_idx": null
+          },
+          {
+            "id": "p50",
+            "text": "This is awkward.",
+            "step_idx": null
+          },
+          {
+            "id": "p51",
+            "text": "Instead use the simple bound q\\le \\frac{m^2+n^2}{mn-1}<\\frac{m^2+n^2}{mn/2}=2\\left(\\frac{m}{n}+\\frac{n}{m}\\right) whenever mn\\ge 2.",
+            "step_idx": null
+          },
+          {
+            "id": "p52",
+            "text": "Thus q is much smaller than m for large m.",
+            "step_idx": null
+          },
+          {
+            "id": "p53",
+            "text": "So m'=(n^2+q)/m<m.",
+            "step_idx": null
+          },
+          {
+            "id": "p54",
+            "text": "Repeating gives infinite descent unless n=1.",
+            "step_idx": null
+          },
+          {
+            "id": "p55",
+            "text": "So necessarily n=1.",
+            "step_idx": null
+          },
+          {
+            "id": "p56",
+            "text": "Then the divisibility condition becomes m-1\\mid m^2+1.",
+            "step_idx": null
+          },
+          {
+            "id": "p57",
+            "text": "Reduce m^2+1 modulo m-1.",
+            "step_idx": null
+          },
+          {
+            "id": "p58",
+            "text": "m\\equiv 1\\pmod{m-1}.",
+            "step_idx": null
+          },
+          {
+            "id": "p59",
+            "text": "m^2+1\\equiv 1^2+1=2\\pmod{m-1}.",
+            "step_idx": null
+          },
+          {
+            "id": "p60",
+            "text": "Hence m-1\\mid 2.",
+            "step_idx": null
+          },
+          {
+            "id": "p61",
+            "text": "m=2 or m=3.",
+            "step_idx": null
+          },
+          {
+            "id": "p62",
+            "text": "By symmetry, we also get the pairs (1,2) and (1,3).",
+            "step_idx": null
+          }
+        ],
+        "claims": [],
+        "claim_checks": {},
+        "dependencies": {},
+        "step_dependencies": {},
+        "workflow_state": "sample_selected"
+      },
+      "5": {
+        "selected_solution_text": "Alternative Solution 3:\n\nSuppose\n\\[\nmn-1\\mid m^2+n^2.\n\\]\nThen there exists \\(d\\in\\mathbb{Z}_{>0}\\) such that\n\\[\nm^2+n^2=d(mn-1).\n\\]\nWe will use modular considerations together with a size argument.\n\nBecause the condition is symmetric in \\(m,n\\), assume\n\\[\nm\\ge n.\n\\]\n\nFirst, if \\(n=1\\), then\n\\[\nm-1\\mid m^2+1.\n\\]\nSince\n\\[\nm^2+1=(m-1)(m+1)+2,\n\\]\nwe must have\n\\[\nm-1\\mid 2.\n\\]\nThus\n\\[\nm=2 \\quad \\text{or} \\quad m=3.\n\\]\nSo \\((2,1)\\) and \\((3,1)\\) are solutions, and by symmetry also \\((1,2)\\) and \\((1,3)\\).\n\nIt remains to show that there are no solutions with\n\\[\nn\\ge 2.\n\\]\n\nAssume for contradiction that \\(n\\ge 2\\). Then\n\\[\nm^2+n^2=d(mn-1).\n\\]\nReducing modulo \\(m\\), we get\n\\[\nn^2\\equiv -d \\pmod m.\n\\]\nReducing modulo \\(n\\), we get\n\\[\nm^2\\equiv -d \\pmod n.\n\\]\nHence\n\\[\nm^2\\equiv n^2 \\pmod{\\gcd(m,n)}.\n\\]\nThat is automatic, but the key point is that \\(d\\) is determined simultaneously by the two congruences.\n\nNow consider the equation modulo \\(mn-1\\). Since\n\\[\nmn\\equiv 1\\pmod{mn-1},\n\\]\nwe may multiply by \\(m\\) or \\(n\\) to simplify expressions:\n\\[\nm^2+n^2\\equiv 0\\pmod{mn-1}.\n\\]\nMultiplying by \\(m\\),\n\\[\nm^3+mn^2\\equiv m^3+n \\equiv 0\\pmod{mn-1}.\n\\]\nMultiplying by \\(n\\),\n\\[\nm^2n+n^3\\equiv m+n^3 \\equiv 0\\pmod{mn-1}.\n\\]\nSubtracting \\(n\\) times the first congruence from \\(m\\) times the second yields\n\\[\nm(m+n^3)-n(m^3+n)\\equiv 0\\pmod{mn-1},\n\\]\nso\n\\[\nm^2+mn^3-nm^3-n^2\\equiv 0\\pmod{mn-1}.\n\\]\nThis factors as\n\\[\n(m^2-n^2)+mn(n^2-m^2)=(m^2-n^2)(1-mn)\\equiv 0\\pmod{mn-1},\n\\]\nwhich is true because \\(1-mn\\equiv 0\\pmod{mn-1}\\). This suggests looking at \\(m^2-n^2\\).\n\nIndeed, from\n\\[\nm^2+n^2=d(mn-1),\n\\]\nwe solve for \\(d\\):\n\\[\nd=\\frac{m^2+n^2}{mn-1}.\n\\]\nIf \\(m>n\\ge 2\\), then\n\\[\nm^2+n^2<m^2+mn\\le 2m^2,\n\\]\nand\n\\[\nmn-1\\ge 2n-1\\ge 3,\n\\]\nso \\(d\\) is relatively small. More importantly,\n\\[\nd<\\frac{m^2+n^2}{mn-m/n}\n\\]\nis cumbersome, so we instead derive a sharper inequality directly from the defining equation:\n\\[\nm^2-dmn+n^2=-d.\n\\]\nSince the left side is quadratic in \\(m\\), its discriminant must be a perfect square:\n\\[\n\\Delta=d^2n^2-4(n^2+d).\n\\]\nSo there exists an integer \\(r\\ge 0\\) with\n\\[\nr^2=d^2n^2-4n^2-4d=n^2(d^2-4)-4d.\n\\]\nReducing this modulo \\(n\\), we find\n\\[\nr^2\\equiv -4d\\pmod n.\n\\]\nBut from the original equation modulo \\(n\\),\n\\[\nm^2\\equiv -d\\pmod n.\n\\]\nTherefore\n\\[\nr^2\\equiv 4m^2\\pmod n,\n\\]\nso\n\\[\nr\\equiv \\pm 2m\\pmod n.\n\\]\n\nNow note that\n\\[\nr^2=d^2n^2-4n^2-4d<d^2n^2,\n\\]\nhence\n\\[\n0\\le r<dn.\n\\]\nAlso, since\n\\[\nm=\\frac{dn\\pm r}{2},\n\\]\nwe must have\n\\[\nr\\equiv dn \\pmod 2.\n\\]\nThus the quadratic has two integer roots:\n\\[\nm,\\qquad m'=\\frac{dn-r}{2}.\n\\]\nTheir product is\n\\[\nmm'=n^2+d.\n\\]\nHence \\(m'>0\\), and \\((m',n)\\) is another positive integer solution.\n\nIf \\(n\\ge 2\\) and \\(m>n\\), then\n\\[\nmm'=n^2+d.\n\\]\nBut\n\\[\nd=\\frac{m^2+n^2}{mn-1}<\\frac{m^2+n^2}{mn/2}\n=2\\left(\\frac{m}{n}+\\frac{n}{m}\\right)\n\\]\nfor \\(mn\\ge 2\\), so \\(d\\) grows much more slowly than \\(m\\). Consequently,\n\\[\nm'=\\frac{n^2+d}{m}<m.\n\\]\nThus from any solution with \\(m>n\\ge 2\\), we obtain a smaller positive solution with the same \\(n\\), and repeating gives an infinite descent, impossible.\n\nTherefore no solution exists with \\(n\\ge 2\\). So necessarily\n\\[\nn=1.\n\\]\nAs shown at the beginning, this gives exactly\n\\[\nm=2 \\quad \\text{or} \\quad m=3.\n\\]\nBy symmetry, also \\((1,2)\\) and \\((1,3)\\).\n\nVerification:\n\\[\n(2,1):\\ 2\\cdot 1-1=1,\\quad 2^2+1^2=5;\n\\]\n\\[\n(3,1):\\ 3\\cdot 1-1=2,\\quad 3^2+1^2=10;\n\\]\nand the symmetric pairs clearly satisfy the same divisibility condition.\n\nFinal Answer: \n(2, 1), (3, 1), (1, 2), (1, 3)",
+        "cut_points": [],
+        "steps": [],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "Suppose \\[mn-1\\mid m^2+n^2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p2",
+            "text": "There exists \\(d\\in\\mathbb{Z}_{>0}\\) such that \\[m^2+n^2=d(mn-1).\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p3",
+            "text": "We will use modular considerations together with a size argument.",
+            "step_idx": null
+          },
+          {
+            "id": "p4",
+            "text": "The condition is symmetric in \\(m,n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p5",
+            "text": "Assume \\[m\\ge n.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p6",
+            "text": "If \\(n=1\\), then \\[m-1\\mid m^2+1.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p7",
+            "text": "\\[m^2+1=(m-1)(m+1)+2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p8",
+            "text": "\\[m-1\\mid 2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p9",
+            "text": "\\[m=2 \\quad \\text{or} \\quad m=3.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p10",
+            "text": "\\((2,1)\\) and \\((3,1)\\) are solutions.",
+            "step_idx": null
+          },
+          {
+            "id": "p11",
+            "text": "By symmetry also \\((1,2)\\) and \\((1,3)\\) are solutions.",
+            "step_idx": null
+          },
+          {
+            "id": "p12",
+            "text": "It remains to show that there are no solutions with \\[n\\ge 2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p13",
+            "text": "Assume for contradiction that \\(n\\ge 2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p14",
+            "text": "\\[m^2+n^2=d(mn-1).\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p15",
+            "text": "Reducing modulo \\(m\\), we get \\[n^2\\equiv -d \\pmod m.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p16",
+            "text": "Reducing modulo \\(n\\), we get \\[m^2\\equiv -d \\pmod n.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p17",
+            "text": "\\[m^2\\equiv n^2 \\pmod{\\gcd(m,n)}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p18",
+            "text": "That is automatic.",
+            "step_idx": null
+          },
+          {
+            "id": "p19",
+            "text": "The key point is that \\(d\\) is determined simultaneously by the two congruences.",
+            "step_idx": null
+          },
+          {
+            "id": "p20",
+            "text": "Consider the equation modulo \\(mn-1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p21",
+            "text": "\\[mn\\equiv 1\\pmod{mn-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p22",
+            "text": "We may multiply by \\(m\\) or \\(n\\) to simplify expressions.",
+            "step_idx": null
+          },
+          {
+            "id": "p23",
+            "text": "\\[m^2+n^2\\equiv 0\\pmod{mn-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p24",
+            "text": "Multiplying by \\(m\\), \\[m^3+mn^2\\equiv m^3+n \\equiv 0\\pmod{mn-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p25",
+            "text": "Multiplying by \\(n\\), \\[m^2n+n^3\\equiv m+n^3 \\equiv 0\\pmod{mn-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p26",
+            "text": "Subtracting \\(n\\) times the first congruence from \\(m\\) times the second yields \\[m(m+n^3)-n(m^3+n)\\equiv 0\\pmod{mn-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p27",
+            "text": "\\[m^2+mn^3-nm^3-n^2\\equiv 0\\pmod{mn-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p28",
+            "text": "This factors as \\[(m^2-n^2)+mn(n^2-m^2)=(m^2-n^2)(1-mn)\\equiv 0\\pmod{mn-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p29",
+            "text": "This is true because \\(1-mn\\equiv 0\\pmod{mn-1}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p30",
+            "text": "This suggests looking at \\(m^2-n^2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p31",
+            "text": "From \\[m^2+n^2=d(mn-1),\\] we solve for \\(d\\): \\[d=\\frac{m^2+n^2}{mn-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p32",
+            "text": "If \\(m>n\\ge 2\\), then \\[m^2+n^2<m^2+mn\\le 2m^2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p33",
+            "text": "\\[mn-1\\ge 2n-1\\ge 3.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p34",
+            "text": "So \\(d\\) is relatively small.",
+            "step_idx": null
+          },
+          {
+            "id": "p35",
+            "text": "More importantly, \\[d<\\frac{m^2+n^2}{mn-m/n}\\] is cumbersome.",
+            "step_idx": null
+          },
+          {
+            "id": "p36",
+            "text": "We instead derive a sharper inequality directly from the defining equation: \\[m^2-dmn+n^2=-d.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p37",
+            "text": "The left side is quadratic in \\(m\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p38",
+            "text": "Its discriminant must be a perfect square: \\[\\Delta=d^2n^2-4(n^2+d).\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p39",
+            "text": "There exists an integer \\(r\\ge 0\\) with \\[r^2=d^2n^2-4n^2-4d=n^2(d^2-4)-4d.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p40",
+            "text": "Reducing this modulo \\(n\\), we find \\[r^2\\equiv -4d\\pmod n.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p41",
+            "text": "From the original equation modulo \\(n\\), \\[m^2\\equiv -d\\pmod n.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p42",
+            "text": "Therefore \\[r^2\\equiv 4m^2\\pmod n.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p43",
+            "text": "So \\[r\\equiv \\pm 2m\\pmod n.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p44",
+            "text": "\\[r^2=d^2n^2-4n^2-4d<d^2n^2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p45",
+            "text": "Hence \\[0\\le r<dn.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p46",
+            "text": "\\[m=\\frac{dn\\pm r}{2}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p47",
+            "text": "We must have \\[r\\equiv dn \\pmod 2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p48",
+            "text": "Thus the quadratic has two integer roots: \\[m,\\qquad m'=\\frac{dn-r}{2}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p49",
+            "text": "Their product is \\[mm'=n^2+d.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p50",
+            "text": "Hence \\(m'>0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p51",
+            "text": "\\((m',n)\\) is another positive integer solution.",
+            "step_idx": null
+          },
+          {
+            "id": "p52",
+            "text": "If \\(n\\ge 2\\) and \\(m>n\\), then \\[mm'=n^2+d.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p53",
+            "text": "\\[d=\\frac{m^2+n^2}{mn-1}<\\frac{m^2+n^2}{mn/2}=2\\left(\\frac{m}{n}+\\frac{n}{m}\\right)\\] for \\(mn\\ge 2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p54",
+            "text": "So \\(d\\) grows much more slowly than \\(m\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p55",
+            "text": "Consequently, \\[m'=\\frac{n^2+d}{m}<m.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p56",
+            "text": "From any solution with \\(m>n\\ge 2\\), we obtain a smaller positive solution with the same \\(n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p57",
+            "text": "Repeating gives an infinite descent.",
+            "step_idx": null
+          },
+          {
+            "id": "p58",
+            "text": "An infinite descent is impossible.",
+            "step_idx": null
+          },
+          {
+            "id": "p59",
+            "text": "Therefore no solution exists with \\(n\\ge 2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p60",
+            "text": "So necessarily \\[n=1.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p61",
+            "text": "This gives exactly \\[m=2 \\quad \\text{or} \\quad m=3.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p62",
+            "text": "By symmetry, also \\((1,2)\\) and \\((1,3)\\).",
+            "step_idx": null
+          }
+        ],
+        "claims": [],
+        "claim_checks": {},
+        "dependencies": {},
+        "step_dependencies": {},
+        "workflow_state": "sample_selected"
+      }
+    }
+  },
+  "sample_decisions": [
+    {
+      "class_name": "1",
+      "is_correct": true,
+      "is_new_class": true,
+      "pipeline_status": "completed",
+      "summary": ""
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": true,
+      "class_name": "1",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "ready"
+    },
+    {
+      "is_correct": true,
+      "class_name": "1",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "ready"
+    },
+    {
+      "is_correct": true,
+      "class_name": "1",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "ready"
+    }
+  ],
+  "correct_solutions": [
+    {
+      "sample_idx": 0,
+      "solution": "Alternative Solution 1:\n\nLet\n\\[\nmn-1 \\mid m^2+n^2,\n\\]\nand write\n\\[\nm^2+n^2=k(mn-1)\n\\]\nfor some positive integer \\(k\\).\n\nBecause the condition is symmetric in \\(m,n\\), it is enough to solve for \\(m\\ge n\\), and then swap the coordinates at the end.\n\nWe first show that \\(n=1\\).\n\nFrom\n\\[\nm^2-kmn+n^2+k=0,\n\\]\nview this as a quadratic equation in \\(m\\). Since \\(m\\) is one integer root, by Vieta's formulas the other root is\n\\[\nm_1=kn-m.\n\\]\nAlso,\n\\[\nm\\cdot m_1=n^2+k.\n\\]\nHence \\(m_1\\) is a positive integer.\n\nNow assume \\(m\\ge n\\ge 2\\). Then\n\\[\nk=\\frac{m^2+n^2}{mn-1}<\\frac{m^2+n^2}{mn-2}.\n\\]\nSince \\(m\\ge n\\ge 2\\), we have \\(m^2+n^2\\le m^2+mn\\), so\n\\[\nk<\\frac{m^2+mn}{mn-2}.\n\\]\nBut a more useful estimate comes from checking whether \\(k\\ge m\\) is possible. If \\(k\\ge m\\), then\n\\[\nm^2+n^2=k(mn-1)\\ge m(mn-1)=m^2n-m.\n\\]\nSo\n\\[\nn^2+m\\ge m^2(n-1).\n\\]\nFor \\(n\\ge 2\\) and \\(m\\ge n\\), the right-hand side is too large: indeed,\n\\[\nm^2(n-1)\\ge n^2,\n\\]\nwith strict excess unless \\((m,n)=(2,2)\\), and for \\((2,2)\\) we get \\(m^2+n^2=8\\), \\(mn-1=3\\), not divisible. Thus \\(k<m\\).\n\nSimilarly, if \\(k\\le n\\), then\n\\[\nm^2+n^2=k(mn-1)\\le n(mn-1)=mn^2-n,\n\\]\nso\n\\[\nm^2+n<m n^2,\n\\]\nwhich is impossible for small \\(n\\) only after inspection; instead we use the root relation directly:\n\\[\nm_1=kn-m< n^2-m.\n\\]\nSince \\(m\\ge n\\ge 2\\), this gives \\(m_1<n^2-n\\), not enough alone. So let us proceed differently.\n\nBecause \\(m_1=kn-m\\) is a positive integer root, if \\(m_1<m\\), then \\((m_1,n)\\) is a smaller positive solution. We now prove \\(m_1<m\\) whenever \\(n\\ge 2\\).\n\nIndeed,\n\\[\nm_1=\\frac{n^2+k}{m}.\n\\]\nThus \\(m_1\\ge m\\) would imply\n\\[\nn^2+k\\ge m^2.\n\\]\nBut from\n\\[\nk=\\frac{m^2+n^2}{mn-1}\\le \\frac{m^2+n^2}{2m-1}<m\n\\]\nfor \\(n\\ge 2\\) and \\(m\\ge n\\), we get\n\\[\nn^2+k<n^2+m\\le m^2\n\\]\nunless \\(m=n=2\\), already excluded. Hence \\(m_1<m\\).\n\nSo whenever \\(n\\ge 2\\), a smaller positive solution \\((m_1,n)\\) exists. Repeating this descent is impossible in positive integers. Therefore our assumption \\(n\\ge 2\\) was false, and we must have\n\\[\nn=1.\n\\]\n\nNow substitute \\(n=1\\):\n\\[\nm-1\\mid m^2+1.\n\\]\nDivide:\n\\[\nm^2+1=(m-1)(m+1)+2.\n\\]\nHence\n\\[\nm-1\\mid 2.\n\\]\nSince \\(m\\) is a positive integer and \\(m\\ge n=1\\), we get\n\\[\nm-1=1 \\quad \\text{or} \\quad m-1=2,\n\\]\nso\n\\[\nm=2 \\quad \\text{or} \\quad m=3.\n\\]\n\nThus for \\(m\\ge n\\), the only solutions are\n\\[\n(2,1),\\ (3,1).\n\\]\nBy symmetry, we also get\n\\[\n(1,2),\\ (1,3).\n\\]\n\nVerification:  \n\\[\n(2,1):\\ mn-1=1,\\quad m^2+n^2=5;\n\\]\n\\[\n(3,1):\\ mn-1=2,\\quad m^2+n^2=10;\n\\]\n\\[\n(1,2):\\ mn-1=1,\\quad m^2+n^2=5;\n\\]\n\\[\n(1,3):\\ mn-1=2,\\quad m^2+n^2=10.\n\\]\nIn each case, \\(mn-1\\) divides \\(m^2+n^2\\).\n\nFinal Answer: \n(2, 1), (3, 1), (1, 2), (1, 3)",
+      "completed_at": "2026-04-12T14:37:00.065Z"
+    }
+  ],
+  "updated_at_utc": "2026-04-12T14:37:07.195115+00:00",
+  "created_at_utc": "2026-04-12T08:28:51.058215+00:00",
+  "content_hash": "196bee465df92c7852fcae081646b86a445f13400556a78d47825c0e907fb945"
+}

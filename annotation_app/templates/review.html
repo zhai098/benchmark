@@ -1,0 +1,44 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Reviewer 面板</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}" />
+</head>
+<body>
+  <header class="topbar">
+    <div>
+      <h1>Reviewer 面板</h1>
+      <p class="sub">审核记录与标注说明维护（仅 reviewer 可见）</p>
+    </div>
+    <div class="row">
+      <button onclick="location.href='/'">返回首页</button>
+      <button onclick="loadRecords()">刷新记录</button>
+    </div>
+  </header>
+  <main class="layout single">
+    <section class="panel">
+      <h3>标注说明编辑</h3>
+      <p class="sub">保存后，首页将自动显示最新说明。</p>
+      <textarea id="guidelineEditor" class="full-solution" placeholder="# 标注说明"></textarea>
+      <div class="row"><button class="primary" onclick="saveGuideline()">保存说明</button></div>
+
+      <h3>汇总</h3>
+      <div id="summary"></div>
+      <h3>记录列表</h3>
+      <table id="recordsTable">
+        <thead>
+          <tr>
+            <th>文件</th><th>标注者</th><th>题目</th><th>正确样本</th><th>已完成/总样本</th><th>step</th><th>claim</th><th>依赖</th><th>当前状态</th><th>时间</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <h3>详情</h3>
+      <pre id="detail"></pre>
+    </section>
+  </main>
+  <script src="{{ url_for('static', filename='review.js') }}"></script>
+</body>
+</html>

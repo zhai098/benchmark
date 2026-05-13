@@ -1,1 +1,36 @@
+__pycache__/
+*/__pycache__/
+.pytest_cache/
+.conda/
+.venv/
+artifacts/
+workflow_data/
+packed_prompt/
+
 gen_output/
+frontend/.next/
+
+annotation_app/data/logs/
+annotation_app/data/annotations/
+annotation_app/data/records/
+
+# Local analysis outputs and generated benchmark artifacts from this workflow.
+artifacts/analysis/analysis/question_quality_gpt5_2/
+workflow_data/manual_review/0410_*.jsonl
+workflow_data/claims/0413_*.jsonl
+workflow_data/annotation_exports/0417_*.jsonl
+workflow_data/question_quality/0418_*.jsonl
+workflow_data/question_quality/question_quality_api_requests.jsonl
+workflow_data/strict_difficulty/high_difficulty_quality_*.jsonl
+workflow_data/annotation_exports/annotation_data_reference_claims_quality_ge4_clear_sound_veryhard_plus.jsonl
+workflow_data/annotation_exports/splits/annotation_data_reference_claims_quality_ge4_clear_sound_veryhard_plus_split/
+artifacts/archives/annotation_data_reference_claims_quality_ge4_clear_sound_veryhard_plus_split.zip
+workflow_data/annotation_exports/annotation_data_with_claims_from_0413_gpt5.4rtn_high_difficulty_samples_acc_le_1_8.jsonl.bak
+
+# One-off data processing scripts for the filtering/evaluation workflow.
+tools/evaluation/analyze_question_quality_scores.py
+tools/claims/build_annotation_jsonl_from_claim_segment_messages.py
+tools/evaluation/build_question_quality_api_requests.py
+tools/claims/build_reference_answer_claim_segment_prompts.py
+tools/claims/build_reference_claim_annotation_subset.py
+tools/evaluation/build_strict_difficulty_api_requests.py

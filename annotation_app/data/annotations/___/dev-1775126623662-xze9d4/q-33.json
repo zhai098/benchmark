@@ -1,0 +1,1499 @@
+{
+  "annotator_id": "张璟旭",
+  "device_id": "dev-1775126623662-xze9d4",
+  "case_id": "q-33",
+  "status": "in_progress",
+  "current_step": 1,
+  "current_workflow_state": {
+    "active_sample_idx": null,
+    "sample_cursor": 5,
+    "workflow_state": "sample_selected",
+    "problem_quality_screening": {
+      "decision": "pass",
+      "reason": "",
+      "other_text": "",
+      "rejected_at": ""
+    }
+  },
+  "current_annotations": {
+    "selected_solution_text": "",
+    "cut_points": [],
+    "steps": [],
+    "presegmented_claims": [],
+    "claims": [],
+    "claim_checks": {},
+    "dependencies": {},
+    "step_dependencies": {},
+    "sample_annotations": {
+      "2": {
+        "selected_solution_text": "We write a number of the required form as a sum of \\(n\\) terms chosen from\n\\[\n\\{\\pm 1,\\pm 2,\\pm 4,\\pm 8,\\dots\\}.\n\\]\nThe problem is to determine the smallest positive integer that cannot be formed.\n\nWe will use a “greedy nearest-power” argument together with an explicit extremal construction.\n\n### Step 1: An explicit family needing many terms\n\nConsider the numbers\n\\[\ne_n=1+2+8+32+\\cdots+2\\cdot 4^{\\,n-1}\n=1+2\\sum_{j=0}^{n-1}4^j\n=2\\left(\\frac{4^n-1}{3}\\right)+1.\n\\]\nThese satisfy\n\\[\ne_{n+1}=4e_n-1.\n\\]\n\nWe first show that \\(e_n\\) can be written using \\(n+1\\) terms:\n\\[\ne_n=1+2+8+\\cdots+2\\cdot 4^{n-1}.\n\\]\nSo \\(e_n\\) is certainly \\((n+1)\\)-good.\n\nWe shall prove that \\(e_n\\) is not \\(n\\)-good.\n\n### Step 2: A lower bound via repeated halving\n\nSuppose an odd integer \\(m\\) is \\(n\\)-good. Since all powers \\(2^b\\) with \\(b\\ge 1\\) are even, the parity of the sum comes entirely from the number of \\(\\pm1\\) terms. In particular, at least one term must be \\(\\pm1\\). Removing one such term and dividing the remaining even sum by \\(2\\), we obtain a representation of either\n\\[\n\\frac{m-1}{2}\\qquad\\text{or}\\qquad \\frac{m+1}{2}\n\\]\nwith at most \\(n-1\\) terms.\n\nApply this to \\(m=e_n\\). Since\n\\[\n\\frac{e_n-1}{2}=\\sum_{j=0}^{n-1}4^j=\\frac{4^n-1}{3},\n\\]\nany \\(n\\)-term representation of \\(e_n\\) would imply an \\((n-1)\\)-term representation of one of the two neighboring numbers\n\\[\n\\frac{4^n-1}{3}\n\\quad\\text{or}\\quad\n\\frac{4^n-1}{3}+1.\n\\]\n\nNow observe that\n\\[\n\\frac{4^n-1}{3}=1+4+4^2+\\cdots+4^{n-1}\n\\]\nalso satisfies the same pattern: it is odd, and subtracting \\(1\\) and dividing by \\(2\\) gives\n\\[\n\\frac{1}{2}\\left(\\frac{4^n-1}{3}-1\\right)=2\\sum_{j=0}^{n-2}4^j.\n\\]\nRepeatedly continuing this parity reduction eventually leads to \\(e_{n-1}\\).\n\nThus, if \\(e_n\\) were \\(n\\)-good, then after one reduction step \\(e_{n-1}\\) would be \\((n-1)\\)-good. Repeating, we would conclude \\(e_1=3\\) is \\(1\\)-good, which is false.\n\nTherefore \\(e_n\\) is not \\(n\\)-good.\n\n### Step 3: Every smaller positive integer is \\(n\\)-good\n\nWe now prove that every integer \\(m\\) with\n\\[\n1\\le m<e_n\n\\]\nis \\(n\\)-good.\n\nWe proceed by induction on \\(n\\).\n\nFor \\(n=1\\), \\(e_1=3\\), and indeed the positive integers below \\(3\\) are \\(1\\) and \\(2\\), both of which are one power of \\(2\\).\n\nAssume the statement true for \\(n\\). Let \\(m\\) be a positive integer with\n\\[\n1\\le m<e_{n+1}=4e_n-1.\n\\]\nWe show \\(m\\) is \\((n+1)\\)-good.\n\nChoose a power \\(2^t\\) so that \\(2^t\\) is the largest power of \\(2\\) not exceeding \\(m+e_n-1\\). Then\n\\[\n|m-2^t|<e_n.\n\\]\nIndeed, the intervals\n\\[\n(2^t-e_n,\\ 2^t+e_n)\n\\]\nfor \\(t=0,1,\\dots,2n+1\\) overlap and cover all integers from \\(1\\) up to \\(e_{n+1}-1\\). This follows because\n\\[\n2^{t+1}-e_n\\le 2^t+e_n\n\\]\nfor all \\(t\\le 2n\\), and the final right endpoint is\n\\[\n2^{2n+1}+e_n=2\\cdot 4^n+2\\left(\\frac{4^n-1}{3}\\right)+1>4e_n-2=e_{n+1}-1.\n\\]\n\nHence \\(r:=|m-2^t|\\) satisfies\n\\[\n0\\le r<e_n.\n\\]\nIf \\(r=0\\), then \\(m=2^t\\) is trivially \\((n+1)\\)-good. If \\(r>0\\), then by the induction hypothesis \\(r\\) is \\(n\\)-good. Therefore\n\\[\nm=2^t\\pm r\n\\]\nis \\((n+1)\\)-good.\n\nSo every positive integer less than \\(e_{n+1}\\) is \\((n+1)\\)-good.\n\nBy induction, every positive integer less than \\(e_n\\) is \\(n\\)-good, while \\(e_n\\) itself is not.",
+        "cut_points": [
+          292,
+          502,
+          693,
+          960,
+          1149,
+          1425,
+          1729,
+          1939,
+          2073,
+          2237,
+          2374,
+          2814,
+          3032
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "text": "We write a number of the required form as a sum of \\(n\\) terms chosen from\n\\[\n\\{\\pm 1,\\pm 2,\\pm 4,\\pm 8,\\dots\\}.\n\\]\nThe problem is to determine the smallest positive integer that cannot be formed.\n\nWe will use a “greedy nearest-power” argument together with an explicit extremal construction."
+          },
+          {
+            "id": "s2",
+            "text": "### Step 1: An explicit family needing many terms\n\nConsider the numbers\n\\[\ne_n=1+2+8+32+\\cdots+2\\cdot 4^{\\,n-1}\n=1+2\\sum_{j=0}^{n-1}4^j\n=2\\left(\\frac{4^n-1}{3}\\right)+1.\n\\]\nThese satisfy\n\\[\ne_{n+1}=4e_n-1.\n\\]"
+          },
+          {
+            "id": "s3",
+            "text": "We first show that \\(e_n\\) can be written using \\(n+1\\) terms:\n\\[\ne_n=1+2+8+\\cdots+2\\cdot 4^{n-1}.\n\\]\nSo \\(e_n\\) is certainly \\((n+1)\\)-good.\n\nWe shall prove that \\(e_n\\) is not \\(n\\)-good."
+          },
+          {
+            "id": "s4",
+            "text": "### Step 2: A lower bound via repeated halving\n\nSuppose an odd integer \\(m\\) is \\(n\\)-good. Since all powers \\(2^b\\) with \\(b\\ge 1\\) are even, the parity of the sum comes entirely from the number of \\(\\pm1\\) terms. In particular, at least one term must be \\(\\pm1\\)."
+          },
+          {
+            "id": "s5",
+            "text": "Removing one such term and dividing the remaining even sum by \\(2\\), we obtain a representation of either\n\\[\n\\frac{m-1}{2}\\qquad\\text{or}\\qquad \\frac{m+1}{2}\n\\]\nwith at most \\(n-1\\) terms."
+          },
+          {
+            "id": "s6",
+            "text": "Apply this to \\(m=e_n\\). Since\n\\[\n\\frac{e_n-1}{2}=\\sum_{j=0}^{n-1}4^j=\\frac{4^n-1}{3},\n\\]\nany \\(n\\)-term representation of \\(e_n\\) would imply an \\((n-1)\\)-term representation of one of the two neighboring numbers\n\\[\n\\frac{4^n-1}{3}\n\\quad\\text{or}\\quad\n\\frac{4^n-1}{3}+1.\n\\]"
+          },
+          {
+            "id": "s7",
+            "text": "Now observe that\n\\[\n\\frac{4^n-1}{3}=1+4+4^2+\\cdots+4^{n-1}\n\\]\nalso satisfies the same pattern: it is odd, and subtracting \\(1\\) and dividing by \\(2\\) gives\n\\[\n\\frac{1}{2}\\left(\\frac{4^n-1}{3}-1\\right)=2\\sum_{j=0}^{n-2}4^j.\n\\]\nRepeatedly continuing this parity reduction eventually leads to \\(e_{n-1}\\)."
+          },
+          {
+            "id": "s8",
+            "text": "Thus, if \\(e_n\\) were \\(n\\)-good, then after one reduction step \\(e_{n-1}\\) would be \\((n-1)\\)-good. Repeating, we would conclude \\(e_1=3\\) is \\(1\\)-good, which is false.\n\nTherefore \\(e_n\\) is not \\(n\\)-good."
+          },
+          {
+            "id": "s9",
+            "text": "### Step 3: Every smaller positive integer is \\(n\\)-good\n\nWe now prove that every integer \\(m\\) with\n\\[\n1\\le m<e_n\n\\]\nis \\(n\\)-good."
+          },
+          {
+            "id": "s10",
+            "text": "We proceed by induction on \\(n\\).\n\nFor \\(n=1\\), \\(e_1=3\\), and indeed the positive integers below \\(3\\) are \\(1\\) and \\(2\\), both of which are one power of \\(2\\)."
+          },
+          {
+            "id": "s11",
+            "text": "Assume the statement true for \\(n\\). Let \\(m\\) be a positive integer with\n\\[\n1\\le m<e_{n+1}=4e_n-1.\n\\]\nWe show \\(m\\) is \\((n+1)\\)-good."
+          },
+          {
+            "id": "s12",
+            "text": "Choose a power \\(2^t\\) so that \\(2^t\\) is the largest power of \\(2\\) not exceeding \\(m+e_n-1\\). Then\n\\[\n|m-2^t|<e_n.\n\\]\nIndeed, the intervals\n\\[\n(2^t-e_n,\\ 2^t+e_n)\n\\]\nfor \\(t=0,1,\\dots,2n+1\\) overlap and cover all integers from \\(1\\) up to \\(e_{n+1}-1\\). This follows because\n\\[\n2^{t+1}-e_n\\le 2^t+e_n\n\\]\nfor all \\(t\\le 2n\\), and the final right endpoint is\n\\[\n2^{2n+1}+e_n=2\\cdot 4^n+2\\left(\\frac{4^n-1}{3}\\right)+1>4e_n-2=e_{n+1}-1.\n\\]"
+          },
+          {
+            "id": "s13",
+            "text": "Hence \\(r:=|m-2^t|\\) satisfies\n\\[\n0\\le r<e_n.\n\\]\nIf \\(r=0\\), then \\(m=2^t\\) is trivially \\((n+1)\\)-good. If \\(r>0\\), then by the induction hypothesis \\(r\\) is \\(n\\)-good. Therefore\n\\[\nm=2^t\\pm r\n\\]\nis \\((n+1)\\)-good."
+          },
+          {
+            "id": "s14",
+            "text": "So every positive integer less than \\(e_{n+1}\\) is \\((n+1)\\)-good.\n\nBy induction, every positive integer less than \\(e_n\\) is \\(n\\)-good, while \\(e_n\\) itself is not."
+          }
+        ],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "We write a number of the required form as a sum of \\(n\\) terms chosen from \\(\\{\\pm 1,\\pm 2,\\pm 4,\\pm 8,\\dots\\}\\).",
+            "step_idx": 0
+          },
+          {
+            "id": "p2",
+            "text": "The problem is to determine the smallest positive integer that cannot be formed.",
+            "step_idx": 0
+          },
+          {
+            "id": "p3",
+            "text": "We will use a “greedy nearest-power” argument together with an explicit extremal construction.",
+            "step_idx": 0
+          },
+          {
+            "id": "p4",
+            "text": "Consider the numbers \\(e_n=1+2+8+32+\\cdots+2\\cdot 4^{\\,n-1}=1+2\\sum_{j=0}^{n-1}4^j=2\\left(\\frac{4^n-1}{3}\\right)+1\\).",
+            "step_idx": 1
+          },
+          {
+            "id": "p5",
+            "text": "These satisfy \\(e_{n+1}=4e_n-1\\).",
+            "step_idx": 1
+          },
+          {
+            "id": "p6",
+            "text": "We first show that \\(e_n\\) can be written using \\(n+1\\) terms.",
+            "step_idx": 2
+          },
+          {
+            "id": "p7",
+            "text": "\\(e_n=1+2+8+\\cdots+2\\cdot 4^{n-1}\\).",
+            "step_idx": 2
+          },
+          {
+            "id": "p8",
+            "text": "So \\(e_n\\) is certainly \\((n+1)\\)-good.",
+            "step_idx": 2
+          },
+          {
+            "id": "p9",
+            "text": "We shall prove that \\(e_n\\) is not \\(n\\)-good.",
+            "step_idx": 2
+          },
+          {
+            "id": "p10",
+            "text": "Suppose an odd integer \\(m\\) is \\(n\\)-good.",
+            "step_idx": 3
+          },
+          {
+            "id": "p11",
+            "text": "Since all powers \\(2^b\\) with \\(b\\ge 1\\) are even, the parity of the sum comes entirely from the number of \\(\\pm1\\) terms.",
+            "step_idx": 3
+          },
+          {
+            "id": "p12",
+            "text": "At least one term must be \\(\\pm1\\).",
+            "step_idx": 3
+          },
+          {
+            "id": "p13",
+            "text": "Removing one such term and dividing the remaining even sum by \\(2\\), we obtain a representation of either \\(\\frac{m-1}{2}\\) or \\(\\frac{m+1}{2}\\) with at most \\(n-1\\) terms.",
+            "step_idx": 4
+          },
+          {
+            "id": "p14",
+            "text": "Apply this to \\(m=e_n\\).",
+            "step_idx": 5
+          },
+          {
+            "id": "p15",
+            "text": "\\(\\frac{e_n-1}{2}=\\sum_{j=0}^{n-1}4^j=\\frac{4^n-1}{3}\\).",
+            "step_idx": 5
+          },
+          {
+            "id": "p16",
+            "text": "Any \\(n\\)-term representation of \\(e_n\\) would imply an \\((n-1)\\)-term representation of one of the two neighboring numbers \\(\\frac{4^n-1}{3}\\) or \\(\\frac{4^n-1}{3}+1\\).",
+            "step_idx": 5
+          },
+          {
+            "id": "p17",
+            "text": "\\(\\frac{4^n-1}{3}=1+4+4^2+\\cdots+4^{n-1}\\).",
+            "step_idx": 6
+          },
+          {
+            "id": "p18",
+            "text": "It is odd.",
+            "step_idx": 6
+          },
+          {
+            "id": "p19",
+            "text": "Subtracting \\(1\\) and dividing by \\(2\\) gives \\(\\frac{1}{2}\\left(\\frac{4^n-1}{3}-1\\right)=2\\sum_{j=0}^{n-2}4^j\\).",
+            "step_idx": 6
+          },
+          {
+            "id": "p20",
+            "text": "Repeatedly continuing this parity reduction eventually leads to \\(e_{n-1}\\).",
+            "step_idx": 6
+          },
+          {
+            "id": "p21",
+            "text": "If \\(e_n\\) were \\(n\\)-good, then after one reduction step \\(e_{n-1}\\) would be \\((n-1)\\)-good.",
+            "step_idx": 7
+          },
+          {
+            "id": "p22",
+            "text": "Repeating, we would conclude \\(e_1=3\\) is \\(1\\)-good.",
+            "step_idx": 7
+          },
+          {
+            "id": "p23",
+            "text": "\\(e_1=3\\) is \\(1\\)-good is false.",
+            "step_idx": 7
+          },
+          {
+            "id": "p24",
+            "text": "Therefore \\(e_n\\) is not \\(n\\)-good.",
+            "step_idx": 7
+          },
+          {
+            "id": "p25",
+            "text": "We now prove that every integer \\(m\\) with \\(1\\le m<e_n\\) is \\(n\\)-good.",
+            "step_idx": 8
+          },
+          {
+            "id": "p26",
+            "text": "We proceed by induction on \\(n\\).",
+            "step_idx": 9
+          },
+          {
+            "id": "p27",
+            "text": "For \\(n=1\\), \\(e_1=3\\).",
+            "step_idx": 9
+          },
+          {
+            "id": "p28",
+            "text": "The positive integers below \\(3\\) are \\(1\\) and \\(2\\).",
+            "step_idx": 9
+          },
+          {
+            "id": "p29",
+            "text": "Both \\(1\\) and \\(2\\) are one power of \\(2\\).",
+            "step_idx": 9
+          },
+          {
+            "id": "p30",
+            "text": "Assume the statement true for \\(n\\).",
+            "step_idx": 10
+          },
+          {
+            "id": "p31",
+            "text": "Let \\(m\\) be a positive integer with \\(1\\le m<e_{n+1}=4e_n-1\\).",
+            "step_idx": 10
+          },
+          {
+            "id": "p32",
+            "text": "We show \\(m\\) is \\((n+1)\\)-good.",
+            "step_idx": 10
+          },
+          {
+            "id": "p33",
+            "text": "Choose a power \\(2^t\\) so that \\(2^t\\) is the largest power of \\(2\\) not exceeding \\(m+e_n-1\\).",
+            "step_idx": 11
+          },
+          {
+            "id": "p34",
+            "text": "Then \\(|m-2^t|<e_n\\).",
+            "step_idx": 11
+          },
+          {
+            "id": "p35",
+            "text": "The intervals \\((2^t-e_n,\\ 2^t+e_n)\\) for \\(t=0,1,\\dots,2n+1\\) overlap and cover all integers from \\(1\\) up to \\(e_{n+1}-1\\).",
+            "step_idx": 11
+          },
+          {
+            "id": "p36",
+            "text": "This follows because \\(2^{t+1}-e_n\\le 2^t+e_n\\) for all \\(t\\le 2n\\).",
+            "step_idx": 11
+          },
+          {
+            "id": "p37",
+            "text": "The final right endpoint is \\(2^{2n+1}+e_n=2\\cdot 4^n+2\\left(\\frac{4^n-1}{3}\\right)+1\\).",
+            "step_idx": 11
+          },
+          {
+            "id": "p38",
+            "text": "\\(2^{2n+1}+e_n>4e_n-2=e_{n+1}-1\\).",
+            "step_idx": 11
+          },
+          {
+            "id": "p39",
+            "text": "Hence \\(r:=|m-2^t|\\) satisfies \\(0\\le r<e_n\\).",
+            "step_idx": 12
+          },
+          {
+            "id": "p40",
+            "text": "If \\(r=0\\), then \\(m=2^t\\) is trivially \\((n+1)\\)-good.",
+            "step_idx": 12
+          },
+          {
+            "id": "p41",
+            "text": "If \\(r>0\\), then by the induction hypothesis \\(r\\) is \\(n\\)-good.",
+            "step_idx": 12
+          },
+          {
+            "id": "p42",
+            "text": "Therefore \\(m=2^t\\pm r\\) is \\((n+1)\\)-good.",
+            "step_idx": 12
+          },
+          {
+            "id": "p43",
+            "text": "So every positive integer less than \\(e_{n+1}\\) is \\((n+1)\\)-good.",
+            "step_idx": 13
+          },
+          {
+            "id": "p44",
+            "text": "By induction, every positive integer less than \\(e_n\\) is \\(n\\)-good.",
+            "step_idx": 13
+          },
+          {
+            "id": "p45",
+            "text": "\\(e_n\\) itself is not \\(n\\)-good.",
+            "step_idx": 13
+          },
+          {
+            "id": "p46",
+            "text": "We have proved that the exceptional number \\(e_n=1+2\\sum_{j=0}^{n-1}4^j\\) is not \\(n\\)-good.",
+            "step_idx": 13
+          },
+          {
+            "id": "p47",
+            "text": "Every smaller positive integer is \\(n\\)-good.",
+            "step_idx": 13
+          },
+          {
+            "id": "p48",
+            "text": "\\(1+2\\sum_{j=0}^{n-1}4^j=1+2\\left(\\frac{4^n-1}{3}\\right)\\).",
+            "step_idx": 13
+          },
+          {
+            "id": "p49",
+            "text": "This is exactly the least positive integer sought.",
+            "step_idx": 13
+          }
+        ],
+        "claims": [
+          {
+            "step_id": "s1",
+            "claims": [
+              "We write a number of the required form as a sum of \\(n\\) terms chosen from \\(\\{\\pm 1,\\pm 2,\\pm 4,\\pm 8,\\dots\\}\\).",
+              "The problem is to determine the smallest positive integer that cannot be formed.",
+              "We will use a “greedy nearest-power” argument together with an explicit extremal construction."
+            ]
+          },
+          {
+            "step_id": "s2",
+            "claims": [
+              "Consider the numbers \\(e_n=1+2+8+32+\\cdots+2\\cdot 4^{\\,n-1}=1+2\\sum_{j=0}^{n-1}4^j=2\\left(\\frac{4^n-1}{3}\\right)+1\\).",
+              "These satisfy \\(e_{n+1}=4e_n-1\\)."
+            ]
+          },
+          {
+            "step_id": "s3",
+            "claims": [
+              "We first show that \\(e_n\\) can be written using \\(n+1\\) terms.",
+              "\\(e_n=1+2+8+\\cdots+2\\cdot 4^{n-1}\\).",
+              "So \\(e_n\\) is certainly \\((n+1)\\)-good.",
+              "We shall prove that \\(e_n\\) is not \\(n\\)-good."
+            ]
+          },
+          {
+            "step_id": "s4",
+            "claims": [
+              "Suppose an odd integer \\(m\\) is \\(n\\)-good.",
+              "Since all powers \\(2^b\\) with \\(b\\ge 1\\) are even, the parity of the sum comes entirely from the number of \\(\\pm1\\) terms.",
+              "At least one term must be \\(\\pm1\\)."
+            ]
+          },
+          {
+            "step_id": "s5",
+            "claims": [
+              "Removing one such term and dividing the remaining even sum by \\(2\\), we obtain a representation of either \\(\\frac{m-1}{2}\\) or \\(\\frac{m+1}{2}\\) with at most \\(n-1\\) terms."
+            ]
+          },
+          {
+            "step_id": "s6",
+            "claims": [
+              "Apply this to \\(m=e_n\\).",
+              "\\(\\frac{e_n-1}{2}=\\sum_{j=0}^{n-1}4^j=\\frac{4^n-1}{3}\\).",
+              "Any \\(n\\)-term representation of \\(e_n\\) would imply an \\((n-1)\\)-term representation of one of the two neighboring numbers \\(\\frac{4^n-1}{3}\\) or \\(\\frac{4^n-1}{3}+1\\)."
+            ]
+          },
+          {
+            "step_id": "s7",
+            "claims": [
+              "\\(\\frac{4^n-1}{3}=1+4+4^2+\\cdots+4^{n-1}\\).",
+              "It is odd.",
+              "Subtracting \\(1\\) and dividing by \\(2\\) gives \\(\\frac{1}{2}\\left(\\frac{4^n-1}{3}-1\\right)=2\\sum_{j=0}^{n-2}4^j\\).",
+              "Repeatedly continuing this parity reduction eventually leads to \\(e_{n-1}\\)."
+            ]
+          },
+          {
+            "step_id": "s8",
+            "claims": [
+              "If \\(e_n\\) were \\(n\\)-good, then after one reduction step \\(e_{n-1}\\) would be \\((n-1)\\)-good.",
+              "Repeating, we would conclude \\(e_1=3\\) is \\(1\\)-good.",
+              "\\(e_1=3\\) is \\(1\\)-good is false.",
+              "Therefore \\(e_n\\) is not \\(n\\)-good."
+            ]
+          },
+          {
+            "step_id": "s9",
+            "claims": [
+              "We now prove that every integer \\(m\\) with \\(1\\le m<e_n\\) is \\(n\\)-good."
+            ]
+          },
+          {
+            "step_id": "s10",
+            "claims": [
+              "We proceed by induction on \\(n\\).",
+              "For \\(n=1\\), \\(e_1=3\\).",
+              "The positive integers below \\(3\\) are \\(1\\) and \\(2\\).",
+              "Both \\(1\\) and \\(2\\) are one power of \\(2\\)."
+            ]
+          },
+          {
+            "step_id": "s11",
+            "claims": [
+              "Assume the statement true for \\(n\\).",
+              "Let \\(m\\) be a positive integer with \\(1\\le m<e_{n+1}=4e_n-1\\).",
+              "We show \\(m\\) is \\((n+1)\\)-good."
+            ]
+          },
+          {
+            "step_id": "s12",
+            "claims": [
+              "Choose a power \\(2^t\\) so that \\(2^t\\) is the largest power of \\(2\\) not exceeding \\(m+e_n-1\\).",
+              "Then \\(|m-2^t|<e_n\\).",
+              "The intervals \\((2^t-e_n,\\ 2^t+e_n)\\) for \\(t=0,1,\\dots,2n+1\\) overlap and cover all integers from \\(1\\) up to \\(e_{n+1}-1\\).",
+              "This follows because \\(2^{t+1}-e_n\\le 2^t+e_n\\) for all \\(t\\le 2n\\).",
+              "The final right endpoint is \\(2^{2n+1}+e_n=2\\cdot 4^n+2\\left(\\frac{4^n-1}{3}\\right)+1\\).",
+              "\\(2^{2n+1}+e_n>4e_n-2=e_{n+1}-1\\)."
+            ]
+          },
+          {
+            "step_id": "s13",
+            "claims": [
+              "Hence \\(r:=|m-2^t|\\) satisfies \\(0\\le r<e_n\\).",
+              "If \\(r=0\\), then \\(m=2^t\\) is trivially \\((n+1)\\)-good.",
+              "If \\(r>0\\), then by the induction hypothesis \\(r\\) is \\(n\\)-good.",
+              "Therefore \\(m=2^t\\pm r\\) is \\((n+1)\\)-good."
+            ]
+          },
+          {
+            "step_id": "s14",
+            "claims": [
+              "So every positive integer less than \\(e_{n+1}\\) is \\((n+1)\\)-good.",
+              "By induction, every positive integer less than \\(e_n\\) is \\(n\\)-good.",
+              "\\(e_n\\) itself is not \\(n\\)-good.",
+              "We have proved that the exceptional number \\(e_n=1+2\\sum_{j=0}^{n-1}4^j\\) is not \\(n\\)-good.",
+              "Every smaller positive integer is \\(n\\)-good.",
+              "\\(1+2\\sum_{j=0}^{n-1}4^j=1+2\\left(\\frac{4^n-1}{3}\\right)\\).",
+              "This is exactly the least positive integer sought."
+            ]
+          }
+        ],
+        "claim_checks": {
+          "s1c1": "correct",
+          "s1c2": "correct",
+          "s1c3": "correct",
+          "s2c1": "correct",
+          "s2c2": "correct",
+          "s3c1": "correct",
+          "s3c2": "correct",
+          "s3c3": "correct",
+          "s3c4": "correct",
+          "s4c1": "correct",
+          "s4c2": "correct",
+          "s4c3": "correct",
+          "s5c1": "correct",
+          "s6c1": "correct",
+          "s6c2": "correct",
+          "s6c3": "correct",
+          "s7c1": "correct",
+          "s7c2": "correct",
+          "s7c3": "correct",
+          "s7c4": "correct",
+          "s8c1": "correct",
+          "s8c2": "correct",
+          "s8c3": "correct",
+          "s8c4": "correct",
+          "s9c1": "correct",
+          "s10c1": "correct",
+          "s10c2": "correct",
+          "s10c3": "correct",
+          "s10c4": "correct",
+          "s11c1": "correct",
+          "s11c2": "correct",
+          "s11c3": "correct",
+          "s12c1": "correct",
+          "s12c2": "correct",
+          "s12c3": "correct",
+          "s12c4": "correct",
+          "s12c5": "correct",
+          "s12c6": "correct",
+          "s13c1": "correct",
+          "s13c2": "correct",
+          "s13c3": "correct",
+          "s13c4": "correct",
+          "s14c1": "correct",
+          "s14c2": "correct",
+          "s14c3": "correct",
+          "s14c4": "correct",
+          "s14c5": "correct",
+          "s14c6": "correct",
+          "s14c7": "correct"
+        },
+        "dependencies": {},
+        "step_dependencies": {
+          "s2": [
+            "s1c3"
+          ],
+          "s3": [
+            "s2c1"
+          ],
+          "s4": [
+            "s3c4",
+            "s2c1"
+          ],
+          "s5": [
+            "s4c1",
+            "s4c2",
+            "s4c3"
+          ],
+          "s6": [
+            "s5c1"
+          ],
+          "s7": [
+            "s4c1",
+            "s4c3",
+            "s4c2",
+            "s2c2"
+          ],
+          "s8": [
+            "s7c4",
+            "s6c1"
+          ],
+          "s9": [
+            "s3c4",
+            "s8c4"
+          ],
+          "s10": [
+            "s9c1"
+          ],
+          "s11": [
+            "s9c1"
+          ],
+          "s12": [
+            "s11c1",
+            "s11c2"
+          ],
+          "s13": [
+            "s12c6",
+            "s12c4",
+            "s12c2",
+            "s12c1",
+            "s12c3",
+            "s12c5"
+          ],
+          "s14": [
+            "s9c1",
+            "s10c1",
+            "s13c4"
+          ]
+        },
+        "workflow_state": "completed"
+      },
+      "3": {
+        "selected_solution_text": "Let us call a positive integer \\(m\\) **\\(n\\)-representable** if it can be written in the form\n\\[\nm=\\sum_{i=1}^{n}(-1)^{a_i}2^{b_i},\n\\]\nwith \\(a_i,b_i\\ge 0\\).\n\nWe will prove that the least positive integer which is not \\(n\\)-representable is\n\\[\n2\\left(\\frac{4^n-1}{3}\\right)+1.\n\\]\n\n### Step 1: A sharp upper bound for all numbers representable with at most \\(n\\) terms\n\nWe first show that every integer \\(m\\) with\n\\[\n1\\le m\\le 2\\left(\\frac{4^n-1}{3}\\right)\n\\]\nis \\(n\\)-representable.\n\nFor this, define\n\\[\nS_n:=2+2^3+2^5+\\cdots+2^{2n-1}=2\\sum_{j=0}^{n-1}4^j\n=2\\left(\\frac{4^n-1}{3}\\right).\n\\]\n\nWe prove by induction on \\(n\\) that every integer in the interval \\([1,S_n]\\) is \\(n\\)-representable.\n\nFor \\(n=1\\), we have \\(S_1=2\\), and indeed\n\\[\n1=2-1,\\qquad 2=2.\n\\]\nSo the claim holds.\n\nNow suppose the claim holds for some \\(n=k\\). Thus every integer \\(t\\) with \\(1\\le t\\le S_k\\) is \\(k\\)-representable.\n\nWe show every integer \\(m\\) with \\(1\\le m\\le S_{k+1}=S_k+2^{2k+1}\\) is \\((k+1)\\)-representable.\n\n- If \\(1\\le m\\le S_k\\), then \\(m\\) is already \\(k\\)-representable, hence also \\((k+1)\\)-representable.\n- If \\(S_k<m\\le 2^{2k+1}\\), then\n  \\[\n  m=2^{2k+1}-t\n  \\]\n  where \\(0\\le t<2^{2k+1}-S_k\\). Since\n  \\[\n  2^{2k+1}-S_k\n  =2\\cdot 4^k-2\\frac{4^k-1}{3}\n  =\\frac{4^{k+1}+2}{3}>1,\n  \\]\n  and \\(t\\le S_k\\), the induction hypothesis gives a \\(k\\)-term expression for \\(t\\), hence \\(m\\) is \\((k+1)\\)-representable.\n- If \\(2^{2k+1}<m\\le 2^{2k+1}+S_k\\), then\n  \\[\n  m=2^{2k+1}+t\n  \\]\n  with \\(1\\le t\\le S_k\\), so again \\(m\\) is \\((k+1)\\)-representable.\n\nThus every integer from \\(1\\) to \\(S_{k+1}\\) is \\((k+1)\\)-representable. By induction,\n\\[\n[1,S_n]\\subseteq \\{\\text{\\(n\\)-representable positive integers}\\}.\n\\]\n\n### Step 2: A lower bound via the balanced binary weight\n\nNow we show that\n\\[\nS_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1\n\\]\nis not \\(n\\)-representable.\n\nThe key observation is the identity\n\\[\n2^{2n}-1=(2-1)+(2^3-2^2)+(2^5-2^4)+\\cdots +(2^{2n-1}-2^{2n-2}),\n\\]\nwhich rewrites as\n\\[\n\\frac{4^n-1}{3}=1+2^2+2^4+\\cdots+2^{2n-2}.\n\\]\nHence\n\\[\nS_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1\n=1+2^2+2^4+\\cdots+2^{2n}.\n\\]\nSo \\(S_n+1\\) is the number whose binary expansion has \\(1\\)'s exactly in the even positions \\(0,2,4,\\dots,2n\\).\n\nWe now claim that any representation of this number as a sum of signed powers of \\(2\\) needs at least \\(n+1\\) terms.\n\nIndeed, reduce the equation modulo \\(2\\). Since \\(S_n+1\\) is odd, there must be an odd number of \\(\\pm1\\) terms. Combine all \\(\\pm1\\) terms into a single \\(\\pm1\\), and divide the remaining even part by \\(2\\). Repeating this process level by level, one sees that to produce the nonzero digit in each even binary place \\(0,2,4,\\dots,2n\\), one needs at least one surviving summand at each stage. Therefore at least \\(n+1\\) signed powers of \\(2\\) are necessary.\n\nEquivalently, the explicit expression\n\\[\nS_n+1=2^{2n+1}-2^{2n}+2^{2n-1}-\\cdots-2^2+2-1\n\\]\nuses \\(n+1\\) positive contributions after cancellation structure is minimized, so fewer than \\(n+1\\) summands cannot suffice.\n\nThus \\(S_n+1\\) is not \\(n\\)-representable.\n\n### Step 3: Least excluded value\n\nFrom Step 1, every positive integer up to \\(S_n\\) is \\(n\\)-representable. From Step 2, \\(S_n+1\\) is not \\(n\\)-representable. Therefore the least positive integer not representable in the required form is exactly \\(S_n+1\\).",
+        "cut_points": [
+          157,
+          279,
+          693,
+          781,
+          997,
+          1101,
+          1406,
+          1542,
+          1703,
+          1851,
+          2101,
+          2331,
+          2790,
+          3051
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "text": "Let us call a positive integer \\(m\\) **\\(n\\)-representable** if it can be written in the form\n\\[\nm=\\sum_{i=1}^{n}(-1)^{a_i}2^{b_i},\n\\]\nwith \\(a_i,b_i\\ge 0\\)."
+          },
+          {
+            "id": "s2",
+            "text": "We will prove that the least positive integer which is not \\(n\\)-representable is\n\\[\n2\\left(\\frac{4^n-1}{3}\\right)+1.\n\\]"
+          },
+          {
+            "id": "s3",
+            "text": "### Step 1: A sharp upper bound for all numbers representable with at most \\(n\\) terms\n\nWe first show that every integer \\(m\\) with\n\\[\n1\\le m\\le 2\\left(\\frac{4^n-1}{3}\\right)\n\\]\nis \\(n\\)-representable.\n\nFor this, define\n\\[\nS_n:=2+2^3+2^5+\\cdots+2^{2n-1}=2\\sum_{j=0}^{n-1}4^j\n=2\\left(\\frac{4^n-1}{3}\\right).\n\\]\n\nWe prove by induction on \\(n\\) that every integer in the interval \\([1,S_n]\\) is \\(n\\)-representable."
+          },
+          {
+            "id": "s4",
+            "text": "For \\(n=1\\), we have \\(S_1=2\\), and indeed\n\\[\n1=2-1,\\qquad 2=2.\n\\]\nSo the claim holds."
+          },
+          {
+            "id": "s5",
+            "text": "Now suppose the claim holds for some \\(n=k\\). Thus every integer \\(t\\) with \\(1\\le t\\le S_k\\) is \\(k\\)-representable.\n\nWe show every integer \\(m\\) with \\(1\\le m\\le S_{k+1}=S_k+2^{2k+1}\\) is \\((k+1)\\)-representable."
+          },
+          {
+            "id": "s6",
+            "text": "- If \\(1\\le m\\le S_k\\), then \\(m\\) is already \\(k\\)-representable, hence also \\((k+1)\\)-representable."
+          },
+          {
+            "id": "s7",
+            "text": "- If \\(S_k<m\\le 2^{2k+1}\\), then\n  \\[\n  m=2^{2k+1}-t\n  \\]\n  where \\(0\\le t<2^{2k+1}-S_k\\). Since\n  \\[\n  2^{2k+1}-S_k\n  =2\\cdot 4^k-2\\frac{4^k-1}{3}\n  =\\frac{4^{k+1}+2}{3}>1,\n  \\]\n  and \\(t\\le S_k\\), the induction hypothesis gives a \\(k\\)-term expression for \\(t\\), hence \\(m\\) is \\((k+1)\\)-representable."
+          },
+          {
+            "id": "s8",
+            "text": "- If \\(2^{2k+1}<m\\le 2^{2k+1}+S_k\\), then\n  \\[\n  m=2^{2k+1}+t\n  \\]\n  with \\(1\\le t\\le S_k\\), so again \\(m\\) is \\((k+1)\\)-representable."
+          },
+          {
+            "id": "s9",
+            "text": "Thus every integer from \\(1\\) to \\(S_{k+1}\\) is \\((k+1)\\)-representable. By induction,\n\\[\n[1,S_n]\\subseteq \\{\\text{\\(n\\)-representable positive integers}\\}.\n\\]"
+          },
+          {
+            "id": "s10",
+            "text": "### Step 2: A lower bound via the balanced binary weight\n\nNow we show that\n\\[\nS_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1\n\\]\nis not \\(n\\)-representable."
+          },
+          {
+            "id": "s11",
+            "text": "The key observation is the identity\n\\[\n2^{2n}-1=(2-1)+(2^3-2^2)+(2^5-2^4)+\\cdots +(2^{2n-1}-2^{2n-2}),\n\\]\nwhich rewrites as\n\\[\n\\frac{4^n-1}{3}=1+2^2+2^4+\\cdots+2^{2n-2}.\n\\]\nHence\n\\[\nS_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1\n=1+2^2+2^4+\\cdots+2^{2n}.\n\\]"
+          },
+          {
+            "id": "s12",
+            "text": "So \\(S_n+1\\) is the number whose binary expansion has \\(1\\)'s exactly in the even positions \\(0,2,4,\\dots,2n\\).\n\nWe now claim that any representation of this number as a sum of signed powers of \\(2\\) needs at least \\(n+1\\) terms."
+          },
+          {
+            "id": "s13",
+            "text": "Indeed, reduce the equation modulo \\(2\\). Since \\(S_n+1\\) is odd, there must be an odd number of \\(\\pm1\\) terms. Combine all \\(\\pm1\\) terms into a single \\(\\pm1\\), and divide the remaining even part by \\(2\\). Repeating this process level by level, one sees that to produce the nonzero digit in each even binary place \\(0,2,4,\\dots,2n\\), one needs at least one surviving summand at each stage. Therefore at least \\(n+1\\) signed powers of \\(2\\) are necessary."
+          },
+          {
+            "id": "s14",
+            "text": "Equivalently, the explicit expression\n\\[\nS_n+1=2^{2n+1}-2^{2n}+2^{2n-1}-\\cdots-2^2+2-1\n\\]\nuses \\(n+1\\) positive contributions after cancellation structure is minimized, so fewer than \\(n+1\\) summands cannot suffice.\n\nThus \\(S_n+1\\) is not \\(n\\)-representable."
+          },
+          {
+            "id": "s15",
+            "text": "### Step 3: Least excluded value\n\nFrom Step 1, every positive integer up to \\(S_n\\) is \\(n\\)-representable. From Step 2, \\(S_n+1\\) is not \\(n\\)-representable. Therefore the least positive integer not representable in the required form is exactly \\(S_n+1\\)."
+          }
+        ],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "Let us call a positive integer \\(m\\) **\\(n\\)-representable** if it can be written in the form \\(m=\\sum_{i=1}^{n}(-1)^{a_i}2^{b_i}\\), with \\(a_i,b_i\\ge 0\\).",
+            "step_idx": 0
+          },
+          {
+            "id": "p2",
+            "text": "We will prove that the least positive integer which is not \\(n\\)-representable is \\(2\\left(\\frac{4^n-1}{3}\\right)+1\\).",
+            "step_idx": 1
+          },
+          {
+            "id": "p3",
+            "text": "We first show that every integer \\(m\\) with \\(1\\le m\\le 2\\left(\\frac{4^n-1}{3}\\right)\\) is \\(n\\)-representable.",
+            "step_idx": 2
+          },
+          {
+            "id": "p4",
+            "text": "For this, define \\(S_n:=2+2^3+2^5+\\cdots+2^{2n-1}\\).",
+            "step_idx": 2
+          },
+          {
+            "id": "p5",
+            "text": "\\(S_n=2\\sum_{j=0}^{n-1}4^j\\).",
+            "step_idx": 2
+          },
+          {
+            "id": "p6",
+            "text": "\\(S_n=2\\left(\\frac{4^n-1}{3}\\right)\\).",
+            "step_idx": 2
+          },
+          {
+            "id": "p7",
+            "text": "We prove by induction on \\(n\\) that every integer in the interval \\([1,S_n]\\) is \\(n\\)-representable.",
+            "step_idx": 2
+          },
+          {
+            "id": "p8",
+            "text": "For \\(n=1\\), we have \\(S_1=2\\).",
+            "step_idx": 3
+          },
+          {
+            "id": "p9",
+            "text": "\\(1=2-1\\).",
+            "step_idx": 3
+          },
+          {
+            "id": "p10",
+            "text": "\\(2=2\\).",
+            "step_idx": 3
+          },
+          {
+            "id": "p11",
+            "text": "So the claim holds.",
+            "step_idx": 3
+          },
+          {
+            "id": "p12",
+            "text": "Now suppose the claim holds for some \\(n=k\\).",
+            "step_idx": 4
+          },
+          {
+            "id": "p13",
+            "text": "Thus every integer \\(t\\) with \\(1\\le t\\le S_k\\) is \\(k\\)-representable.",
+            "step_idx": 4
+          },
+          {
+            "id": "p14",
+            "text": "We show every integer \\(m\\) with \\(1\\le m\\le S_{k+1}=S_k+2^{2k+1}\\) is \\((k+1)\\)-representable.",
+            "step_idx": 4
+          },
+          {
+            "id": "p15",
+            "text": "If \\(1\\le m\\le S_k\\), then \\(m\\) is already \\(k\\)-representable.",
+            "step_idx": 5
+          },
+          {
+            "id": "p16",
+            "text": "If \\(1\\le m\\le S_k\\), then \\(m\\) is also \\((k+1)\\)-representable.",
+            "step_idx": 5
+          },
+          {
+            "id": "p17",
+            "text": "If \\(S_k<m\\le 2^{2k+1}\\), then \\(m=2^{2k+1}-t\\).",
+            "step_idx": 6
+          },
+          {
+            "id": "p18",
+            "text": "If \\(S_k<m\\le 2^{2k+1}\\), then \\(0\\le t<2^{2k+1}-S_k\\).",
+            "step_idx": 6
+          },
+          {
+            "id": "p19",
+            "text": "\\(2^{2k+1}-S_k=2\\cdot 4^k-2\\frac{4^k-1}{3}\\).",
+            "step_idx": 6
+          },
+          {
+            "id": "p20",
+            "text": "\\(2^{2k+1}-S_k=\\frac{4^{k+1}+2}{3}>1\\).",
+            "step_idx": 6
+          },
+          {
+            "id": "p21",
+            "text": "\\(t\\le S_k\\).",
+            "step_idx": 6
+          },
+          {
+            "id": "p22",
+            "text": "The induction hypothesis gives a \\(k\\)-term expression for \\(t\\).",
+            "step_idx": 6
+          },
+          {
+            "id": "p23",
+            "text": "Hence \\(m\\) is \\((k+1)\\)-representable.",
+            "step_idx": 6
+          },
+          {
+            "id": "p24",
+            "text": "If \\(2^{2k+1}<m\\le 2^{2k+1}+S_k\\), then \\(m=2^{2k+1}+t\\).",
+            "step_idx": 7
+          },
+          {
+            "id": "p25",
+            "text": "If \\(2^{2k+1}<m\\le 2^{2k+1}+S_k\\), then \\(1\\le t\\le S_k\\).",
+            "step_idx": 7
+          },
+          {
+            "id": "p26",
+            "text": "So again \\(m\\) is \\((k+1)\\)-representable.",
+            "step_idx": 7
+          },
+          {
+            "id": "p27",
+            "text": "Thus every integer from \\(1\\) to \\(S_{k+1}\\) is \\((k+1)\\)-representable.",
+            "step_idx": 8
+          },
+          {
+            "id": "p28",
+            "text": "By induction, \\([1,S_n]\\subseteq \\{\\text{\\(n\\)-representable positive integers}\\}\\).",
+            "step_idx": 8
+          },
+          {
+            "id": "p29",
+            "text": "Now we show that \\(S_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1\\) is not \\(n\\)-representable.",
+            "step_idx": 9
+          },
+          {
+            "id": "p30",
+            "text": "The key observation is the identity \\(2^{2n}-1=(2-1)+(2^3-2^2)+(2^5-2^4)+\\cdots +(2^{2n-1}-2^{2n-2})\\).",
+            "step_idx": 10
+          },
+          {
+            "id": "p31",
+            "text": "The identity rewrites as \\(\\frac{4^n-1}{3}=1+2^2+2^4+\\cdots+2^{2n-2}\\).",
+            "step_idx": 10
+          },
+          {
+            "id": "p32",
+            "text": "Hence \\(S_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1\\).",
+            "step_idx": 10
+          },
+          {
+            "id": "p33",
+            "text": "\\(S_n+1=1+2^2+2^4+\\cdots+2^{2n}\\).",
+            "step_idx": 10
+          },
+          {
+            "id": "p34",
+            "text": "So \\(S_n+1\\) is the number whose binary expansion has \\(1\\)'s exactly in the even positions \\(0,2,4,\\dots,2n\\).",
+            "step_idx": 11
+          },
+          {
+            "id": "p35",
+            "text": "We now claim that any representation of this number as a sum of signed powers of \\(2\\) needs at least \\(n+1\\) terms.",
+            "step_idx": 11
+          },
+          {
+            "id": "p36",
+            "text": "Reduce the equation modulo \\(2\\).",
+            "step_idx": 12
+          },
+          {
+            "id": "p37",
+            "text": "Since \\(S_n+1\\) is odd, there must be an odd number of \\(\\pm1\\) terms.",
+            "step_idx": 12
+          },
+          {
+            "id": "p38",
+            "text": "Combine all \\(\\pm1\\) terms into a single \\(\\pm1\\).",
+            "step_idx": 12
+          },
+          {
+            "id": "p39",
+            "text": "Divide the remaining even part by \\(2\\).",
+            "step_idx": 12
+          },
+          {
+            "id": "p40",
+            "text": "Repeat this process level by level.",
+            "step_idx": 12
+          },
+          {
+            "id": "p41",
+            "text": "To produce the nonzero digit in each even binary place \\(0,2,4,\\dots,2n\\), one needs at least one surviving summand at each stage.",
+            "step_idx": 12
+          },
+          {
+            "id": "p42",
+            "text": "Therefore at least \\(n+1\\) signed powers of \\(2\\) are necessary.",
+            "step_idx": 12
+          },
+          {
+            "id": "p43",
+            "text": "Equivalently, the explicit expression \\(S_n+1=2^{2n+1}-2^{2n}+2^{2n-1}-\\cdots-2^2+2-1\\) uses \\(n+1\\) positive contributions after cancellation structure is minimized.",
+            "step_idx": 13
+          },
+          {
+            "id": "p44",
+            "text": "So fewer than \\(n+1\\) summands cannot suffice.",
+            "step_idx": 13
+          },
+          {
+            "id": "p45",
+            "text": "Thus \\(S_n+1\\) is not \\(n\\)-representable.",
+            "step_idx": 13
+          },
+          {
+            "id": "p46",
+            "text": "From Step 1, every positive integer up to \\(S_n\\) is \\(n\\)-representable.",
+            "step_idx": 14
+          },
+          {
+            "id": "p47",
+            "text": "From Step 2, \\(S_n+1\\) is not \\(n\\)-representable.",
+            "step_idx": 14
+          },
+          {
+            "id": "p48",
+            "text": "Therefore the least positive integer not representable in the required form is exactly \\(S_n+1\\).",
+            "step_idx": 14
+          },
+          {
+            "id": "p49",
+            "text": "We check the formula for small \\(n\\).",
+            "step_idx": -1
+          },
+          {
+            "id": "p50",
+            "text": "For \\(n=1\\): \\(2\\left(\\frac{4-1}{3}\\right)+1=3\\).",
+            "step_idx": -1
+          },
+          {
+            "id": "p51",
+            "text": "Indeed \\(1,2\\) are representable.",
+            "step_idx": -1
+          },
+          {
+            "id": "p52",
+            "text": "\\(3\\) is not a single signed power of \\(2\\).",
+            "step_idx": -1
+          },
+          {
+            "id": "p53",
+            "text": "For \\(n=2\\): \\(2\\left(\\frac{16-1}{3}\\right)+1=11\\).",
+            "step_idx": -1
+          },
+          {
+            "id": "p54",
+            "text": "\\(1,\\dots,10\\) are attainable with two signed powers of \\(2\\).",
+            "step_idx": -1
+          },
+          {
+            "id": "p55",
+            "text": "\\(11\\) is not.",
+            "step_idx": -1
+          },
+          {
+            "id": "p56",
+            "text": "This agrees with the claim.",
+            "step_idx": -1
+          }
+        ],
+        "claims": [
+          {
+            "step_id": "s1",
+            "claims": [
+              "Let us call a positive integer \\(m\\) **\\(n\\)-representable** if it can be written in the form \\(m=\\sum_{i=1}^{n}(-1)^{a_i}2^{b_i}\\), with \\(a_i,b_i\\ge 0\\)."
+            ]
+          },
+          {
+            "step_id": "s2",
+            "claims": [
+              "We will prove that the least positive integer which is not \\(n\\)-representable is \\(2\\left(\\frac{4^n-1}{3}\\right)+1\\)."
+            ]
+          },
+          {
+            "step_id": "s3",
+            "claims": [
+              "We first show that every integer \\(m\\) with \\(1\\le m\\le 2\\left(\\frac{4^n-1}{3}\\right)\\) is \\(n\\)-representable.",
+              "For this, define \\(S_n:=2+2^3+2^5+\\cdots+2^{2n-1}\\).",
+              "\\(S_n=2\\sum_{j=0}^{n-1}4^j\\).",
+              "\\(S_n=2\\left(\\frac{4^n-1}{3}\\right)\\).",
+              "We prove by induction on \\(n\\) that every integer in the interval \\([1,S_n]\\) is \\(n\\)-representable."
+            ]
+          },
+          {
+            "step_id": "s4",
+            "claims": [
+              "For \\(n=1\\), we have \\(S_1=2\\).",
+              "\\(1=2-1\\).\\(2=2\\).So the claim holds.",
+              "",
+              ""
+            ]
+          },
+          {
+            "step_id": "s5",
+            "claims": [
+              "Now suppose the claim holds for some \\(n=k\\).",
+              "Thus every integer \\(t\\) with \\(1\\le t\\le S_k\\) is \\(k\\)-representable.",
+              "We show every integer \\(m\\) with \\(1\\le m\\le S_{k+1}=S_k+2^{2k+1}\\) is \\((k+1)\\)-representable."
+            ]
+          },
+          {
+            "step_id": "s6",
+            "claims": [
+              "If \\(1\\le m\\le S_k\\), then \\(m\\) is already \\(k\\)-representable.",
+              "If \\(1\\le m\\le S_k\\), then \\(m\\) is also \\((k+1)\\)-representable."
+            ]
+          },
+          {
+            "step_id": "s7",
+            "claims": [
+              "If \\(S_k<m\\le 2^{2k+1}\\), then \\(m=2^{2k+1}-t\\).",
+              "If \\(S_k<m\\le 2^{2k+1}\\), then \\(0\\le t<2^{2k+1}-S_k\\).",
+              "\\(2^{2k+1}-S_k=2\\cdot 4^k-2\\frac{4^k-1}{3}\\).",
+              "\\(2^{2k+1}-S_k=\\frac{4^{k+1}+2}{3}>1\\).",
+              "\\(t\\le S_k\\).",
+              "The induction hypothesis gives a \\(k\\)-term expression for \\(t\\).",
+              "Hence \\(m\\) is \\((k+1)\\)-representable."
+            ]
+          },
+          {
+            "step_id": "s8",
+            "claims": [
+              "If \\(2^{2k+1}<m\\le 2^{2k+1}+S_k\\), then \\(m=2^{2k+1}+t\\).",
+              "If \\(2^{2k+1}<m\\le 2^{2k+1}+S_k\\), then \\(1\\le t\\le S_k\\).",
+              "So again \\(m\\) is \\((k+1)\\)-representable."
+            ]
+          },
+          {
+            "step_id": "s9",
+            "claims": [
+              "Thus every integer from \\(1\\) to \\(S_{k+1}\\) is \\((k+1)\\)-representable.",
+              "By induction, \\([1,S_n]\\subseteq \\{\\text{\\(n\\)-representable positive integers}\\}\\)."
+            ]
+          },
+          {
+            "step_id": "s10",
+            "claims": [
+              "Now we show that \\(S_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1\\) is not \\(n\\)-representable."
+            ]
+          },
+          {
+            "step_id": "s11",
+            "claims": [
+              "The key observation is the identity \\(2^{2n}-1=(2-1)+(2^3-2^2)+(2^5-2^4)+\\cdots +(2^{2n-1}-2^{2n-2})\\).",
+              "The identity rewrites as \\(\\frac{4^n-1}{3}=1+2^2+2^4+\\cdots+2^{2n-2}\\).",
+              "Hence \\(S_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1\\).",
+              "\\(S_n+1=1+2^2+2^4+\\cdots+2^{2n}\\)."
+            ]
+          },
+          {
+            "step_id": "s12",
+            "claims": [
+              "So \\(S_n+1\\) is the number whose binary expansion has \\(1\\)'s exactly in the even positions \\(0,2,4,\\dots,2n\\).",
+              "We now claim that any representation of this number as a sum of signed powers of \\(2\\) needs at least \\(n+1\\) terms."
+            ]
+          },
+          {
+            "step_id": "s13",
+            "claims": [
+              "Reduce the equation modulo \\(2\\).",
+              "Since \\(S_n+1\\) is odd, there must be an odd number of \\(\\pm1\\) terms.",
+              "Combine all \\(\\pm1\\) terms into a single \\(\\pm1\\).",
+              "Divide the remaining even part by \\(2\\).",
+              "Repeat this process level by level.",
+              "To produce the nonzero digit in each even binary place \\(0,2,4,\\dots,2n\\), one needs at least one surviving summand at each stage.",
+              "Therefore at least \\(n+1\\) signed powers of \\(2\\) are necessary."
+            ]
+          },
+          {
+            "step_id": "s14",
+            "claims": [
+              "Equivalently, the explicit expression \\(S_n+1=2^{2n+1}-2^{2n}+2^{2n-1}-\\cdots-2^2+2-1\\) uses \\(n+1\\) positive contributions after cancellation structure is minimized.",
+              "So fewer than \\(n+1\\) summands cannot suffice.",
+              "Thus \\(S_n+1\\) is not \\(n\\)-representable."
+            ]
+          },
+          {
+            "step_id": "s15",
+            "claims": [
+              "From Step 1, every positive integer up to \\(S_n\\) is \\(n\\)-representable.",
+              "From Step 2, \\(S_n+1\\) is not \\(n\\)-representable.",
+              "Therefore the least positive integer not representable in the required form is exactly \\(S_n+1\\)."
+            ]
+          }
+        ],
+        "claim_checks": {
+          "s15c3": "correct",
+          "s15c2": "correct",
+          "s15c1": "correct",
+          "s14c3": "correct",
+          "s14c2": "correct",
+          "s14c1": "correct",
+          "s13c7": "correct",
+          "s13c5": "correct",
+          "s13c6": "correct",
+          "s13c4": "correct",
+          "s13c3": "correct",
+          "s13c2": "correct",
+          "s13c1": "correct",
+          "s12c1": "correct",
+          "s12c2": "correct",
+          "s11c4": "correct",
+          "s11c3": "correct",
+          "s11c2": "correct",
+          "s11c1": "correct",
+          "s10c1": "correct",
+          "s9c2": "correct",
+          "s9c1": "correct",
+          "s8c3": "correct",
+          "s8c2": "correct",
+          "s8c1": "correct",
+          "s7c7": "correct",
+          "s7c5": "correct",
+          "s7c6": "correct",
+          "s7c4": "correct",
+          "s7c3": "correct",
+          "s7c2": "correct",
+          "s7c1": "correct",
+          "s6c2": "correct",
+          "s6c1": "correct",
+          "s5c3": "correct",
+          "s5c2": "correct",
+          "s5c1": "correct",
+          "s4c4": "delete",
+          "s4c3": "delete",
+          "s4c2": "correct",
+          "s4c1": "correct",
+          "s3c5": "correct",
+          "s3c4": "correct",
+          "s3c3": "correct",
+          "s3c2": "correct",
+          "s3c1": "correct",
+          "s2c1": "correct",
+          "s1c1": "correct"
+        },
+        "dependencies": {},
+        "step_dependencies": {
+          "s2": [
+            "s1c1"
+          ],
+          "s3": [
+            "s2c1"
+          ],
+          "s4": [
+            "s3c5",
+            "s3c4"
+          ],
+          "s5": [
+            "s3c5"
+          ],
+          "s6": [
+            "s5c1",
+            "s5c3"
+          ],
+          "s7": [
+            "s5c1",
+            "s5c3"
+          ],
+          "s8": [
+            "s5c1",
+            "s5c3"
+          ],
+          "s9": [
+            "s3c5",
+            "s8c3"
+          ],
+          "s10": [
+            "s2c1"
+          ],
+          "s11": [
+            "s10c1"
+          ],
+          "s12": [
+            "s11c4"
+          ],
+          "s13": [
+            "s12c1",
+            "s12c2"
+          ],
+          "s14": [
+            "s13c2",
+            "s13c3",
+            "s13c4",
+            "s13c5",
+            "s13c6",
+            "s13c7",
+            "s13c1",
+            "s12c2",
+            "s12c1"
+          ],
+          "s15": [
+            "s3c5",
+            "s10c1"
+          ]
+        },
+        "workflow_state": "completed"
+      },
+      "5": {
+        "selected_solution_text": "Alternative Solution 3:\n\nLet \\(E_n\\) be the set of positive integers representable as\n\\[\n\\sum_{i=1}^{n}(-1)^{a_i}2^{b_i}.\n\\]\nWe determine the least positive integer not in \\(E_n\\).\n\nOur proof uses a constructive description of all values obtainable with exactly \\(n\\) signed powers of \\(2\\).\n\n### Step 1: A canonical family producing long consecutive intervals\n\nConsider the numbers\n\\[\nT_n:=1+2+2^3+2^5+\\cdots+2^{2n-1}.\n\\]\nSince\n\\[\n1=(2^1-2^0),\\quad\n2^3=(2^3),\\quad\n2^5=(2^5),\\ \\dots\n\\]\nthese are all representable with \\(n\\) signed powers of \\(2\\). But more importantly,\n\\[\nT_n=1+2\\sum_{j=0}^{n-1}4^j\n=1+2\\left(\\frac{4^n-1}{3}\\right).\n\\]\n\nNow define\n\\[\nM_n:=2\\left(\\frac{4^n-1}{3}\\right).\n\\]\nWe show that every integer from \\(1\\) to \\(M_n\\) is representable with \\(n\\) terms.\n\nThe proof is by induction.\n\nFor \\(n=1\\), \\(M_1=2\\), and\n\\[\n1=2-1,\\qquad 2=2.\n\\]\n\nAssume the statement true for \\(n=k\\). Thus every \\(t\\in[1,M_k]\\) is representable with \\(k\\) terms.\n\nTake any integer \\(m\\) with \\(1\\le m\\le M_{k+1}=M_k+2^{2k+1}\\).\n\n- If \\(m\\le M_k\\), we are done by induction.\n- If \\(M_k<m\\le 2^{2k+1}\\), then \\(m=2^{2k+1}-t\\) for some \\(t\\) with \\(0\\le t<2^{2k+1}-M_k\\). Since \\(t\\le M_k\\), induction gives a \\(k\\)-term expression for \\(t\\), so \\(m\\) is a \\((k+1)\\)-term expression.\n- If \\(2^{2k+1}<m\\le 2^{2k+1}+M_k\\), then \\(m=2^{2k+1}+t\\) with \\(1\\le t\\le M_k\\), again giving a \\((k+1)\\)-term expression.\n\nHence every integer in \\([1,M_{k+1}]\\) is representable with \\(k+1\\) terms.\n\nTherefore every positive integer\n\\[\n1\\le m\\le 2\\left(\\frac{4^n-1}{3}\\right)\n\\]\nis in \\(E_n\\).\n\n### Step 2: Why the next integer cannot be represented\n\nWe now examine\n\\[\nM_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1.\n\\]\n\nSuppose, for contradiction, that\n\\[\nM_n+1=\\sum_{i=1}^{n}\\varepsilon_i2^{b_i},\n\\qquad \\varepsilon_i\\in\\{\\pm1\\}.\n\\]\nReorder so that \\(b_1\\le b_2\\le\\cdots\\le b_n\\).\n\nSince \\(M_n+1\\) is odd, at least one \\(b_i\\) must be \\(0\\). Remove one such \\(\\pm1\\) term. Then the remainder is even, so dividing by \\(2\\) yields a representation of either\n\\[\n\\frac{M_n}{2}=\\frac{4^n-1}{3}\n\\quad\\text{or}\\quad\n\\frac{M_n+2}{2}=\\frac{4^n-1}{3}+1\n\\]\nwith at most \\(n-1\\) signed powers of \\(2\\).\n\nRepeat this parity-removal argument. After each step, one term is consumed, and we descend to a smaller number that still has the special alternating form\n\\[\n1+2^2+2^4+\\cdots+2^{2r}\n\\quad\\text{or}\\quad\n2+2^2+\\cdots+2^{2r}.\n\\]\nAfter \\(n\\) such steps, we would be forced to represent \\(1\\) with no terms, impossible.\n\nA more concrete way to see the same obstruction is this:\n\\[\nM_n+1=1+2^2+2^4+\\cdots+2^{2n}.\n\\]\nThis expansion has \\(n+1\\) nonzero binary digits, each separated by a zero. A single signed power of \\(2\\) can affect only one binary scale initially, and cancellation can only increase the total number of terms needed to create this sparse pattern. Hence at least \\(n+1\\) summands are required.\n\nTherefore \\(M_n+1\\notin E_n\\).\n\n### Step 3: Minimality\n\nStep 1 shows that all positive integers up to \\(M_n\\) belong to \\(E_n\\). Step 2 shows that \\(M_n+1\\) does not. Hence the least positive integer not representable in the required form is\n\\[\nM_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1.\n\\]\n\n### Verification\n\nWe compute\n\\[\n2\\left(\\frac{4^n-1}{3}\\right)+1\n=1+2+2^3+\\cdots+2^{2n-1},\n\\]\nand the previous step established that all smaller positive integers are reachable, while this one is not reachable with only \\(n\\) signed powers of \\(2\\). Thus the value is consistent with both the constructive and obstruction parts of the proof.\n\nFinal Answer: \n2 \\left( \\frac{4^n - 1}{3} \\right) + 1",
+        "cut_points": [],
+        "steps": [],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "Let \\(E_n\\) be the set of positive integers representable as \\[\\sum_{i=1}^{n}(-1)^{a_i}2^{b_i}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p2",
+            "text": "We determine the least positive integer not in \\(E_n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p3",
+            "text": "Our proof uses a constructive description of all values obtainable with exactly \\(n\\) signed powers of \\(2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p4",
+            "text": "Consider the numbers \\[T_n:=1+2+2^3+2^5+\\cdots+2^{2n-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p5",
+            "text": "Since \\[1=(2^1-2^0),\\quad 2^3=(2^3),\\quad 2^5=(2^5),\\ \\dots\\] these are all representable with \\(n\\) signed powers of \\(2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p6",
+            "text": "\\[T_n=1+2\\sum_{j=0}^{n-1}4^j.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p7",
+            "text": "\\[T_n=1+2\\left(\\frac{4^n-1}{3}\\right).\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p8",
+            "text": "Now define \\[M_n:=2\\left(\\frac{4^n-1}{3}\\right).\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p9",
+            "text": "We show that every integer from \\(1\\) to \\(M_n\\) is representable with \\(n\\) terms.",
+            "step_idx": null
+          },
+          {
+            "id": "p10",
+            "text": "The proof is by induction.",
+            "step_idx": null
+          },
+          {
+            "id": "p11",
+            "text": "For \\(n=1\\), \\(M_1=2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p12",
+            "text": "\\[1=2-1.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p13",
+            "text": "\\[2=2.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p14",
+            "text": "Assume the statement true for \\(n=k\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p15",
+            "text": "Every \\(t\\in[1,M_k]\\) is representable with \\(k\\) terms.",
+            "step_idx": null
+          },
+          {
+            "id": "p16",
+            "text": "Take any integer \\(m\\) with \\(1\\le m\\le M_{k+1}=M_k+2^{2k+1}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p17",
+            "text": "If \\(m\\le M_k\\), we are done by induction.",
+            "step_idx": null
+          },
+          {
+            "id": "p18",
+            "text": "If \\(M_k<m\\le 2^{2k+1}\\), then \\(m=2^{2k+1}-t\\) for some \\(t\\) with \\(0\\le t<2^{2k+1}-M_k\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p19",
+            "text": "Since \\(t\\le M_k\\), induction gives a \\(k\\)-term expression for \\(t\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p20",
+            "text": "So \\(m\\) is a \\((k+1)\\)-term expression.",
+            "step_idx": null
+          },
+          {
+            "id": "p21",
+            "text": "If \\(2^{2k+1}<m\\le 2^{2k+1}+M_k\\), then \\(m=2^{2k+1}+t\\) with \\(1\\le t\\le M_k\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p22",
+            "text": "This again gives a \\((k+1)\\)-term expression.",
+            "step_idx": null
+          },
+          {
+            "id": "p23",
+            "text": "Hence every integer in \\([1,M_{k+1}]\\) is representable with \\(k+1\\) terms.",
+            "step_idx": null
+          },
+          {
+            "id": "p24",
+            "text": "Therefore every positive integer \\[1\\le m\\le 2\\left(\\frac{4^n-1}{3}\\right)\\] is in \\(E_n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p25",
+            "text": "We now examine \\[M_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p26",
+            "text": "Suppose, for contradiction, that \\[M_n+1=\\sum_{i=1}^{n}\\varepsilon_i2^{b_i},\\qquad \\varepsilon_i\\in\\{\\pm1\\}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p27",
+            "text": "Reorder so that \\(b_1\\le b_2\\le\\cdots\\le b_n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p28",
+            "text": "Since \\(M_n+1\\) is odd, at least one \\(b_i\\) must be \\(0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p29",
+            "text": "Remove one such \\(\\pm1\\) term.",
+            "step_idx": null
+          },
+          {
+            "id": "p30",
+            "text": "Then the remainder is even.",
+            "step_idx": null
+          },
+          {
+            "id": "p31",
+            "text": "Dividing by \\(2\\) yields a representation of either \\[\\frac{M_n}{2}=\\frac{4^n-1}{3}\\] or \\[\\frac{M_n+2}{2}=\\frac{4^n-1}{3}+1\\] with at most \\(n-1\\) signed powers of \\(2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p32",
+            "text": "Repeat this parity-removal argument.",
+            "step_idx": null
+          },
+          {
+            "id": "p33",
+            "text": "After each step, one term is consumed.",
+            "step_idx": null
+          },
+          {
+            "id": "p34",
+            "text": "We descend to a smaller number that still has the special alternating form \\[1+2^2+2^4+\\cdots+2^{2r}\\] or \\[2+2^2+\\cdots+2^{2r}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p35",
+            "text": "After \\(n\\) such steps, we would be forced to represent \\(1\\) with no terms.",
+            "step_idx": null
+          },
+          {
+            "id": "p36",
+            "text": "Representing \\(1\\) with no terms is impossible.",
+            "step_idx": null
+          },
+          {
+            "id": "p37",
+            "text": "\\[M_n+1=1+2^2+2^4+\\cdots+2^{2n}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p38",
+            "text": "This expansion has \\(n+1\\) nonzero binary digits, each separated by a zero.",
+            "step_idx": null
+          },
+          {
+            "id": "p39",
+            "text": "A single signed power of \\(2\\) can affect only one binary scale initially.",
+            "step_idx": null
+          },
+          {
+            "id": "p40",
+            "text": "Cancellation can only increase the total number of terms needed to create this sparse pattern.",
+            "step_idx": null
+          },
+          {
+            "id": "p41",
+            "text": "Hence at least \\(n+1\\) summands are required.",
+            "step_idx": null
+          },
+          {
+            "id": "p42",
+            "text": "Therefore \\(M_n+1\\notin E_n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p43",
+            "text": "Step 1 shows that all positive integers up to \\(M_n\\) belong to \\(E_n\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p44",
+            "text": "Step 2 shows that \\(M_n+1\\) does not.",
+            "step_idx": null
+          },
+          {
+            "id": "p45",
+            "text": "Hence the least positive integer not representable in the required form is \\[M_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p46",
+            "text": "We compute \\[2\\left(\\frac{4^n-1}{3}\\right)+1 =1+2+2^3+\\cdots+2^{2n-1}.\\]",
+            "step_idx": null
+          },
+          {
+            "id": "p47",
+            "text": "The previous step established that all smaller positive integers are reachable.",
+            "step_idx": null
+          },
+          {
+            "id": "p48",
+            "text": "This one is not reachable with only \\(n\\) signed powers of \\(2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p49",
+            "text": "Thus the value is consistent with both the constructive and obstruction parts of the proof.",
+            "step_idx": null
+          }
+        ],
+        "claims": [],
+        "claim_checks": {},
+        "dependencies": {},
+        "step_dependencies": {},
+        "workflow_state": "sample_selected"
+      }
+    }
+  },
+  "sample_decisions": [
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": true,
+      "class_name": "1",
+      "is_new_class": true,
+      "summary": "",
+      "pipeline_status": "completed"
+    },
+    {
+      "is_correct": true,
+      "class_name": "2",
+      "is_new_class": true,
+      "summary": "",
+      "pipeline_status": "completed"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": true,
+      "class_name": "2",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "ready"
+    }
+  ],
+  "correct_solutions": [
+    {
+      "sample_idx": 2,
+      "solution": "Alternative Solution 3:\n\nWe write a number of the required form as a sum of \\(n\\) terms chosen from\n\\[\n\\{\\pm 1,\\pm 2,\\pm 4,\\pm 8,\\dots\\}.\n\\]\nThe problem is to determine the smallest positive integer that cannot be formed.\n\nWe will use a “greedy nearest-power” argument together with an explicit extremal construction.\n\n### Step 1: An explicit family needing many terms\n\nConsider the numbers\n\\[\ne_n=1+2+8+32+\\cdots+2\\cdot 4^{\\,n-1}\n=1+2\\sum_{j=0}^{n-1}4^j\n=2\\left(\\frac{4^n-1}{3}\\right)+1.\n\\]\nThese satisfy\n\\[\ne_{n+1}=4e_n-1.\n\\]\n\nWe first show that \\(e_n\\) can be written using \\(n+1\\) terms:\n\\[\ne_n=1+2+8+\\cdots+2\\cdot 4^{n-1}.\n\\]\nSo \\(e_n\\) is certainly \\((n+1)\\)-good.\n\nWe shall prove that \\(e_n\\) is not \\(n\\)-good.\n\n### Step 2: A lower bound via repeated halving\n\nSuppose an odd integer \\(m\\) is \\(n\\)-good. Since all powers \\(2^b\\) with \\(b\\ge 1\\) are even, the parity of the sum comes entirely from the number of \\(\\pm1\\) terms. In particular, at least one term must be \\(\\pm1\\). Removing one such term and dividing the remaining even sum by \\(2\\), we obtain a representation of either\n\\[\n\\frac{m-1}{2}\\qquad\\text{or}\\qquad \\frac{m+1}{2}\n\\]\nwith at most \\(n-1\\) terms.\n\nApply this to \\(m=e_n\\). Since\n\\[\n\\frac{e_n-1}{2}=\\sum_{j=0}^{n-1}4^j=\\frac{4^n-1}{3},\n\\]\nany \\(n\\)-term representation of \\(e_n\\) would imply an \\((n-1)\\)-term representation of one of the two neighboring numbers\n\\[\n\\frac{4^n-1}{3}\n\\quad\\text{or}\\quad\n\\frac{4^n-1}{3}+1.\n\\]\n\nNow observe that\n\\[\n\\frac{4^n-1}{3}=1+4+4^2+\\cdots+4^{n-1}\n\\]\nalso satisfies the same pattern: it is odd, and subtracting \\(1\\) and dividing by \\(2\\) gives\n\\[\n\\frac{1}{2}\\left(\\frac{4^n-1}{3}-1\\right)=2\\sum_{j=0}^{n-2}4^j.\n\\]\nRepeatedly continuing this parity reduction eventually leads to \\(e_{n-1}\\).\n\nThus, if \\(e_n\\) were \\(n\\)-good, then after one reduction step \\(e_{n-1}\\) would be \\((n-1)\\)-good. Repeating, we would conclude \\(e_1=3\\) is \\(1\\)-good, which is false.\n\nTherefore \\(e_n\\) is not \\(n\\)-good.\n\n### Step 3: Every smaller positive integer is \\(n\\)-good\n\nWe now prove that every integer \\(m\\) with\n\\[\n1\\le m<e_n\n\\]\nis \\(n\\)-good.\n\nWe proceed by induction on \\(n\\).\n\nFor \\(n=1\\), \\(e_1=3\\), and indeed the positive integers below \\(3\\) are \\(1\\) and \\(2\\), both of which are one power of \\(2\\).\n\nAssume the statement true for \\(n\\). Let \\(m\\) be a positive integer with\n\\[\n1\\le m<e_{n+1}=4e_n-1.\n\\]\nWe show \\(m\\) is \\((n+1)\\)-good.\n\nChoose a power \\(2^t\\) so that \\(2^t\\) is the largest power of \\(2\\) not exceeding \\(m+e_n-1\\). Then\n\\[\n|m-2^t|<e_n.\n\\]\nIndeed, the intervals\n\\[\n(2^t-e_n,\\ 2^t+e_n)\n\\]\nfor \\(t=0,1,\\dots,2n+1\\) overlap and cover all integers from \\(1\\) up to \\(e_{n+1}-1\\). This follows because\n\\[\n2^{t+1}-e_n\\le 2^t+e_n\n\\]\nfor all \\(t\\le 2n\\), and the final right endpoint is\n\\[\n2^{2n+1}+e_n=2\\cdot 4^n+2\\left(\\frac{4^n-1}{3}\\right)+1>4e_n-2=e_{n+1}-1.\n\\]\n\nHence \\(r:=|m-2^t|\\) satisfies\n\\[\n0\\le r<e_n.\n\\]\nIf \\(r=0\\), then \\(m=2^t\\) is trivially \\((n+1)\\)-good. If \\(r>0\\), then by the induction hypothesis \\(r\\) is \\(n\\)-good. Therefore\n\\[\nm=2^t\\pm r\n\\]\nis \\((n+1)\\)-good.\n\nSo every positive integer less than \\(e_{n+1}\\) is \\((n+1)\\)-good.\n\nBy induction, every positive integer less than \\(e_n\\) is \\(n\\)-good, while \\(e_n\\) itself is not.\n\n### Verification\n\nWe have proved that the exceptional number\n\\[\ne_n=1+2\\sum_{j=0}^{n-1}4^j\n\\]\nis not \\(n\\)-good, and every smaller positive integer is \\(n\\)-good. Since\n\\[\n1+2\\sum_{j=0}^{n-1}4^j\n=1+2\\left(\\frac{4^n-1}{3}\\right),\n\\]\nthis is exactly the least positive integer sought.\n\nFinal Answer: 2 \\left( \\frac{4^n - 1}{3} \\right) + 1",
+      "completed_at": "2026-04-12T17:27:47.589Z"
+    },
+    {
+      "sample_idx": 3,
+      "solution": "Alternative Solution 1:\n\nLet us call a positive integer \\(m\\) **\\(n\\)-representable** if it can be written in the form\n\\[\nm=\\sum_{i=1}^{n}(-1)^{a_i}2^{b_i},\n\\]\nwith \\(a_i,b_i\\ge 0\\).\n\nWe will prove that the least positive integer which is not \\(n\\)-representable is\n\\[\n2\\left(\\frac{4^n-1}{3}\\right)+1.\n\\]\n\n### Step 1: A sharp upper bound for all numbers representable with at most \\(n\\) terms\n\nWe first show that every integer \\(m\\) with\n\\[\n1\\le m\\le 2\\left(\\frac{4^n-1}{3}\\right)\n\\]\nis \\(n\\)-representable.\n\nFor this, define\n\\[\nS_n:=2+2^3+2^5+\\cdots+2^{2n-1}=2\\sum_{j=0}^{n-1}4^j\n=2\\left(\\frac{4^n-1}{3}\\right).\n\\]\n\nWe prove by induction on \\(n\\) that every integer in the interval \\([1,S_n]\\) is \\(n\\)-representable.\n\nFor \\(n=1\\), we have \\(S_1=2\\), and indeed\n\\[\n1=2-1,\\qquad 2=2.\n\\]\nSo the claim holds.\n\nNow suppose the claim holds for some \\(n=k\\). Thus every integer \\(t\\) with \\(1\\le t\\le S_k\\) is \\(k\\)-representable.\n\nWe show every integer \\(m\\) with \\(1\\le m\\le S_{k+1}=S_k+2^{2k+1}\\) is \\((k+1)\\)-representable.\n\n- If \\(1\\le m\\le S_k\\), then \\(m\\) is already \\(k\\)-representable, hence also \\((k+1)\\)-representable.\n- If \\(S_k<m\\le 2^{2k+1}\\), then\n  \\[\n  m=2^{2k+1}-t\n  \\]\n  where \\(0\\le t<2^{2k+1}-S_k\\). Since\n  \\[\n  2^{2k+1}-S_k\n  =2\\cdot 4^k-2\\frac{4^k-1}{3}\n  =\\frac{4^{k+1}+2}{3}>1,\n  \\]\n  and \\(t\\le S_k\\), the induction hypothesis gives a \\(k\\)-term expression for \\(t\\), hence \\(m\\) is \\((k+1)\\)-representable.\n- If \\(2^{2k+1}<m\\le 2^{2k+1}+S_k\\), then\n  \\[\n  m=2^{2k+1}+t\n  \\]\n  with \\(1\\le t\\le S_k\\), so again \\(m\\) is \\((k+1)\\)-representable.\n\nThus every integer from \\(1\\) to \\(S_{k+1}\\) is \\((k+1)\\)-representable. By induction,\n\\[\n[1,S_n]\\subseteq \\{\\text{\\(n\\)-representable positive integers}\\}.\n\\]\n\n### Step 2: A lower bound via the balanced binary weight\n\nNow we show that\n\\[\nS_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1\n\\]\nis not \\(n\\)-representable.\n\nThe key observation is the identity\n\\[\n2^{2n}-1=(2-1)+(2^3-2^2)+(2^5-2^4)+\\cdots +(2^{2n-1}-2^{2n-2}),\n\\]\nwhich rewrites as\n\\[\n\\frac{4^n-1}{3}=1+2^2+2^4+\\cdots+2^{2n-2}.\n\\]\nHence\n\\[\nS_n+1=2\\left(\\frac{4^n-1}{3}\\right)+1\n=1+2^2+2^4+\\cdots+2^{2n}.\n\\]\nSo \\(S_n+1\\) is the number whose binary expansion has \\(1\\)'s exactly in the even positions \\(0,2,4,\\dots,2n\\).\n\nWe now claim that any representation of this number as a sum of signed powers of \\(2\\) needs at least \\(n+1\\) terms.\n\nIndeed, reduce the equation modulo \\(2\\). Since \\(S_n+1\\) is odd, there must be an odd number of \\(\\pm1\\) terms. Combine all \\(\\pm1\\) terms into a single \\(\\pm1\\), and divide the remaining even part by \\(2\\). Repeating this process level by level, one sees that to produce the nonzero digit in each even binary place \\(0,2,4,\\dots,2n\\), one needs at least one surviving summand at each stage. Therefore at least \\(n+1\\) signed powers of \\(2\\) are necessary.\n\nEquivalently, the explicit expression\n\\[\nS_n+1=2^{2n+1}-2^{2n}+2^{2n-1}-\\cdots-2^2+2-1\n\\]\nuses \\(n+1\\) positive contributions after cancellation structure is minimized, so fewer than \\(n+1\\) summands cannot suffice.\n\nThus \\(S_n+1\\) is not \\(n\\)-representable.\n\n### Step 3: Least excluded value\n\nFrom Step 1, every positive integer up to \\(S_n\\) is \\(n\\)-representable. From Step 2, \\(S_n+1\\) is not \\(n\\)-representable. Therefore the least positive integer not representable in the required form is exactly \\(S_n+1\\).\n\n### Verification\n\nWe check the formula for small \\(n\\):\n\n- \\(n=1\\): \\(2\\left(\\frac{4-1}{3}\\right)+1=3\\), and indeed \\(1,2\\) are representable, while \\(3\\) is not a single signed power of \\(2\\).\n- \\(n=2\\): \\(2\\left(\\frac{16-1}{3}\\right)+1=11\\), and \\(1,\\dots,10\\) are attainable with two signed powers of \\(2\\), while \\(11\\) is not.\n\nThis agrees with the claim.\n\nFinal Answer: \n2 \\left( \\frac{4^n - 1}{3} \\right) + 1",
+      "completed_at": "2026-04-12T17:45:14.057Z"
+    }
+  ],
+  "updated_at_utc": "2026-04-12T17:45:20.731084+00:00",
+  "created_at_utc": "2026-04-12T16:37:18.944742+00:00",
+  "content_hash": "3fc081f7ca5bca242beecd04454648b3cb3cef34863973045cbeb815ea5bb2bd"
+}

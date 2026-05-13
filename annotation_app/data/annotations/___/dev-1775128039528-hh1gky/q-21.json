@@ -1,0 +1,370 @@
+{
+  "annotator_id": "张璟旭",
+  "device_id": "dev-1775128039528-hh1gky",
+  "case_id": "q-21",
+  "status": "in_progress",
+  "current_step": 1,
+  "current_workflow_state": {
+    "active_sample_idx": null,
+    "sample_cursor": 0,
+    "workflow_state": "sample_selected",
+    "problem_quality_screening": {
+      "decision": "pass",
+      "reason": "",
+      "other_text": "",
+      "rejected_at": ""
+    }
+  },
+  "current_annotations": {
+    "selected_solution_text": "",
+    "cut_points": [],
+    "steps": [],
+    "presegmented_claims": [],
+    "claims": [],
+    "claim_checks": {},
+    "dependencies": {},
+    "step_dependencies": {},
+    "sample_annotations": {
+      "0": {
+        "selected_solution_text": "Alternative Solution 1:\n\nLet  \n\\[\nf(z)=pz^3+2qz^2+2rz+s,\\qquad g(z)=qz^3+2pz^2+2sz+r.\n\\]\nWe seek the largest \\(\\lambda\\) such that for every choice of positive \\(p,q,r,s\\), at least one root \\(z=a+bi\\) of \\(f\\) or \\(g\\) satisfies\n\\[\n|b|\\ge \\lambda |a|.\n\\]\n\nWe will show that the optimal value is \\(\\sqrt3\\).\n\nFirst, note that it is enough to prove the following statement:\n\n> Every cubic of the form\n> \\[\n> A z^3+2B z^2+2C z+D \\qquad (A,B,C,D>0)\n> \\]\n> has a root \\(z=a+bi\\) with \\(|b|\\ge \\sqrt3\\,|a|\\).\n\nIndeed, \\(f\\) and \\(g\\) are both of this form.\n\nNow fix such a cubic\n\\[\nh(z)=Az^3+2Bz^2+2Cz+D.\n\\]\nLet its three roots be \\(z_1,z_2,z_3\\). Since all coefficients are real and positive, \\(h(x)>0\\) for every \\(x\\ge 0\\), so no root is a nonnegative real number.\n\nBy Viète's formulas,\n\\[\nz_1+z_2+z_3=-\\frac{2B}{A},\\qquad\nz_1z_2+z_2z_3+z_3z_1=\\frac{2C}{A},\\qquad\nz_1z_2z_3=-\\frac{D}{A}.\n\\]\n\nBecause the coefficients are real, either all roots are real, or one root is real and the other two are conjugate.\n\n### Case 1: all three roots are real\n\nSince\n\\[\nz_1z_2z_3=-\\frac{D}{A}<0,\n\\]\nthere is at least one negative real root. For such a root, say \\(z=a\\) with \\(a<0\\), we have \\(b=0\\), so\n\\[\n|b|=0\\not\\ge \\lambda |a|\n\\]\nfor any positive \\(\\lambda\\). Thus this case cannot provide a positive universal \\(\\lambda\\). So for the required property to hold for all positive coefficients, we must rely on the nonreal-root case. Let us analyze that case and determine the best possible bound.\n\n### Case 2: one real root and one conjugate pair\n\nWrite the roots as\n\\[\nu,\\quad a+bi,\\quad a-bi\n\\]\nwith \\(b\\ne 0\\). Then by Viète,\n\\[\nu+2a=-\\frac{2B}{A}<0, \\tag{1}\n\\]\n\\[\n(a^2+b^2)+2au=\\frac{2C}{A}>0, \\tag{2}\n\\]\n\\[\nu(a^2+b^2)=-\\frac{D}{A}<0. \\tag{3}\n\\]\nFrom (3), since \\(a^2+b^2>0\\), we get\n\\[\nu<0.\n\\]\n\nUsing (2),\n\\[\na^2+b^2>-2au.\n\\]\nBecause \\(u<0\\), this is\n\\[\na^2+b^2>2a|u| \\quad \\text{if } a>0,\n\\]\nbut we want an inequality independent of \\(u\\). So instead we use (1):\n\\[\nu=-\\frac{2B}{A}-2a.\n\\]\nSubstitute this into (2):\n\\[\na^2+b^2+2a\\left(-\\frac{2B}{A}-2a\\right)=\\frac{2C}{A}>0.\n\\]\nHence\n\\[\na^2+b^2-\\frac{4B}{A}a-4a^2>0,\n\\]\nso\n\\[\nb^2-3a^2-\\frac{4B}{A}a>0. \\tag{4}\n\\]\n\nNow consider the sign of \\(a\\).\n\n- If \\(a\\ge 0\\), then \\(-\\frac{4B}{A}a\\le 0\\), so from (4),\n  \\[\n  b^2-3a^2>0,\n  \\]\n  hence\n  \\[\n  |b|>\\sqrt3\\,|a|.\n  \\]\n\n- If \\(a<0\\), then from (1),\n  \\[\n  u=-\\frac{2B}{A}-2a.\n  \\]\n  Since \\(u<0\\), we obtain\n  \\[\n  -\\frac{2B}{A}-2a<0 \\quad\\Longrightarrow\\quad -2a<\\frac{2B}{A}.\n  \\]\n  Therefore\n  \\[\n  -\\frac{4B}{A}a< -4a^2.\n  \\]\n  Using this in (4),\n  \\[\n  b^2-3a^2-4a^2>0,\n  \\]\n  so in particular\n  \\[\n  b^2>3a^2.\n  \\]\n  Hence again\n  \\[\n  |b|>\\sqrt3\\,|a|.\n  \\]\n\nThus every nonreal root of such a polynomial satisfies\n\\[\n|b|\\ge \\sqrt3\\,|a|.\n\\]\n\nSo for every choice of positive \\(p,q,r,s\\), at least one of the two cubics \\(f\\) and \\(g\\) has a nonreal root, and that root satisfies the desired inequality with \\(\\lambda=\\sqrt3\\). Therefore \\(\\lambda=\\sqrt3\\) works.\n\nTo see that no larger value is possible, take\n\\[\np=q=r=s=1.\n\\]\nThen both factors become the same polynomial\n\\[\nz^3+2z^2+2z+1=(z+1)(z^2+z+1).\n\\]\nIts nonreal roots are\n\\[\nz=\\frac{-1\\pm i\\sqrt3}{2}.\n\\]\nFor these roots,\n\\[\n|a|=\\frac12,\\qquad |b|=\\frac{\\sqrt3}{2},\n\\]\nso\n\\[\n\\frac{|b|}{|a|}=\\sqrt3.\n\\]\nHence any \\(\\lambda>\\sqrt3\\) fails.\n\nVerification: the example \\(p=q=r=s=1\\) gives equality, and the general argument shows \\(\\lambda=\\sqrt3\\) always works.\n\nFinal Answer: \n\n\\sqrt{3}",
+        "cut_points": [],
+        "steps": [],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "Alternative Solution 1.",
+            "step_idx": null
+          },
+          {
+            "id": "p2",
+            "text": "Let f(z)=pz^3+2qz^2+2rz+s.",
+            "step_idx": null
+          },
+          {
+            "id": "p3",
+            "text": "Let g(z)=qz^3+2pz^2+2sz+r.",
+            "step_idx": null
+          },
+          {
+            "id": "p4",
+            "text": "We seek the largest \\(\\lambda\\) such that for every choice of positive \\(p,q,r,s\\), at least one root \\(z=a+bi\\) of \\(f\\) or \\(g\\) satisfies \\(|b|\\ge \\lambda |a|\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p5",
+            "text": "We will show that the optimal value is \\(\\sqrt3\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p6",
+            "text": "First, note that it is enough to prove the following statement:",
+            "step_idx": null
+          },
+          {
+            "id": "p7",
+            "text": "Every cubic of the form \\(A z^3+2B z^2+2C z+D\\) with \\(A,B,C,D>0\\) has a root \\(z=a+bi\\) with \\(|b|\\ge \\sqrt3\\,|a|\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p8",
+            "text": "Indeed, \\(f\\) and \\(g\\) are both of this form.",
+            "step_idx": null
+          },
+          {
+            "id": "p9",
+            "text": "Now fix such a cubic \\(h(z)=Az^3+2Bz^2+2Cz+D\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p10",
+            "text": "Let its three roots be \\(z_1,z_2,z_3\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p11",
+            "text": "All coefficients are real and positive.",
+            "step_idx": null
+          },
+          {
+            "id": "p12",
+            "text": "\\(h(x)>0\\) for every \\(x\\ge 0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p13",
+            "text": "No root is a nonnegative real number.",
+            "step_idx": null
+          },
+          {
+            "id": "p14",
+            "text": "By Viète's formulas, \\(z_1+z_2+z_3=-\\frac{2B}{A}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p15",
+            "text": "By Viète's formulas, \\(z_1z_2+z_2z_3+z_3z_1=\\frac{2C}{A}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p16",
+            "text": "By Viète's formulas, \\(z_1z_2z_3=-\\frac{D}{A}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p17",
+            "text": "Because the coefficients are real, either all roots are real.",
+            "step_idx": null
+          },
+          {
+            "id": "p18",
+            "text": "Because the coefficients are real, or one root is real and the other two are conjugate.",
+            "step_idx": null
+          },
+          {
+            "id": "p19",
+            "text": "Case 1: all three roots are real.",
+            "step_idx": null
+          },
+          {
+            "id": "p20",
+            "text": "\\(z_1z_2z_3=-\\frac{D}{A}<0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p21",
+            "text": "There is at least one negative real root.",
+            "step_idx": null
+          },
+          {
+            "id": "p22",
+            "text": "For such a root, say \\(z=a\\) with \\(a<0\\), we have \\(b=0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p23",
+            "text": "\\(|b|=0\\not\\ge \\lambda |a|\\) for any positive \\(\\lambda\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p24",
+            "text": "This case cannot provide a positive universal \\(\\lambda\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p25",
+            "text": "For the required property to hold for all positive coefficients, we must rely on the nonreal-root case.",
+            "step_idx": null
+          },
+          {
+            "id": "p26",
+            "text": "Let us analyze that case and determine the best possible bound.",
+            "step_idx": null
+          },
+          {
+            "id": "p27",
+            "text": "Case 2: one real root and one conjugate pair.",
+            "step_idx": null
+          },
+          {
+            "id": "p28",
+            "text": "Write the roots as \\(u\\), \\(a+bi\\), and \\(a-bi\\) with \\(b\\ne 0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p29",
+            "text": "By Viète, \\(u+2a=-\\frac{2B}{A}<0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p30",
+            "text": "By Viète, \\((a^2+b^2)+2au=\\frac{2C}{A}>0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p31",
+            "text": "By Viète, \\(u(a^2+b^2)=-\\frac{D}{A}<0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p32",
+            "text": "Since \\(a^2+b^2>0\\), from (3) we get \\(u<0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p33",
+            "text": "Using (2), \\(a^2+b^2>-2au\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p34",
+            "text": "Because \\(u<0\\), this is \\(a^2+b^2>2a|u|\\) if \\(a>0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p35",
+            "text": "We want an inequality independent of \\(u\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p36",
+            "text": "So instead we use (1): \\(u=-\\frac{2B}{A}-2a\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p37",
+            "text": "Substitute this into (2): \\(a^2+b^2+2a\\left(-\\frac{2B}{A}-2a\\right)=\\frac{2C}{A}>0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p38",
+            "text": "Hence \\(a^2+b^2-\\frac{4B}{A}a-4a^2>0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p39",
+            "text": "So \\(b^2-3a^2-\\frac{4B}{A}a>0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p40",
+            "text": "Now consider the sign of \\(a\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p41",
+            "text": "If \\(a\\ge 0\\), then \\(-\\frac{4B}{A}a\\le 0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p42",
+            "text": "If \\(a\\ge 0\\), then from (4), \\(b^2-3a^2>0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p43",
+            "text": "If \\(a\\ge 0\\), then \\(|b|>\\sqrt3\\,|a|\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p44",
+            "text": "If \\(a<0\\), then from (1), \\(u=-\\frac{2B}{A}-2a\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p45",
+            "text": "If \\(a<0\\) and \\(u<0\\), then \\(-\\frac{2B}{A}-2a<0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p46",
+            "text": "\\(-\\frac{2B}{A}-2a<0\\) implies \\(-2a<\\frac{2B}{A}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p47",
+            "text": "Therefore \\(-\\frac{4B}{A}a< -4a^2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p48",
+            "text": "Using this in (4), \\(b^2-3a^2-4a^2>0\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p49",
+            "text": "So in particular \\(b^2>3a^2\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p50",
+            "text": "Hence again \\(|b|>\\sqrt3\\,|a|\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p51",
+            "text": "Thus every nonreal root of such a polynomial satisfies \\(|b|\\ge \\sqrt3\\,|a|\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p52",
+            "text": "For every choice of positive \\(p,q,r,s\\), at least one of the two cubics \\(f\\) and \\(g\\) has a nonreal root.",
+            "step_idx": null
+          },
+          {
+            "id": "p53",
+            "text": "That root satisfies the desired inequality with \\(\\lambda=\\sqrt3\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p54",
+            "text": "Therefore \\(\\lambda=\\sqrt3\\) works.",
+            "step_idx": null
+          },
+          {
+            "id": "p55",
+            "text": "To see that no larger value is possible, take \\(p=q=r=s=1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p56",
+            "text": "Then both factors become the same polynomial \\(z^3+2z^2+2z+1\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p57",
+            "text": "\\(z^3+2z^2+2z+1=(z+1)(z^2+z+1)\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p58",
+            "text": "Its nonreal roots are \\(z=\\frac{-1\\pm i\\sqrt3}{2}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p59",
+            "text": "For these roots, \\(|a|=\\frac12\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p60",
+            "text": "For these roots, \\(|b|=\\frac{\\sqrt3}{2}\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p61",
+            "text": "For these roots, \\(\\frac{|b|}{|a|}=\\sqrt3\\).",
+            "step_idx": null
+          },
+          {
+            "id": "p62",
+            "text": "Hence any \\(\\lambda>\\sqrt3\\) fails.",
+            "step_idx": null
+          }
+        ],
+        "claims": [],
+        "claim_checks": {},
+        "dependencies": {},
+        "step_dependencies": {},
+        "workflow_state": "sample_selected"
+      }
+    }
+  },
+  "sample_decisions": [
+    {
+      "is_correct": true,
+      "class_name": "1",
+      "is_new_class": true,
+      "summary": "韦达定理",
+      "pipeline_status": "ready",
+      "pre_screening": {
+        "decision": null,
+        "reason": "",
+        "other_text": ""
+      }
+    }
+  ],
+  "correct_solutions": [],
+  "updated_at_utc": "2026-04-02T11:08:08.551390+00:00",
+  "created_at_utc": "2026-04-02T11:07:47.645174+00:00",
+  "content_hash": "4e4c851e295af7a4f9360677ac33b54cba463f95f70af6e5ac88da6af6abfe03"
+}

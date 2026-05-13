@@ -1,0 +1,19 @@
+{
+  "slice_name": "full_flow_slice_20260507",
+  "source_clean_zip": "/Users/zhaipengxiang/Desktop/completed_annotation_records_full.zip",
+  "source_clean_zip_sha256": "503cd2b9d5bbd54cbd5b3b082cab81dd865854530245699a3e2d401fd2b1ad02",
+  "source_clean_jsonl_name_in_zip": "completed_annotation_records/purified_cases.jsonl",
+  "source_clean_rows_in_zip": 317,
+  "selected_count": 7,
+  "selected_uids": [
+    "q-1__WangZX__dev-1776827054895-o7cnww__sample_2",
+    "q-235__Xiechenzhe__dev-1777129480081-jcqn72__sample_0",
+    "q-122__chenmingrui__dev-1777734001062-awk0xz__sample_1",
+    "q-565__liyanheng__dev-1776655631702-gk38nd__sample_5",
+    "q-341__qutianyi__dev-1776655218740-88nccp__sample_0",
+    "q-441__qutianyi__dev-1776932087401-vma9h3__sample_1",
+    "q-448__qutianyi__dev-1776932087401-vma9h3__sample_0"
+  ],
+  "selection_policy": "覆盖 5 个标注者；额外纳入 qutianyi 的 q-441/q-448 重点样本；每条从清洗输入、生成 prompt、模型 gen_only、judge cache 全链路对齐。",
+  "remote_generation_source": "222.29.51.159:/home/zhaipengxiang/benchmark/artifacts/model_outputs/completed_annotations/granite-4.1-8b_completed_annotations_full_granite_4_1_8b_4shard_combined"
+}

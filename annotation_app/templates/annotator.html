@@ -1,0 +1,109 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>标注工作区</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='styles.css', v='20260423a') }}" />
+  <link rel="stylesheet" href="{{ url_for('static', filename='vendor/katex/katex.min.css', v='20260415a') }}" />
+</head>
+<body>
+  <div class="app-shell">
+    <header class="topbar">
+      <div class="title-wrap">
+        <h1>Annotation Workspace</h1>
+        <p class="sub">高质量标注流程：题目质检 → 样本验证 → Step/Claim/依赖标注 → 总览提交</p>
+      </div>
+      <div class="status-wrap">
+        <span class="status-chip">Reviewer 工具已隔离</span>
+        <span id="saveState" class="save-state">未保存</span>
+      </div>
+    </header>
+
+    <section class="control-bar">
+      <label class="field">
+        <span>标注者 ID</span>
+        <input id="annotator" placeholder="例如：ann-01" />
+      </label>
+      <label class="field grow">
+        <span>JSONL 路径</span>
+        <input id="jsonlPath" placeholder="/path/to/data.jsonl" />
+      </label>
+      <div class="control-actions">
+        <button class="ghost" onclick="loadDataset()">加载数据</button>
+        <button class="ghost" onclick="saveProgress()">手动保存</button>
+        <button class="primary" onclick="goStep(6)">提交前总览</button>
+      </div>
+    </section>
+
+    <main id="workspaceLayout" class="workspace-layout">
+      <aside id="casePanel" class="panel side-panel case-panel">
+        <div class="side-header">
+          <div class="side-meta">
+            <h3>任务导航</h3>
+            <p>按题目切换，进度自动恢复</p>
+          </div>
+          <button id="toggleLeftPanel" class="icon-btn" title="折叠任务导航" aria-label="折叠任务导航">◧</button>
+        </div>
+        <div class="task-search-wrap left-content">
+          <input id="taskFilter" placeholder="搜索任务 ID" oninput="renderCaseList()" />
+        </div>
+        <ul id="caseList" class="left-content"></ul>
+      </aside>
+
+      <div id="leftResizeHandle" class="resize-handle" role="separator" aria-orientation="vertical" aria-label="调整左侧面板宽度"></div>
+      <button id="leftRestoreBtn" class="edge-restore is-collapsed" onclick="togglePanel('left')" title="展开任务导航">任务</button>
+
+      <section class="panel workspace-main">
+        <nav class="step-nav" aria-label="Annotation steps">
+          <button class="step-btn" data-step="0" onclick="goStep(0)">0 题目质检</button>
+          <button class="step-btn" data-step="1" onclick="goStep(1)">1 多采样验证</button>
+          <button class="step-btn" data-step="2" onclick="goStep(2)">2 Step切分</button>
+          <button class="step-btn" data-step="3" onclick="goStep(3)">3 Claim整理</button>
+          <button class="step-btn" data-step="4" onclick="goStep(4)">4 Claim校验</button>
+          <button class="step-btn" data-step="5" onclick="goStep(5)">5 依赖关系</button>
+          <button class="step-btn" data-step="6" onclick="goStep(6)">6 结果总览</button>
+        </nav>
+        <article id="stepContent" class="workspace-content"></article>
+      </section>
+
+      <div id="rightResizeHandle" class="resize-handle" role="separator" aria-orientation="vertical" aria-label="调整右侧面板宽度"></div>
+      <button id="rightRestoreBtn" class="edge-restore is-collapsed" onclick="togglePanel('right')" title="展开参考面板">参考</button>
+
+      <aside id="referencePanel" class="panel side-panel reference-panel">
+        <div class="side-header">
+          <div class="side-meta">
+            <h3>题面与参考答案</h3>
+            <p>全程可见，避免反复切换</p>
+          </div>
+          <button id="toggleRightPanel" class="icon-btn" title="折叠参考面板" aria-label="折叠参考面板">◨</button>
+        </div>
+        <div class="reference-tabs right-content" role="tablist" aria-label="Reference sections">
+          <button id="tabProblem" class="tab-btn active" onclick="setReferenceTab('problem')">题目</button>
+          <button id="tabSolution" class="tab-btn" onclick="setReferenceTab('solution')">标准答案</button>
+        </div>
+        <section id="problemSection" class="reference-section active right-content">
+          <div class="reference-head">
+            <h4>当前问题</h4>
+            <button class="ghost" onclick="copyReferenceSection('problem')">复制题目</button>
+          </div>
+          <div id="problemContent" class="reference-body">未加载</div>
+        </section>
+        <section id="solutionSection" class="reference-section right-content">
+          <div class="reference-head">
+            <h4>标准答案</h4>
+            <button class="ghost" onclick="copyReferenceSection('solution')">复制答案</button>
+          </div>
+          <div id="solutionContent" class="reference-body">未加载</div>
+        </section>
+      </aside>
+    </main>
+  </div>
+
+  <div id="toastRegion" class="toast-region" aria-live="polite"></div>
+
+  <script defer src="{{ url_for('static', filename='vendor/katex/katex.min.js', v='20260415a') }}"></script>
+  <script defer src="{{ url_for('static', filename='vendor/katex/auto-render.min.js', v='20260415a') }}"></script>
+  <script src="{{ url_for('static', filename='app.js', v='20260502a') }}"></script>
+</body>
+</html>

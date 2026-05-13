@@ -9,9 +9,9 @@ import os
 import re
 import random
 from functools import lru_cache
-from config import Config
+from benchmark_core.config import Config
 from runner import VLLMRunner
-from data_process import (
+from benchmark_core.data_process import (
     Processor,
     _write_case_text_log,
     _write_jsonl_line,
@@ -20,14 +20,14 @@ from data_process import (
     safe_json_loads,
     _normalize_generation_input
 )
-from prompt import (
+from benchmark_core.prompt import (
     Claim_Segment_Prompt,
     Generate_Prompt,
     Judge_Prompt,
     On_Policy_Prompt,
     PairwiseEntailmentPrompt,
 )
-from data_process import safe_json_loads  # 文件顶部集中导入一次
+from benchmark_core.data_process import safe_json_loads  # 文件顶部集中导入一次
 
 logger = logging.getLogger(__name__)
 

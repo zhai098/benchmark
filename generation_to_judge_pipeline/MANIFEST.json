@@ -1,0 +1,230 @@
+{
+  "created_at_local": "2026-05-08 12:38:09 +0800",
+  "repo_head": "local vLLM-only generation snapshot; based on current benchmark workspace",
+  "root_command_policy": "Run commands from repository root. source_snapshot is a readable synchronized copy, not a separate package.",
+  "file_count": 37,
+  "files": [
+    {
+      "path": "__pycache__/runner.cpython-313.pyc",
+      "sha256": "4d7e3c6b245d929efcc5488a070485eda1200fd008729ed217f033a7488d9b30",
+      "size_bytes": 55049,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "benchmark_core/__init__.py",
+      "sha256": "8a215a92883866690fff1211f31a75fbcf1d9d467afc402946b755146011da56",
+      "size_bytes": 74,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "benchmark_core/config.py",
+      "sha256": "5a99d4c630f0e6bf73e5a2359afc0cc2b1f3d1df3b3712c7fec29c269d852163",
+      "size_bytes": 1582,
+      "role": "默认模型、采样、GPU、聚合权重等配置。wrapper 会运行时覆盖 Config。"
+    },
+    {
+      "path": "benchmark_core/data_process.py",
+      "sha256": "b99c8977c64c806ef8d8eb5b86754a9b27ef2e49f1cd57ab36e8aa4053c2928d",
+      "size_bytes": 12450,
+      "role": "文本清洗、句子切分、prefix 构造辅助。"
+    },
+    {
+      "path": "benchmark_core/log_reference.py",
+      "sha256": "fd438335c914b9ffcc065b62b010e3fea5ada9722903c6d6fa8b120064a71ca5",
+      "size_bytes": 10290,
+      "role": "从 gen_only/reference claims/step dependencies 中取 judge 所需的 step、claim、dependency。"
+    },
+    {
+      "path": "benchmark_core/metrics.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "benchmark_core/paths.py",
+      "sha256": "62e791a5d8d1ce78d051925c3101a617334feea4fcc3be47914152a68b26f215",
+      "size_bytes": 1203,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "benchmark_core/prompt.py",
+      "sha256": "ea5f4f6df4cd4aeae729f773397f7564a13a13b5f47e02366f2896b0a5fbe719",
+      "size_bytes": 37035,
+      "role": "生成 prompt builder 与 judge prompt builder。Generate_Prompt 只输出 vLLM assistant prefix messages；Claim_Segment_Prompt 不限制 claim 数量/长度。"
+    },
+    {
+      "path": "benchmark_core/utils.py",
+      "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "size_bytes": 0,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "generate.py",
+      "sha256": "4cf13b4ca80bd0f2bf986bb7e107cd99d22940da909004bd582b46705f14ecd7",
+      "size_bytes": 14044,
+      "role": "直接生成入口。读取 purified_cases.jsonl，只调用本地 VLLMRunner 逐步续写，输出 gen_only.jsonl。"
+    },
+    {
+      "path": "runner.py",
+      "sha256": "695eebb2baf32f142777745ace7b386a60514cdff4e8375db1173e98084b7bb9",
+      "size_bytes": 47711,
+      "role": "模型 runner 与本地 vLLM 适配层。生成阶段的 assistant continuation 在 VLLMRunner 中统一处理；API runner 类仅保留给历史流程。"
+    },
+    {
+      "path": "scripts/check_annotation_deploy.sh",
+      "sha256": "ca19aee279f3456297e5e0b61f76732af78a6f4969e8f4267d1cf60762410d3d",
+      "size_bytes": 1446,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "scripts/download_manifest_models.py",
+      "sha256": "cb803013be2798a7bcde70501d0381cb82271fe30b7a0fb1cc44398d0df6de0d",
+      "size_bytes": 11700,
+      "role": "按 model/download_manifest.tsv 下载/检查模型。"
+    },
+    {
+      "path": "scripts/monitor_completed_annotation_runs.py",
+      "sha256": "5f7721617a5e0fde5ed88f0eb2225cc879b81a49a9763e356355980b57b93c32",
+      "size_bytes": 13555,
+      "role": "监控运行状态、gen_only 写入、空输出/乱码等系统性问题。"
+    },
+    {
+      "path": "scripts/monitor_merge_completed_annotations_4shard.sh",
+      "sha256": "f66aa8effa4d0a2ecb13352e22b06c3208fb0879bb091e92cd9929a2634ac1cb",
+      "size_bytes": 4656,
+      "role": "4 shard 结果合并与打包辅助。"
+    },
+    {
+      "path": "scripts/probe_manifest_model_continuation.py",
+      "sha256": "8ca56d8c9d79c77fc762bcc7f732ff979b2e3661bdda9dbc22686be3caecb6ad",
+      "size_bytes": 10702,
+      "role": "tokenizer-only 预检，判断本地模型是否支持 assistant-prefix continuation。"
+    },
+    {
+      "path": "scripts/run_completed_annotations_generate_and_pack.py",
+      "sha256": "fd0dff38e327480215504c97f31c576d590e5f999892ec09a99ff6b2f9752ef8",
+      "size_bytes": 10920,
+      "role": "单模型端到端 wrapper：等 GPU、跑 generate.py、跑 pack_prompt.py、写 status。"
+    },
+    {
+      "path": "scripts/run_manifest_models_completed_annotations.py",
+      "sha256": "2955e119249dcf3ddb8d8193738ec9692b8513c48572006a935cf5fb33dccae9",
+      "size_bytes": 44530,
+      "role": "多模型自动化 runner：读 model/download_manifest.tsv，先 preflight/smoke，再 full，做验证和失败归因。"
+    },
+    {
+      "path": "scripts/start_annotation_backend.sh",
+      "sha256": "fa64e3c16d5bfb676f5595b1fb6c4fef9f5663ce467c25593dd1183fbf3d9abf",
+      "size_bytes": 1155,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "scripts/start_annotation_frontend.sh",
+      "sha256": "1f13a416007323321ea0e1d9ae6a1186807f449da72c06535aaf522d0234803b",
+      "size_bytes": 911,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "scripts/start_annotation_tunnel.sh",
+      "sha256": "1768b10a697e2a4ee548a93e08820fae04ae124c3f4cb8b184bc314c37f3cff0",
+      "size_bytes": 509,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "scripts/start_completed_annotations_granite8b.sh",
+      "sha256": "af7c23d94115eaaeb7e3c6b6e948f6d35115ec105d53226176c5baa164b6aaf1",
+      "size_bytes": 1599,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "scripts/start_completed_annotations_test_then_full.sh",
+      "sha256": "81d7249ddebd0a0f7a7d29ae7203af8bd32901b81cebf3c4081c427a4e748e22",
+      "size_bytes": 1434,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "scripts/start_manifest_model_downloads.sh",
+      "sha256": "566978b4529ab7717da6893d7f8d0bac5415e03707893e0b93d7660e98c13589",
+      "size_bytes": 922,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "tools/claims/build_claim_dependency_graph.py",
+      "sha256": "52fd58cc852c081c5fa0003919bafa959e8523007ffb70e615af6b14821ae4e4",
+      "size_bytes": 9189,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "tools/claims/merge_claim_dependency_responses.py",
+      "sha256": "c4e771fcdb3dcf1dcd7123e50a26541c936768601c607c6604508215dae9ac4d",
+      "size_bytes": 9974,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "tools/claims/pack_claim_dependency_messages.py",
+      "sha256": "56357090d285b1892dc7d282e5140f9cb654e9b5d3dd2597d1ffd57cc5a831d0",
+      "size_bytes": 4984,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "tools/claims/segment_claims.py",
+      "sha256": "ce278ff2d59e13109a84b07c805eef1797a212a9b45d9f038ceee203d015c480",
+      "size_bytes": 6385,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "tools/prompts/__pycache__/run_generate_prompt_pack.cpython-313.pyc",
+      "sha256": "80b8844e37f80900d55e0818ecae2087bcf86ea40c0b19823e3c79c9c00f8043",
+      "size_bytes": 25678,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "tools/prompts/build_generate_prompt_pack.py",
+      "sha256": "f63af26e9ae14525856df88ba0f713d72f2e17185fc51ad02afc2ae8a7844700",
+      "size_bytes": 12894,
+      "role": "把输入数据打成本地 vLLM generation prompt pack；auto 默认为 vllm-messages，assistant 前缀用 prefix=true。"
+    },
+    {
+      "path": "tools/prompts/build_multisample_solution_prompts_from_strict_subset.py",
+      "sha256": "481b749e33f31eeac562bbc90c2f6eaefb1da93a3843a9ac6213a08fbaeb747b",
+      "size_bytes": 7501,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "tools/prompts/build_omnimath_alt_solution_prompts.py",
+      "sha256": "fcd27db3474d39d144e6208ebfa23001f134cfdf19fe0a2f2729bd45ad724be9",
+      "size_bytes": 6488,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "tools/prompts/build_solution_prompts_from_strict_difficulty_5_7.py",
+      "sha256": "291be2b5e107d1e5c9708cf8291b6a93e94d0d3da5be70bdf5ac09da70bcd5e2",
+      "size_bytes": 4844,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "tools/prompts/pack_prompt.py",
+      "sha256": "aa3904d15e77225876dafbf851f59ec619e6377ad96cac26e4db3e9ec6560566",
+      "size_bytes": 11206,
+      "role": "把 gen_only.jsonl 打包成 judge prompt cache，支持自定义排除末尾 prefix 数并写 pack_manifest.json。"
+    },
+    {
+      "path": "tools/prompts/rewrite_gpt_style_solution.py",
+      "sha256": "025ddd6d78e1894e7fa7f2d8d0000d68bf8767f9ab0874fa1bf37e10a1bd3739",
+      "size_bytes": 2745,
+      "role": "辅助脚本或依赖模块。"
+    },
+    {
+      "path": "tools/prompts/run_generate_prompt_pack.py",
+      "sha256": "31d1d0dc22c5bc68dd95b2107124bc94aff3f744ff61b4f19eb0391fe7113427",
+      "size_bytes": 18550,
+      "role": "执行 generation prompt pack；只支持本地 vLLM backend，输出 prompt_outputs.jsonl 和 gen_only_from_prompt_pack.jsonl。"
+    },
+    {
+      "path": "tools/prompts/stage2_judge_from_cache_prompts.py",
+      "sha256": "a9d8a7c651fc3d3110ac4d1138e179bf2b2c4aa4f402d1bfeefc240abf9b38d6",
+      "size_bytes": 21104,
+      "role": "可选第二阶段：读取 judge prompt cache 调用 judge API，并按实际打包位置聚合评分。"
+    }
+  ]
+}

@@ -1,0 +1,572 @@
+{
+  "annotator_id": "张璟旭",
+  "device_id": "dev-1775126623662-xze9d4",
+  "case_id": "q-22",
+  "status": "in_progress",
+  "current_step": 1,
+  "current_workflow_state": {
+    "active_sample_idx": null,
+    "sample_cursor": 5,
+    "workflow_state": "sample_selected",
+    "problem_quality_screening": {
+      "decision": "pass",
+      "reason": "",
+      "other_text": "",
+      "rejected_at": ""
+    }
+  },
+  "current_annotations": {
+    "selected_solution_text": "",
+    "cut_points": [],
+    "steps": [],
+    "presegmented_claims": [],
+    "claims": [],
+    "claim_checks": {},
+    "dependencies": {},
+    "step_dependencies": {},
+    "sample_annotations": {
+      "4": {
+        "selected_solution_text": "Alternative Solution 2:\n\nLet \\(f\\colon \\mathbb Z^2\\to [0,1]\\) satisfy\n\\[\nf(x,y)=\\frac{f(x-1,y)+f(x,y-1)}2\n\\qquad\\text{for all }x,y\\in\\mathbb Z.\n\\]\n\nWe use a probabilistic interpretation of the recurrence.\n\nStarting from \\((x,y)\\), define a random walk that at each step moves either to \\((u-1,v)\\) or to \\((u,v-1)\\), each with probability \\(1/2\\). After \\(n\\) steps, the walk is at one of the points\n\\[\n(x-k,\\; y-(n-k))\n\\qquad (k=0,1,\\dots,n),\n\\]\nwith probability\n\\[\n\\frac{\\binom nk}{2^n}.\n\\]\nBy iterating the given relation, we obtain\n\\[\nf(x,y)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n}\\, f(x-k,\\, y-(n-k)).\n\\]\nSo \\(f(x,y)\\) is the expected value of \\(f\\) at the random endpoint after \\(n\\) downward-left steps.\n\nNow fix two neighboring points on the same diagonal:\n\\[\nA=(x,y),\\qquad B=(x-1,y+1).\n\\]\nAfter \\(n\\) steps, the random walk from \\(A\\) reaches\n\\[\n(x-k,\\; y-(n-k)),\n\\]\nwhile the walk from \\(B\\) reaches\n\\[\n(x-1-k,\\; y+1-(n-k)).\n\\]\nThese two endpoints differ by exactly \\((-1,+1)\\), so they lie next to each other on the same diagonal.\n\nLet\n\\[\nD(x,y)=f(x,y)-f(x-1,y+1).\n\\]\nThen\n\\[\nD(x,y)\n=\n\\sum_{k=0}^n \\frac{\\binom nk}{2^n}\n\\Bigl(\nf(x-k,\\,y-(n-k))\n-\nf(x-1-k,\\,y+1-(n-k))\n\\Bigr).\n\\]\nTaking absolute values and using \\(0\\le f\\le 1\\), we get\n\\[\n|D(x,y)|\n\\le\n\\sum_{k=0}^n \\frac{\\binom nk}{2^n}\\cdot 1\n=1,\n\\]\nwhich alone is not enough. So we refine the comparison by shifting the index in the second sum.\n\nWrite\n\\[\nf(x,y)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n} f(x-k,y-n+k),\n\\]\nand\n\\[\nf(x-1,y+1)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n} f(x-1-k,y+1-n+k).\n\\]\nThese two families of points almost match term-by-term; after reindexing, all interior coefficients cancel except for differences of adjacent binomial coefficients. Therefore\n\\[\n2^n D(x,y)\n\\]\nis a linear combination of values of \\(f\\) with coefficients bounded in absolute value by the maximum binomial coefficient\n\\[\n\\binom{n}{\\lfloor n/2\\rfloor}.\n\\]\nSince all values of \\(f\\) lie in \\([0,1]\\), this yields\n\\[\n|2^n D(x,y)|\\le \\binom{n}{\\lfloor n/2\\rfloor}.\n\\]\nHence\n\\[\n|D(x,y)|\\le \\frac{\\binom{n}{\\lfloor n/2\\rfloor}}{2^n}.\n\\]\nAs \\(n\\to\\infty\\),\n\\[\n\\frac{\\binom{n}{\\lfloor n/2\\rfloor}}{2^n}\\to 0.\n\\]\nTherefore\n\\[\nD(x,y)=0,\n\\]\nthat is,\n\\[\nf(x,y)=f(x-1,y+1)\n\\qquad\\text{for all }x,y.\n\\]\n\nSo \\(f\\) is constant along each diagonal \\(x+y=\\text{constant}\\).\n\nNow return to the original recurrence. Since\n\\[\nf(x-1,y)=f(x,y-1)\n\\]\n(the two points lie on the same diagonal), the relation becomes\n\\[\nf(x,y)=\\frac{f(x-1,y)+f(x-1,y)}2=f(x-1,y).\n\\]\nThus \\(f(x,y)=f(x-1,y)\\) for all \\(x,y\\), so \\(f\\) is constant along horizontal lines. Similarly it is constant along vertical lines. Combining these, \\(f\\) is constant on all of \\(\\mathbb Z^2\\).\n\nFor verification, any constant function \\(f(x,y)\\equiv C\\) with \\(C\\in[0,1]\\) satisfies\n\\[\n\\frac{f(x-1,y)+f(x,y-1)}2=\\frac{C+C}2=C=f(x,y).\n\\]\nSo the obtained form is valid.\n\nFinal Answer:\n\\[\n\\boxed{f(x, y) = C \\text{ for some constant } C \\in [0, 1]}\n\\]",
+        "cut_points": [
+          204,
+          492,
+          705,
+          1037,
+          1184,
+          1333,
+          1545,
+          1897,
+          2073,
+          2231,
+          2298,
+          2677,
+          2851
+        ],
+        "steps": [
+          {
+            "id": "s1",
+            "text": "Alternative Solution 2:\n\nLet \\(f\\colon \\mathbb Z^2\\to [0,1]\\) satisfy\n\\[\nf(x,y)=\\frac{f(x-1,y)+f(x,y-1)}2\n\\qquad\\text{for all }x,y\\in\\mathbb Z.\n\\]\n\nWe use a probabilistic interpretation of the recurrence."
+          },
+          {
+            "id": "s2",
+            "text": "Starting from \\((x,y)\\), define a random walk that at each step moves either to \\((u-1,v)\\) or to \\((u,v-1)\\), each with probability \\(1/2\\). After \\(n\\) steps, the walk is at one of the points\n\\[\n(x-k,\\; y-(n-k))\n\\qquad (k=0,1,\\dots,n),\n\\]\nwith probability\n\\[\n\\frac{\\binom nk}{2^n}.\n\\]"
+          },
+          {
+            "id": "s3",
+            "text": "By iterating the given relation, we obtain\n\\[\nf(x,y)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n}\\, f(x-k,\\, y-(n-k)).\n\\]\nSo \\(f(x,y)\\) is the expected value of \\(f\\) at the random endpoint after \\(n\\) downward-left steps."
+          },
+          {
+            "id": "s4",
+            "text": "Now fix two neighboring points on the same diagonal:\n\\[\nA=(x,y),\\qquad B=(x-1,y+1).\n\\]\nAfter \\(n\\) steps, the random walk from \\(A\\) reaches\n\\[\n(x-k,\\; y-(n-k)),\n\\]\nwhile the walk from \\(B\\) reaches\n\\[\n(x-1-k,\\; y+1-(n-k)).\n\\]\nThese two endpoints differ by exactly \\((-1,+1)\\), so they lie next to each other on the same diagonal."
+          },
+          {
+            "id": "s5",
+            "text": "Let\n\\[\nD(x,y)=f(x,y)-f(x-1,y+1).\n\\]\nThen\n\\[\nD(x,y)\n=\n\\sum_{k=0}^n \\frac{\\binom nk}{2^n}\n\\Bigl(\nf(x-k,\\,y-(n-k))\n-\nf(x-1-k,\\,y+1-(n-k))\n\\Bigr).\n\\]"
+          },
+          {
+            "id": "s6",
+            "text": "Taking absolute values and using \\(0\\le f\\le 1\\), we get\n\\[\n|D(x,y)|\n\\le\n\\sum_{k=0}^n \\frac{\\binom nk}{2^n}\\cdot 1\n=1,\n\\]\nwhich alone is not enough."
+          },
+          {
+            "id": "s7",
+            "text": "So we refine the comparison by shifting the index in the second sum.\n\nWrite\n\\[\nf(x,y)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n} f(x-k,y-n+k),\n\\]\nand\n\\[\nf(x-1,y+1)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n} f(x-1-k,y+1-n+k).\n\\]"
+          },
+          {
+            "id": "s8",
+            "text": "These two families of points almost match term-by-term; after reindexing, all interior coefficients cancel except for differences of adjacent binomial coefficients. Therefore\n\\[\n2^n D(x,y)\n\\]\nis a linear combination of values of \\(f\\) with coefficients bounded in absolute value by the maximum binomial coefficient\n\\[\n\\binom{n}{\\lfloor n/2\\rfloor}.\n\\]"
+          },
+          {
+            "id": "s9",
+            "text": "Since all values of \\(f\\) lie in \\([0,1]\\), this yields\n\\[\n|2^n D(x,y)|\\le \\binom{n}{\\lfloor n/2\\rfloor}.\n\\]\nHence\n\\[\n|D(x,y)|\\le \\frac{\\binom{n}{\\lfloor n/2\\rfloor}}{2^n}.\n\\]"
+          },
+          {
+            "id": "s10",
+            "text": "As \\(n\\to\\infty\\),\n\\[\n\\frac{\\binom{n}{\\lfloor n/2\\rfloor}}{2^n}\\to 0.\n\\]\nTherefore\n\\[\nD(x,y)=0,\n\\]\nthat is,\n\\[\nf(x,y)=f(x-1,y+1)\n\\qquad\\text{for all }x,y.\n\\]"
+          },
+          {
+            "id": "s11",
+            "text": "So \\(f\\) is constant along each diagonal \\(x+y=\\text{constant}\\)."
+          },
+          {
+            "id": "s12",
+            "text": "Now return to the original recurrence. Since\n\\[\nf(x-1,y)=f(x,y-1)\n\\]\n(the two points lie on the same diagonal), the relation becomes\n\\[\nf(x,y)=\\frac{f(x-1,y)+f(x-1,y)}2=f(x-1,y).\n\\]\nThus \\(f(x,y)=f(x-1,y)\\) for all \\(x,y\\), so \\(f\\) is constant along horizontal lines. Similarly it is constant along vertical lines. Combining these, \\(f\\) is constant on all of \\(\\mathbb Z^2\\)."
+          },
+          {
+            "id": "s13",
+            "text": "For verification, any constant function \\(f(x,y)\\equiv C\\) with \\(C\\in[0,1]\\) satisfies\n\\[\n\\frac{f(x-1,y)+f(x,y-1)}2=\\frac{C+C}2=C=f(x,y).\n\\]\nSo the obtained form is valid."
+          },
+          {
+            "id": "s14",
+            "text": "Final Answer:\n\\[\n\\boxed{f(x, y) = C \\text{ for some constant } C \\in [0, 1]}\n\\]"
+          }
+        ],
+        "presegmented_claims": [
+          {
+            "id": "p1",
+            "text": "Alternative Solution 2:",
+            "step_idx": 0
+          },
+          {
+            "id": "p2",
+            "text": "Let \\(f\\colon \\mathbb Z^2\\to [0,1]\\) satisfy \\[ f(x,y)=\\frac{f(x-1,y)+f(x,y-1)}2 \\qquad\\text{for all }x,y\\in\\mathbb Z. \\]",
+            "step_idx": 0
+          },
+          {
+            "id": "p3",
+            "text": "We use a probabilistic interpretation of the recurrence.",
+            "step_idx": 0
+          },
+          {
+            "id": "p4",
+            "text": "Starting from \\((x,y)\\), define a random walk that at each step moves either to \\((u-1,v)\\) or to \\((u,v-1)\\), each with probability \\(1/2\\).",
+            "step_idx": 1
+          },
+          {
+            "id": "p5",
+            "text": "After \\(n\\) steps, the walk is at one of the points \\[ (x-k,\\; y-(n-k)) \\qquad (k=0,1,\\dots,n), \\]",
+            "step_idx": 1
+          },
+          {
+            "id": "p6",
+            "text": "After \\(n\\) steps, the walk is at \\((x-k,\\; y-(n-k))\\) with probability \\[ \\frac{\\binom nk}{2^n}. \\]",
+            "step_idx": 1
+          },
+          {
+            "id": "p7",
+            "text": "By iterating the given relation, we obtain \\[ f(x,y)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n}\\, f(x-k,\\, y-(n-k)). \\]",
+            "step_idx": 2
+          },
+          {
+            "id": "p8",
+            "text": "So \\(f(x,y)\\) is the expected value of \\(f\\) at the random endpoint after \\(n\\) downward-left steps.",
+            "step_idx": 2
+          },
+          {
+            "id": "p9",
+            "text": "Now fix two neighboring points on the same diagonal: \\[ A=(x,y),\\qquad B=(x-1,y+1). \\]",
+            "step_idx": 3
+          },
+          {
+            "id": "p10",
+            "text": "After \\(n\\) steps, the random walk from \\(A\\) reaches \\[ (x-k,\\; y-(n-k)), \\]",
+            "step_idx": 3
+          },
+          {
+            "id": "p11",
+            "text": "After \\(n\\) steps, the walk from \\(B\\) reaches \\[ (x-1-k,\\; y+1-(n-k)). \\]",
+            "step_idx": 3
+          },
+          {
+            "id": "p12",
+            "text": "These two endpoints differ by exactly \\((-1,+1)\\).",
+            "step_idx": 3
+          },
+          {
+            "id": "p13",
+            "text": "These two endpoints lie next to each other on the same diagonal.",
+            "step_idx": 3
+          },
+          {
+            "id": "p14",
+            "text": "Let \\[ D(x,y)=f(x,y)-f(x-1,y+1). \\]",
+            "step_idx": 4
+          },
+          {
+            "id": "p15",
+            "text": "Then \\[ D(x,y) = \\sum_{k=0}^n \\frac{\\binom nk}{2^n} \\Bigl( f(x-k,\\,y-(n-k)) - f(x-1-k,\\,y+1-(n-k)) \\Bigr). \\]",
+            "step_idx": 4
+          },
+          {
+            "id": "p16",
+            "text": "Taking absolute values and using \\(0\\le f\\le 1\\), we get \\[ |D(x,y)| \\le \\sum_{k=0}^n \\frac{\\binom nk}{2^n}\\cdot 1 =1, \\]",
+            "step_idx": 5
+          },
+          {
+            "id": "p17",
+            "text": "This alone is not enough.",
+            "step_idx": 5
+          },
+          {
+            "id": "p18",
+            "text": "So we refine the comparison by shifting the index in the second sum.",
+            "step_idx": 6
+          },
+          {
+            "id": "p19",
+            "text": "Write \\[ f(x,y)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n} f(x-k,y-n+k), \\]",
+            "step_idx": 6
+          },
+          {
+            "id": "p20",
+            "text": "Write \\[ f(x-1,y+1)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n} f(x-1-k,y+1-n+k). \\]",
+            "step_idx": 6
+          },
+          {
+            "id": "p21",
+            "text": "These two families of points almost match term-by-term.",
+            "step_idx": 7
+          },
+          {
+            "id": "p22",
+            "text": "After reindexing, all interior coefficients cancel except for differences of adjacent binomial coefficients.",
+            "step_idx": 7
+          },
+          {
+            "id": "p23",
+            "text": "Therefore \\[ 2^n D(x,y) \\] is a linear combination of values of \\(f\\) with coefficients bounded in absolute value by the maximum binomial coefficient \\[ \\binom{n}{\\lfloor n/2\\rfloor}. \\]",
+            "step_idx": 7
+          },
+          {
+            "id": "p24",
+            "text": "Since all values of \\(f\\) lie in \\([0,1]\\), this yields \\[ |2^n D(x,y)|\\le \\binom{n}{\\lfloor n/2\\rfloor}. \\]",
+            "step_idx": 8
+          },
+          {
+            "id": "p25",
+            "text": "Hence \\[ |D(x,y)|\\le \\frac{\\binom{n}{\\lfloor n/2\\rfloor}}{2^n}. \\]",
+            "step_idx": 8
+          },
+          {
+            "id": "p26",
+            "text": "As \\(n\\to\\infty\\), \\[ \\frac{\\binom{n}{\\lfloor n/2\\rfloor}}{2^n}\\to 0. \\]",
+            "step_idx": 9
+          },
+          {
+            "id": "p27",
+            "text": "Therefore \\[ D(x,y)=0, \\]",
+            "step_idx": 9
+          },
+          {
+            "id": "p28",
+            "text": "That is, \\[ f(x,y)=f(x-1,y+1) \\qquad\\text{for all }x,y. \\]",
+            "step_idx": 9
+          },
+          {
+            "id": "p29",
+            "text": "So \\(f\\) is constant along each diagonal \\(x+y=\\text{constant}\\).",
+            "step_idx": 10
+          },
+          {
+            "id": "p30",
+            "text": "Now return to the original recurrence.",
+            "step_idx": 11
+          },
+          {
+            "id": "p31",
+            "text": "Since \\[ f(x-1,y)=f(x,y-1) \\]",
+            "step_idx": 11
+          },
+          {
+            "id": "p32",
+            "text": "The two points \\((x-1,y)\\) and \\((x,y-1)\\) lie on the same diagonal.",
+            "step_idx": 11
+          },
+          {
+            "id": "p33",
+            "text": "The relation becomes \\[ f(x,y)=\\frac{f(x-1,y)+f(x-1,y)}2=f(x-1,y). \\]",
+            "step_idx": 11
+          },
+          {
+            "id": "p34",
+            "text": "Thus \\(f(x,y)=f(x-1,y)\\) for all \\(x,y\\).",
+            "step_idx": 11
+          },
+          {
+            "id": "p35",
+            "text": "So \\(f\\) is constant along horizontal lines.",
+            "step_idx": 11
+          },
+          {
+            "id": "p36",
+            "text": "Similarly it is constant along vertical lines.",
+            "step_idx": 11
+          },
+          {
+            "id": "p37",
+            "text": "Combining these, \\(f\\) is constant on all of \\(\\mathbb Z^2\\).",
+            "step_idx": 11
+          },
+          {
+            "id": "p38",
+            "text": "For verification, any constant function \\(f(x,y)\\equiv C\\) with \\(C\\in[0,1]\\) satisfies \\[ \\frac{f(x-1,y)+f(x,y-1)}2=\\frac{C+C}2=C=f(x,y). \\]",
+            "step_idx": 12
+          },
+          {
+            "id": "p39",
+            "text": "So the obtained form is valid.",
+            "step_idx": 13
+          }
+        ],
+        "claims": [
+          {
+            "step_id": "s1",
+            "claims": [
+              "Alternative Solution 2:",
+              "Let \\(f\\colon \\mathbb Z^2\\to [0,1]\\) satisfy \\[ f(x,y)=\\frac{f(x-1,y)+f(x,y-1)}2 \\qquad\\text{for all }x,y\\in\\mathbb Z. \\]",
+              "We use a probabilistic interpretation of the recurrence."
+            ]
+          },
+          {
+            "step_id": "s2",
+            "claims": [
+              "Starting from \\((x,y)\\), define a random walk that at each step moves either to \\((u-1,v)\\) or to \\((u,v-1)\\), each with probability \\(1/2\\).",
+              "After \\(n\\) steps, the walk is at one of the points \\[ (x-k,\\; y-(n-k)) \\qquad (k=0,1,\\dots,n), \\]",
+              "After \\(n\\) steps, the walk is at \\((x-k,\\; y-(n-k))\\) with probability \\[ \\frac{\\binom nk}{2^n}. \\]"
+            ]
+          },
+          {
+            "step_id": "s3",
+            "claims": [
+              "By iterating the given relation, we obtain \\[ f(x,y)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n}\\, f(x-k,\\, y-(n-k)). \\]",
+              "So \\(f(x,y)\\) is the expected value of \\(f\\) at the random endpoint after \\(n\\) downward-left steps."
+            ]
+          },
+          {
+            "step_id": "s4",
+            "claims": [
+              "Now fix two neighboring points on the same diagonal: \\[ A=(x,y),\\qquad B=(x-1,y+1). \\]",
+              "After \\(n\\) steps, the random walk from \\(A\\) reaches \\[ (x-k,\\; y-(n-k)), \\]",
+              "After \\(n\\) steps, the walk from \\(B\\) reaches \\[ (x-1-k,\\; y+1-(n-k)). \\]",
+              "These two endpoints differ by exactly \\((-1,+1)\\).",
+              "These two endpoints lie next to each other on the same diagonal."
+            ]
+          },
+          {
+            "step_id": "s5",
+            "claims": [
+              "Let \\[ D(x,y)=f(x,y)-f(x-1,y+1). \\]",
+              "Then \\[ D(x,y) = \\sum_{k=0}^n \\frac{\\binom nk}{2^n} \\Bigl( f(x-k,\\,y-(n-k)) - f(x-1-k,\\,y+1-(n-k)) \\Bigr). \\]"
+            ]
+          },
+          {
+            "step_id": "s6",
+            "claims": [
+              "Taking absolute values and using \\(0\\le f\\le 1\\), we get \\[ |D(x,y)| \\le \\sum_{k=0}^n \\frac{\\binom nk}{2^n}\\cdot 1 =1, \\]",
+              "This alone is not enough."
+            ]
+          },
+          {
+            "step_id": "s7",
+            "claims": [
+              "So we refine the comparison by shifting the index in the second sum.",
+              "Write \\[ f(x,y)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n} f(x-k,y-n+k), \\]",
+              "Write \\[ f(x-1,y+1)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n} f(x-1-k,y+1-n+k). \\]"
+            ]
+          },
+          {
+            "step_id": "s8",
+            "claims": [
+              "These two families of points almost match term-by-term.",
+              "After reindexing, all interior coefficients cancel except for differences of adjacent binomial coefficients.",
+              "Therefore \\[ 2^n D(x,y) \\] is a linear combination of values of \\(f\\) with coefficients bounded in absolute value by the maximum binomial coefficient \\[ \\binom{n}{\\lfloor n/2\\rfloor}. \\]"
+            ]
+          },
+          {
+            "step_id": "s9",
+            "claims": [
+              "Since all values of \\(f\\) lie in \\([0,1]\\), this yields \\[ |2^n D(x,y)|\\le \\binom{n}{\\lfloor n/2\\rfloor}. \\]",
+              "Hence \\[ |D(x,y)|\\le \\frac{\\binom{n}{\\lfloor n/2\\rfloor}}{2^n}. \\]"
+            ]
+          },
+          {
+            "step_id": "s10",
+            "claims": [
+              "As \\(n\\to\\infty\\), \\[ \\frac{\\binom{n}{\\lfloor n/2\\rfloor}}{2^n}\\to 0. \\]",
+              "Therefore \\[ D(x,y)=0, \\]",
+              "That is, \\[ f(x,y)=f(x-1,y+1) \\qquad\\text{for all }x,y. \\]"
+            ]
+          },
+          {
+            "step_id": "s11",
+            "claims": [
+              "So \\(f\\) is constant along each diagonal \\(x+y=\\text{constant}\\)."
+            ]
+          },
+          {
+            "step_id": "s12",
+            "claims": [
+              "Now return to the original recurrence.",
+              "Since \\[ f(x-1,y)=f(x,y-1) \\]",
+              "The two points \\((x-1,y)\\) and \\((x,y-1)\\) lie on the same diagonal.",
+              "The relation becomes \\[ f(x,y)=\\frac{f(x-1,y)+f(x-1,y)}2=f(x-1,y). \\]",
+              "Thus \\(f(x,y)=f(x-1,y)\\) for all \\(x,y\\).",
+              "So \\(f\\) is constant along horizontal lines.",
+              "Similarly it is constant along vertical lines.",
+              "Combining these, \\(f\\) is constant on all of \\(\\mathbb Z^2\\)."
+            ]
+          },
+          {
+            "step_id": "s13",
+            "claims": [
+              "For verification, any constant function \\(f(x,y)\\equiv C\\) with \\(C\\in[0,1]\\) satisfies \\[ \\frac{f(x-1,y)+f(x,y-1)}2=\\frac{C+C}2=C=f(x,y). \\]",
+              "So the obtained form is valid."
+            ]
+          },
+          {
+            "step_id": "s14",
+            "claims": [
+              "Final Answer: \\[ \\boxed{f(x, y) = C \\text{ for some constant } C \\in [0, 1]} \\]"
+            ]
+          }
+        ],
+        "claim_checks": {
+          "s1c1": "delete",
+          "s1c2": "correct",
+          "s1c3": "correct",
+          "s2c1": "correct",
+          "s2c2": "correct",
+          "s2c3": "correct",
+          "s3c1": "correct",
+          "s3c2": "correct",
+          "s4c1": "correct",
+          "s4c2": "correct",
+          "s4c3": "correct",
+          "s4c4": "correct",
+          "s4c5": "correct",
+          "s5c1": "correct",
+          "s5c2": "correct",
+          "s6c1": "delete",
+          "s6c2": "delete",
+          "s7c1": "delete",
+          "s7c2": "correct",
+          "s7c3": "correct",
+          "s8c1": "correct",
+          "s8c2": "correct",
+          "s8c3": "correct",
+          "s9c1": "correct",
+          "s9c2": "correct",
+          "s10c1": "correct",
+          "s10c2": "correct",
+          "s10c3": "correct",
+          "s11c1": "correct",
+          "s12c1": "correct",
+          "s12c2": "correct",
+          "s12c3": "correct",
+          "s12c4": "correct",
+          "s12c6": "correct",
+          "s12c5": "correct",
+          "s12c7": "correct",
+          "s12c8": "correct",
+          "s13c1": "correct",
+          "s13c2": "correct",
+          "s14c1": "correct"
+        },
+        "dependencies": {},
+        "step_dependencies": {
+          "s2": [
+            "s1c1",
+            "s1c2"
+          ],
+          "s3": [
+            "s1c1",
+            "s2c2",
+            "s2c3",
+            "s2c1"
+          ],
+          "s4": [
+            "s2c2",
+            "s3c1"
+          ],
+          "s5": [
+            "s4c2",
+            "s4c3",
+            "s4c1",
+            "s3c1"
+          ],
+          "s6": [
+            "s5c2",
+            "s5c1"
+          ],
+          "s7": [
+            "s3c1",
+            "s4c1",
+            "s4c2",
+            "s4c3"
+          ],
+          "s8": [
+            "s7c1",
+            "s7c2",
+            "s5c2"
+          ],
+          "s9": [
+            "s8c3",
+            "s1c1"
+          ],
+          "s10": [
+            "s9c2",
+            "s5c1"
+          ],
+          "s11": [
+            "s10c3"
+          ],
+          "s12": [
+            "s1c1",
+            "s11c1"
+          ],
+          "s13": [
+            "s1c1",
+            "s12c8"
+          ],
+          "s14": [
+            "s12c8"
+          ]
+        },
+        "workflow_state": "completed"
+      }
+    }
+  },
+  "sample_decisions": [
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    },
+    {
+      "is_correct": true,
+      "class_name": "1",
+      "is_new_class": true,
+      "summary": "",
+      "pipeline_status": "completed"
+    },
+    {
+      "is_correct": false,
+      "class_name": "",
+      "is_new_class": false,
+      "summary": "",
+      "pipeline_status": "discarded"
+    }
+  ],
+  "correct_solutions": [
+    {
+      "sample_idx": 4,
+      "solution": "Alternative Solution 2:\n\nLet \\(f\\colon \\mathbb Z^2\\to [0,1]\\) satisfy\n\\[\nf(x,y)=\\frac{f(x-1,y)+f(x,y-1)}2\n\\qquad\\text{for all }x,y\\in\\mathbb Z.\n\\]\n\nWe use a probabilistic interpretation of the recurrence.\n\nStarting from \\((x,y)\\), define a random walk that at each step moves either to \\((u-1,v)\\) or to \\((u,v-1)\\), each with probability \\(1/2\\). After \\(n\\) steps, the walk is at one of the points\n\\[\n(x-k,\\; y-(n-k))\n\\qquad (k=0,1,\\dots,n),\n\\]\nwith probability\n\\[\n\\frac{\\binom nk}{2^n}.\n\\]\nBy iterating the given relation, we obtain\n\\[\nf(x,y)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n}\\, f(x-k,\\, y-(n-k)).\n\\]\nSo \\(f(x,y)\\) is the expected value of \\(f\\) at the random endpoint after \\(n\\) downward-left steps.\n\nNow fix two neighboring points on the same diagonal:\n\\[\nA=(x,y),\\qquad B=(x-1,y+1).\n\\]\nAfter \\(n\\) steps, the random walk from \\(A\\) reaches\n\\[\n(x-k,\\; y-(n-k)),\n\\]\nwhile the walk from \\(B\\) reaches\n\\[\n(x-1-k,\\; y+1-(n-k)).\n\\]\nThese two endpoints differ by exactly \\((-1,+1)\\), so they lie next to each other on the same diagonal.\n\nLet\n\\[\nD(x,y)=f(x,y)-f(x-1,y+1).\n\\]\nThen\n\\[\nD(x,y)\n=\n\\sum_{k=0}^n \\frac{\\binom nk}{2^n}\n\\Bigl(\nf(x-k,\\,y-(n-k))\n-\nf(x-1-k,\\,y+1-(n-k))\n\\Bigr).\n\\]\nTaking absolute values and using \\(0\\le f\\le 1\\), we get\n\\[\n|D(x,y)|\n\\le\n\\sum_{k=0}^n \\frac{\\binom nk}{2^n}\\cdot 1\n=1,\n\\]\nwhich alone is not enough. So we refine the comparison by shifting the index in the second sum.\n\nWrite\n\\[\nf(x,y)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n} f(x-k,y-n+k),\n\\]\nand\n\\[\nf(x-1,y+1)=\\sum_{k=0}^n \\frac{\\binom nk}{2^n} f(x-1-k,y+1-n+k).\n\\]\nThese two families of points almost match term-by-term; after reindexing, all interior coefficients cancel except for differences of adjacent binomial coefficients. Therefore\n\\[\n2^n D(x,y)\n\\]\nis a linear combination of values of \\(f\\) with coefficients bounded in absolute value by the maximum binomial coefficient\n\\[\n\\binom{n}{\\lfloor n/2\\rfloor}.\n\\]\nSince all values of \\(f\\) lie in \\([0,1]\\), this yields\n\\[\n|2^n D(x,y)|\\le \\binom{n}{\\lfloor n/2\\rfloor}.\n\\]\nHence\n\\[\n|D(x,y)|\\le \\frac{\\binom{n}{\\lfloor n/2\\rfloor}}{2^n}.\n\\]\nAs \\(n\\to\\infty\\),\n\\[\n\\frac{\\binom{n}{\\lfloor n/2\\rfloor}}{2^n}\\to 0.\n\\]\nTherefore\n\\[\nD(x,y)=0,\n\\]\nthat is,\n\\[\nf(x,y)=f(x-1,y+1)\n\\qquad\\text{for all }x,y.\n\\]\n\nSo \\(f\\) is constant along each diagonal \\(x+y=\\text{constant}\\).\n\nNow return to the original recurrence. Since\n\\[\nf(x-1,y)=f(x,y-1)\n\\]\n(the two points lie on the same diagonal), the relation becomes\n\\[\nf(x,y)=\\frac{f(x-1,y)+f(x-1,y)}2=f(x-1,y).\n\\]\nThus \\(f(x,y)=f(x-1,y)\\) for all \\(x,y\\), so \\(f\\) is constant along horizontal lines. Similarly it is constant along vertical lines. Combining these, \\(f\\) is constant on all of \\(\\mathbb Z^2\\).\n\nFor verification, any constant function \\(f(x,y)\\equiv C\\) with \\(C\\in[0,1]\\) satisfies\n\\[\n\\frac{f(x-1,y)+f(x,y-1)}2=\\frac{C+C}2=C=f(x,y).\n\\]\nSo the obtained form is valid.\n\nFinal Answer:\n\\[\n\\boxed{f(x, y) = C \\text{ for some constant } C \\in [0, 1]}\n\\]",
+      "completed_at": "2026-04-06T07:32:32.781Z"
+    }
+  ],
+  "updated_at_utc": "2026-04-06T07:32:39.047502+00:00",
+  "created_at_utc": "2026-04-06T05:43:30.170923+00:00",
+  "content_hash": "e1cb3cb94b65bae808d572f55f39848ef789044516a19e6531594fad2926de3a"
+}
